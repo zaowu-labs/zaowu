@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "esModuleInterop": true,
+    "strict": true,
+    "strictNullChecks": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "paths": {
+      "@zaowu/cli": ["packages/cli/src/index.ts"],
+      "@zaowu/cli/*": ["packages/cli/src/*"],
+      "@zaowu/core": ["packages/core/src/index.ts"],
+      "@zaowu/core/*": ["packages/core/src/*"],
+      "@zaowu/config": ["packages/config/src/index.ts"],
+      "@zaowu/config/*": ["packages/config/src/*"],
+      "@zaowu/ai": ["packages/ai/src/index.ts"],
+      "@zaowu/ai/*": ["packages/ai/src/*"]
+    }
+  },
+  "include": ["packages/*/src"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts"]
+}
