@@ -1,9 +1,6 @@
-/**
- * AI integration for ZaoWu
- * Placeholder for AI provider support
- */
+export interface AIProviderDescriptor {
+  id: string;
+  name: string;
+}
 
-export const getAIProvider = () => {
-  // Placeholder: would load provider based on config
-  return null;
-};
+export const listAIProviders = (): readonly AIProviderDescriptor[] => [];

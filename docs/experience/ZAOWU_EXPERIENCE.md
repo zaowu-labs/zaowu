@@ -16,7 +16,8 @@ zw
 
 **ZaoWu / 造物** is an open-source AI-powered toolkit for development, automation, documents, data, teaching, and workflows.
 
-ZaoWu helps users review code, generate commits, process documents, analyze data, automate workflows, learn programming, and extend the system through plugins.
+ZaoWu helps users review code, generate commits, process documents, analyze data,
+automate workflows, learn programming, and extend the system through plugins.
 
 ---
 
@@ -26,11 +27,11 @@ ZaoWu should help users turn repeated work into reliable workflows.
 
 It should be:
 
-* useful before it is fancy
-* safe before it is powerful
-* consistent before it is large
-* transparent before it is automatic
-* extensible before it is complicated
+- useful before it is fancy
+- safe before it is powerful
+- consistent before it is large
+- transparent before it is automatic
+- extensible before it is complicated
 
 ---
 
@@ -40,38 +41,38 @@ It should be:
 
 They use ZaoWu to:
 
-* review code
-* generate commit messages
-* understand codebases
-* create docs
-* generate tests
-* automate development workflows
+- review code
+- generate commit messages
+- understand codebases
+- create docs
+- generate tests
+- automate development workflows
 
 ### Technical creators
 
 They use ZaoWu to:
 
-* process files
-* summarize documents
-* analyze structured data
-* automate repetitive tasks
+- process files
+- summarize documents
+- analyze structured data
+- automate repetitive tasks
 
 ### Small teams
 
 They use ZaoWu to:
 
-* standardize AI workflows
-* share prompts
-* enforce safe automation
-* reduce manual operational work
+- standardize AI workflows
+- share prompts
+- enforce safe automation
+- reduce manual operational work
 
 ### Learners
 
 They use ZaoWu to:
 
-* learn programming through projects
-* understand errors
-* receive guided coding feedback
+- learn programming through projects
+- understand errors
+- receive guided coding feedback
 
 ---
 
@@ -106,7 +107,7 @@ run-auto
 
 ### 2. Predictable command structure
 
-Commands should follow:
+Feature commands should follow:
 
 ```bash
 zw <domain> <action> [target] [options]
@@ -122,6 +123,15 @@ zw data analyze sales.xlsx
 zw auto run daily.yml
 ```
 
+Product-level setup and diagnostics may use root lifecycle commands:
+
+```bash
+zw init
+zw doctor
+zw --help
+zw --version
+```
+
 Users should be able to guess future commands after learning a few.
 
 ---
@@ -134,9 +144,9 @@ Default behavior should avoid surprising changes.
 
 Dangerous operations must support at least one of:
 
-* preview
-* confirmation
-* `--dry-run`
+- preview
+- confirmation
+- `--dry-run`
 
 Destructive operations should require confirmation by default.
 
@@ -221,10 +231,10 @@ Errors should never expose raw stack traces unless the user requests debug outpu
 
 When a command uses AI, users should understand:
 
-* what files or diffs are being used as input
-* which task the AI is performing
-* whether ZaoWu will only suggest changes or actually modify files
-* whether the output can be reviewed before applying
+- what files or diffs are being used as input
+- which task the AI is performing
+- whether ZaoWu will only suggest changes or actually modify files
+- whether the output can be reviewed before applying
 
 Example:
 
@@ -274,12 +284,12 @@ zw data analyze sales.xlsx --json
 
 All should follow similar patterns for:
 
-* help text
-* options
-* errors
-* progress
-* JSON output
-* dry-run behavior
+- help text
+- options
+- errors
+- progress
+- JSON output
+- dry-run behavior
 
 ---
 
@@ -287,13 +297,13 @@ All should follow similar patterns for:
 
 ZaoWu must not silently:
 
-* overwrite files
-* delete files
-* commit changes
-* push to remote repositories
-* install dependencies
-* submit forms
-* run unknown shell commands
+- overwrite files
+- delete files
+- commit changes
+- push to remote repositories
+- install dependencies
+- submit forms
+- run unknown shell commands
 
 Users must stay in control.
 
@@ -337,13 +347,13 @@ Early ZaoWu should not try to be everything.
 
 Avoid building these too early:
 
-* full desktop application
-* cloud account system
-* plugin marketplace
-* autonomous long-running agents
-* browser automation
-* team permission system
-* paid enterprise features
+- full desktop application
+- cloud account system
+- plugin marketplace
+- autonomous long-running agents
+- browser automation
+- team permission system
+- paid enterprise features
 
 The early product should prove that `zw` is useful, safe, and consistent.
 
@@ -353,21 +363,21 @@ The early product should prove that `zw` is useful, safe, and consistent.
 
 A feature is not ready if:
 
-* the command name feels inconsistent
-* the help text is unclear
-* the output is hard to read
-* errors do not explain how to recover
-* dangerous actions do not support confirmation or preview
-* documentation is missing
-* tests do not cover important error paths
-* the feature adds complexity without a clear Golden Path
+- the command name feels inconsistent
+- the help text is unclear
+- the output is hard to read
+- errors do not explain how to recover
+- dangerous actions do not support confirmation or preview
+- documentation is missing
+- tests do not cover important error paths
+- the feature adds complexity without a clear Golden Path
 
 A feature is ready when:
 
-* the command is predictable
-* the simplest use case works
-* the user can understand the output
-* failures are recoverable
-* behavior is documented
-* tests pass
-* the feature feels like part of ZaoWu, not an isolated script
+- the command is predictable
+- the simplest use case works
+- the user can understand the output
+- failures are recoverable
+- behavior is documented
+- tests pass
+- the feature feels like part of ZaoWu, not an isolated script

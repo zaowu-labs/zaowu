@@ -1,11 +1,14 @@
 {
-  "name": "@zaowu/core",
+  "name": "@zaowu/cli",
   "version": "0.0.1",
-  "description": "ZaoWu core types and error handling",
+  "description": "ZaoWu command-line interface",
   "type": "module",
   "license": "Apache-2.0",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "zw": "./dist/index.js"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -17,9 +20,13 @@
     "typecheck": "tsc -b --pretty false",
     "dev": "tsc -b --watch"
   },
+  "dependencies": {
+    "@zaowu/config": "workspace:*",
+    "@zaowu/core": "workspace:*"
+  },
   "keywords": [
     "zaowu",
-    "core",
-    "types"
+    "cli",
+    "zw"
   ]
 }

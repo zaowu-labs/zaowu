@@ -14,7 +14,7 @@ All ZaoWu commands should feel consistent, predictable, and safe.
 
 ## Command Grammar
 
-All user-facing commands should follow this structure:
+Feature commands should follow this structure:
 
 ```bash
 zw <domain> <action> [target] [options]
@@ -33,6 +33,17 @@ zw plugin install readme-gen
 ```
 
 Users should be able to guess future commands after learning a few examples.
+
+Root lifecycle commands are limited to setup, diagnostics, and global metadata:
+
+```bash
+zw init
+zw doctor
+zw --help
+zw --version
+```
+
+Do not add root commands for feature modules. Use a domain and action instead.
 
 ---
 
@@ -184,10 +195,10 @@ node ok git ok pnpm missing config missing
 
 When `--json` is used:
 
-* output must be valid JSON
-* do not print extra human-readable text
-* include stable keys where possible
-* include status fields for automation
+- output must be valid JSON
+- do not print extra human-readable text
+- include stable keys where possible
+- include status fields for automation
 
 Example:
 
@@ -413,7 +424,7 @@ Once a public command is documented, changing it is a breaking change.
 
 Before changing command behavior:
 
-* update the product spec
-* update docs
-* update tests
-* consider a deprecation path
+- update the product spec
+- update docs
+- update tests
+- consider a deprecation path

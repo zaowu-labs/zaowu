@@ -1,20 +1,26 @@
-/**
- * ZaoWuError is the standard error type for ZaoWu
- * All expected errors should use this type
- */
+export interface ZaoWuErrorOptions {
+  code: string;
+  message: string;
+  why?: string;
+  fix?: string;
+  exitCode?: number;
+}
+
+export interface ZaoWuErrorJSON {
+  code: string;
+  message: string;
+  why: string | null;
+  fix: string | null;
+  exitCode: number;
+}
+
 export class ZaoWuError extends Error {
   public readonly code: string;
   public readonly why?: string;
   public readonly fix?: string;
   public readonly exitCode: number;
 
-  constructor(options: {
-    code: string;
-    message: string;
-    why?: string;
-    fix?: string;
-    exitCode?: number;
-  }) {
+  constructor(options: ZaoWuErrorOptions) {
     super(options.message);
     this.name = 'ZaoWuError';
     this.code = options.code;
@@ -23,37 +29,35 @@ export class ZaoWuError extends Error {
     this.exitCode = options.exitCode ?? 1;
   }
 
-  /**
-   * Format error for human-readable output
-   */
   formatHuman(): string {
-    let output = `❌ ${this.message}`;
+    const sections = [`Error: ${this.message}`];
 
     if (this.why) {
-      output += `\n\nWhy: ${this.why}`;
+      sections.push(`Why:\n${this.why}`);
     }
 
     if (this.fix) {
-      output += `\n\nHow to fix: ${this.fix}`;
+      sections.push(`How to fix:\n${this.fix}`);
     }
 
-    if (this.code) {
-      output += `\n\nError code: ${this.code}`;
-    }
-
-    return output;
+    return sections.join('\n\n');
   }
 
-  /**
-   * Format error for JSON output
-   */
-  formatJSON(): string {
-    return JSON.stringify({
+  toJSON(): ZaoWuErrorJSON {
+    return {
       code: this.code,
       message: this.message,
-      why: this.why,
-      fix: this.fix,
+      why: this.why ?? null,
+      fix: this.fix ?? null,
       exitCode: this.exitCode,
+    };
+  }
+
+  formatJSON(): string {
+    return JSON.stringify({
+      error: this.toJSON(),
     });
   }
 }
+
+export const isZaoWuError = (error: unknown): error is ZaoWuError => error instanceof ZaoWuError;
