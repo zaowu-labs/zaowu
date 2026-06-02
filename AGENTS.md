@@ -182,6 +182,26 @@ When `--json` is used:
 * include stable keys where possible
 * include status fields for automation
 
+Example:
+
+```json
+{
+  "status": "warning",
+  "checks": [
+    {
+      "name": "node",
+      "status": "ok",
+      "version": "v20.11.0"
+    },
+    {
+      "name": "pnpm",
+      "status": "missing",
+      "fix": "Run `corepack enable`."
+    }
+  ]
+}
+```
+
 ---
 
 ## Error Message Rules
@@ -253,6 +273,14 @@ Before implementing a new module or major command, create or update a product ex
 docs/experience/
 ```
 
+Use:
+
+```text
+docs/experience/PRODUCT_SPEC_TEMPLATE.md
+```
+
+Implementation should follow the spec.
+
 ---
 
 ## Testing Rules
@@ -279,6 +307,25 @@ Before finishing, provide:
 3. Tests run
 4. Manual verification commands
 5. Known risks or follow-up work
+
+Example:
+
+```text
+Changed:
+- Added `zw doctor`
+- Added environment checks for Node.js, Git, and pnpm
+
+Tests:
+- pnpm test
+- pnpm build
+
+Manual check:
+- pnpm dev -- doctor
+- pnpm dev -- doctor --json
+
+Risks:
+- Config check is currently basic and should be expanded later.
+```
 
 ---
 
