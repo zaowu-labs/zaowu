@@ -128,6 +128,14 @@ packages/ai      Empty registry for the future AI provider abstraction
 docs/experience  Product and command experience specs
 ```
 
+Long-term structure and workflow docs:
+
+```text
+docs/ARCHITECTURE.md  Package boundaries, dependency direction, and command rules
+docs/ROADMAP.md       Preferred phase order for growing ZaoWu
+docs/CONTRIBUTING.md  Development workflow, safety rules, and validation
+```
+
 ## Experience Rules
 
 Feature commands should follow:
