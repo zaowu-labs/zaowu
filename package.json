@@ -2,7 +2,7 @@
   "name": "zaowu",
   "version": "0.0.1",
   "private": true,
-  "packageManager": "pnpm@11.5.1",
+  "packageManager": "pnpm@10.34.1",
   "description": "Open-source AI toolkit for development, automation, documents, data, teaching, plugins, and workflows.",
   "type": "module",
   "license": "Apache-2.0",
@@ -46,6 +46,6 @@
   },
   "engines": {
     "node": ">=20.11.0",
-    "pnpm": ">=11.5.1"
+    "pnpm": ">=10.34.1 <11"
   }
 }
