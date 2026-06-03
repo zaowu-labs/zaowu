@@ -35,6 +35,9 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
 
+      - name: Setup Corepack
+        run: npm install --global corepack@0.34.6
+
       - name: Install dependencies
         run: corepack pnpm install --frozen-lockfile
 

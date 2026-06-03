@@ -109,6 +109,7 @@ Do not run dependency installation, commits, pushes, or destructive actions unle
 Pull requests run the foundation checks on Ubuntu and Windows with Node.js 20.11.0 and 24.x:
 
 ```bash
+npm install --global corepack@0.34.6
 corepack pnpm install --frozen-lockfile
 corepack pnpm build
 corepack pnpm test
