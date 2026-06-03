@@ -16,23 +16,31 @@ This repository should grow into one unified product, not a collection of unrela
 
 ## Product Identity
 
-* Product name: **ZaoWu / 造物**
-* CLI command: `zw`
-* Core idea: one unified AI-powered toolkit for developers, automation, documents, data, teaching, and plugins.
-* First target users:
-
-  * developers
-  * technical creators
-  * automation-heavy users
-  * small teams
+- Product name: **ZaoWu / 造物**
+- CLI command: `zw`
+- Core idea: one unified AI-powered toolkit for developers, automation, documents, data, teaching, and plugins.
+- First target users:
+  - developers
+  - technical creators
+  - automation-heavy users
+  - small teams
 
 ZaoWu should feel like one coherent product, even when it contains many modules.
 
 ---
 
+## Repository Ownership
+
+- Canonical repository: `https://github.com/zaowu-labs/zaowu`
+- Default branch: `main`
+- Before pushing, verify `origin` points to `zaowu-labs/zaowu`.
+- Do not push to a personal repository or fork unless the user explicitly asks for that target.
+
+---
+
 ## Command Design Rules
 
-All user-facing commands must follow this shape:
+Feature commands must follow this shape:
 
 ```bash
 zw <domain> <action> [target] [options]
@@ -50,6 +58,15 @@ zw doc summary report.pdf
 zw data analyze sales.xlsx
 zw auto run workflow.yml
 zw plugin install readme-gen
+```
+
+Root lifecycle commands are allowed only for product-level setup and diagnostics:
+
+```bash
+zw init
+zw doctor
+zw --help
+zw --version
 ```
 
 Preferred top-level domains:
@@ -85,40 +102,31 @@ Do not rename public commands unless the related docs, tests, and experience spe
 Every feature should follow these principles:
 
 1. **One entry point**
-
-   * Everything starts with `zw`.
+   - Everything starts with `zw`.
 
 2. **Predictable commands**
-
-   * Commands should follow the same grammar across modules.
+   - Commands should follow the same grammar across modules.
 
 3. **Safe by default**
-
-   * Dangerous actions must support preview, confirmation, or `--dry-run`.
+   - Dangerous actions must support preview, confirmation, or `--dry-run`.
 
 4. **Human-readable first**
-
-   * Default output should be easy for humans to read.
+   - Default output should be easy for humans to read.
 
 5. **Machine-readable when requested**
-
-   * Use `--json` for structured output.
+   - Use `--json` for structured output.
 
 6. **Actionable errors**
-
-   * Error messages must explain:
-
-     * what failed
-     * why it failed
-     * how to fix it
+   - Error messages must explain:
+     - what failed
+     - why it failed
+     - how to fix it
 
 7. **Transparent AI behavior**
-
-   * When AI is used, the command should make it clear what input is being used and what output is being produced.
+   - When AI is used, the command should make it clear what input is being used and what output is being produced.
 
 8. **No magic without control**
-
-   * Users should understand what ZaoWu is about to read, write, execute, or modify.
+   - Users should understand what ZaoWu is about to read, write, execute, or modify.
 
 ---
 
@@ -126,27 +134,32 @@ Every feature should follow these principles:
 
 Any action that does one or more of the following must be treated as sensitive:
 
-* writes files
-* deletes files
-* modifies Git state or Git history
-* runs shell commands
-* accesses secrets
-* sends network requests
-* submits forms
-* installs dependencies
-* changes system-level configuration
+- writes files
+- deletes files
+- modifies Git state or Git history
+- runs shell commands
+- accesses secrets
+- sends network requests
+- submits forms
+- installs dependencies
+- changes system-level configuration
 
 Sensitive actions must support at least one of:
 
-* preview
-* confirmation
-* `--dry-run`
+- preview
+- confirmation
+- `--dry-run`
 
 For destructive actions, confirmation should be required by default.
 
 Do not silently overwrite user files.
 
-Do not automatically run `git commit`, `git push`, dependency installation, or destructive shell commands unless the user explicitly requested it.
+Do not automatically run these actions unless the user explicitly requested them:
+
+- `git commit`
+- `git push`
+- dependency installation
+- destructive shell commands
 
 ---
 
@@ -162,7 +175,7 @@ ZaoWu Doctor
 Status: Warning
 
 Checks:
-- Node.js: ok v20.11.0
+- Node.js: ok v20.19.0
 - Git: ok 2.44.0
 - pnpm: missing
 - Config: missing
@@ -177,10 +190,10 @@ Next steps:
 
 When `--json` is used:
 
-* output must be valid JSON
-* do not print extra human-readable text
-* include stable keys where possible
-* include status fields for automation
+- output must be valid JSON
+- do not print extra human-readable text
+- include stable keys where possible
+- include status fields for automation
 
 Example:
 
@@ -191,7 +204,7 @@ Example:
     {
       "name": "node",
       "status": "ok",
-      "version": "v20.11.0"
+      "version": "v20.19.0"
     },
     {
       "name": "pnpm",
@@ -237,13 +250,13 @@ Raw stack traces should not be shown by default. Use debug or verbose output for
 
 Use these defaults unless there is a strong reason not to:
 
-* TypeScript
-* Node.js 20+
-* pnpm workspace
-* modular packages
-* small dependencies
-* tests for new behavior
-* readable code over clever code
+- TypeScript
+- Node.js 20.19+
+- pnpm workspace with pnpm `>=10.34.1 <11`
+- modular packages
+- small dependencies
+- tests for new behavior
+- readable code over clever code
 
 Do not introduce large dependencies without explaining why.
 
@@ -261,11 +274,11 @@ When a command changes, update the relevant docs.
 
 Every important command should have:
 
-* command description
-* basic example
-* common failure case
-* useful options
-* expected output example when appropriate
+- command description
+- basic example
+- common failure case
+- useful options
+- expected output example when appropriate
 
 Before implementing a new module or major command, create or update a product experience spec under:
 
@@ -289,12 +302,12 @@ New behavior should include tests where practical.
 
 At minimum, test:
 
-* happy path
-* missing input
-* invalid input
-* important error paths
-* `--json` output if supported
-* `--dry-run` behavior if supported
+- happy path
+- missing input
+- invalid input
+- important error paths
+- `--json` output if supported
+- `--dry-run` behavior if supported
 
 ---
 
@@ -331,18 +344,32 @@ Risks:
 
 ## Current Project Phase
 
-The project is currently in the early foundation phase.
+The project is currently in the first runnable foundation phase.
 
-Priority order:
+Already established:
 
 1. experience foundation
 2. monorepo setup
 3. minimal `zw` CLI
 4. standard error system
-5. `zw doctor`
-6. config system
-7. AI provider abstraction
-8. `zw dev commit`
-9. `zw dev review`
+5. `zw init`
+6. `zw doctor`
+7. top-level domain packages
+8. safe MVP commands across config, ai, dev, doc, data, auto, plugin, teach, and web
+9. action-level help for runnable commands
+10. config validate/get/set
+11. local AI provider listing and file input
+12. dev status/review/commit previews
+13. doc outline/search and data schema/sample
+14. automation planning and plugin manifest validation
+
+Priority order:
+
+1. keep command experience specs current
+2. add real AI provider adapters behind `packages/ai`
+3. expand document and data format support with focused dependencies
+4. improve `zw dev commit` and `zw dev review`
+5. harden workflow execution rules before shell execution
+6. only then consider plugin distribution
 
 Do not jump ahead to full agents, desktop apps, cloud services, plugin markets, or browser automation until the foundation is stable.

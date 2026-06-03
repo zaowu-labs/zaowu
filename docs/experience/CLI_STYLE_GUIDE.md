@@ -14,7 +14,7 @@ All ZaoWu commands should feel consistent, predictable, and safe.
 
 ## Command Grammar
 
-All user-facing commands should follow this structure:
+Feature commands should follow this structure:
 
 ```bash
 zw <domain> <action> [target] [options]
@@ -33,6 +33,17 @@ zw plugin install readme-gen
 ```
 
 Users should be able to guess future commands after learning a few examples.
+
+Root lifecycle commands are limited to setup, diagnostics, and global metadata:
+
+```bash
+zw init
+zw doctor
+zw --help
+zw --version
+```
+
+Do not add root commands for feature modules. Use a domain and action instead.
 
 ---
 
@@ -53,6 +64,11 @@ Preferred top-level domains:
 | `config` | Configuration management                 |
 
 Avoid creating new top-level domains unless there is a strong reason.
+
+Domain entry points may exist before their actions are implemented. In that
+case, `zw <domain> --help` should list planned actions, and
+`zw <domain> <action>` should return an actionable "not implemented yet" error
+instead of silently doing nothing.
 
 ---
 
@@ -159,7 +175,7 @@ ZaoWu Doctor
 Status: Warning
 
 Checks:
-- Node.js: ok v20.11.0
+- Node.js: ok v20.19.0
 - Git: ok 2.44.0
 - pnpm: missing
 - Config: missing
@@ -184,10 +200,10 @@ node ok git ok pnpm missing config missing
 
 When `--json` is used:
 
-* output must be valid JSON
-* do not print extra human-readable text
-* include stable keys where possible
-* include status fields for automation
+- output must be valid JSON
+- do not print extra human-readable text
+- include stable keys where possible
+- include status fields for automation
 
 Example:
 
@@ -198,7 +214,7 @@ Example:
     {
       "name": "node",
       "status": "ok",
-      "version": "v20.11.0"
+      "version": "v20.19.0"
     },
     {
       "name": "pnpm",
@@ -413,7 +429,7 @@ Once a public command is documented, changing it is a breaking change.
 
 Before changing command behavior:
 
-* update the product spec
-* update docs
-* update tests
-* consider a deprecation path
+- update the product spec
+- update docs
+- update tests
+- consider a deprecation path

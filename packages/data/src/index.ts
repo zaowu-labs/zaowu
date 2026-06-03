@@ -1,0 +1,384 @@
+import { readFile, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { stripUtf8Bom, type DomainDefinition } from '@zaowu/core';
+import { ZaoWuError } from '@zaowu/core';
+
+export interface DataTable {
+  filePath: string;
+  delimiter: ',' | '\t';
+  headers: string[];
+  rows: string[][];
+  emptyLineCount: number;
+  trimmedCellCount: number;
+}
+
+export interface DataInspectResult {
+  status: 'ok';
+  filePath: string;
+  rowCount: number;
+  columnCount: number;
+  columns: string[];
+  missingByColumn: Record<string, number>;
+}
+
+export interface NumericColumnAnalysis {
+  column: string;
+  count: number;
+  min: number;
+  max: number;
+  average: number;
+}
+
+export interface DataAnalyzeResult {
+  status: 'ok';
+  filePath: string;
+  numericColumns: NumericColumnAnalysis[];
+}
+
+export interface DataCleanResult {
+  status: 'ok' | 'preview';
+  inputPath: string;
+  outputPath?: string;
+  content: string;
+  wroteFile: boolean;
+  removedEmptyRows: number;
+  trimmedCells: number;
+  missingByColumn: Record<string, number>;
+}
+
+export interface DataColumnSchema {
+  column: string;
+  index: number;
+  type: 'number' | 'boolean' | 'string' | 'empty' | 'mixed';
+  nullable: boolean;
+  examples: string[];
+}
+
+export interface DataSchemaResult {
+  status: 'ok';
+  filePath: string;
+  columns: DataColumnSchema[];
+}
+
+export interface DataSampleResult {
+  status: 'ok';
+  filePath: string;
+  rowCount: number;
+  rows: Record<string, string>[];
+}
+
+export const DATA_DOMAIN: DomainDefinition = {
+  name: 'data',
+  summary: 'Data workflows for inspection, analysis, and cleanup',
+  commands: [
+    {
+      name: 'inspect',
+      summary: 'Inspect a dataset or spreadsheet',
+      status: 'available',
+    },
+    {
+      name: 'analyze',
+      summary: 'Analyze a dataset or spreadsheet',
+      status: 'available',
+    },
+    {
+      name: 'clean',
+      summary: 'Clean data with preview and explicit output control',
+      status: 'available',
+      sensitive: true,
+    },
+    {
+      name: 'schema',
+      summary: 'Infer a lightweight schema for CSV or TSV data',
+      status: 'available',
+    },
+    {
+      name: 'sample',
+      summary: 'Show sample rows from CSV or TSV data',
+      status: 'available',
+    },
+  ],
+};
+
+const assertSupportedDataFile = (filePath: string): ',' | '\t' => {
+  const extension = path.extname(filePath).toLowerCase();
+
+  if (extension === '.csv') {
+    return ',';
+  }
+
+  if (extension === '.tsv') {
+    return '\t';
+  }
+
+  throw new ZaoWuError({
+    code: 'DATA_FORMAT_UNSUPPORTED',
+    message: 'Data format is not supported yet.',
+    why: `This first version reads CSV and TSV files. It cannot parse \`${extension || 'unknown'}\` files yet.`,
+    fix: 'Export the data as `.csv` or `.tsv`, or add a parser inside `packages/data` before using this format.',
+  });
+};
+
+interface ParsedDelimitedLine {
+  values: string[];
+  trimmedCells: number;
+}
+
+const parseDelimitedLineDetailed = (line: string, delimiter: ',' | '\t'): ParsedDelimitedLine => {
+  const values: string[] = [];
+  let trimmedCells = 0;
+  const pushValue = (value: string): void => {
+    const trimmed = value.trim();
+
+    if (value !== trimmed) {
+      trimmedCells += 1;
+    }
+
+    values.push(trimmed);
+  };
+
+  if (delimiter === '\t') {
+    for (const value of line.split('\t')) {
+      pushValue(value);
+    }
+
+    return {
+      values,
+      trimmedCells,
+    };
+  }
+
+  let current = '';
+  let quoted = false;
+
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    const next = line[index + 1];
+
+    if (char === '"' && quoted && next === '"') {
+      current += '"';
+      index += 1;
+      continue;
+    }
+
+    if (char === '"') {
+      quoted = !quoted;
+      continue;
+    }
+
+    if (char === ',' && !quoted) {
+      pushValue(current);
+      current = '';
+      continue;
+    }
+
+    current += char;
+  }
+
+  pushValue(current);
+
+  return {
+    values,
+    trimmedCells,
+  };
+};
+
+const serializeDelimitedLine = (values: readonly string[], delimiter: ',' | '\t'): string =>
+  values
+    .map((value) => {
+      const trimmed = value.trim();
+
+      if (delimiter === ',' && /[",\n\r]/.test(trimmed)) {
+        return `"${trimmed.replaceAll('"', '""')}"`;
+      }
+
+      return trimmed;
+    })
+    .join(delimiter);
+
+export const loadDataTable = async (filePath: string): Promise<DataTable> => {
+  const delimiter = assertSupportedDataFile(filePath);
+  let content: string;
+
+  try {
+    content = stripUtf8Bom(await readFile(filePath, 'utf8'));
+  } catch {
+    throw new ZaoWuError({
+      code: 'DATA_READ_FAILED',
+      message: 'Could not read data file.',
+      why: `ZaoWu tried to read \`${filePath}\`, but the file was not readable.`,
+      fix: 'Check the path and file permissions, then run the command again.',
+    });
+  }
+
+  const rawLines = content.split(/\r?\n/);
+  const contentLines = rawLines.at(-1) === '' ? rawLines.slice(0, -1) : rawLines;
+  const lines = contentLines.filter((line) => line.trim());
+  const emptyLineCount = contentLines.length - lines.length;
+  const parsedHeaders = lines[0]
+    ? parseDelimitedLineDetailed(lines[0], delimiter)
+    : { values: [], trimmedCells: 0 };
+  const parsedRows = lines.slice(1).map((line) => parseDelimitedLineDetailed(line, delimiter));
+  const trimmedCellCount =
+    parsedHeaders.trimmedCells +
+    parsedRows.reduce((count, parsedLine) => count + parsedLine.trimmedCells, 0);
+
+  return {
+    filePath,
+    delimiter,
+    headers: parsedHeaders.values,
+    rows: parsedRows.map((row) => row.values),
+    emptyLineCount,
+    trimmedCellCount,
+  };
+};
+
+const getMissingByColumn = (table: DataTable): Record<string, number> => {
+  const missingByColumn: Record<string, number> = {};
+
+  for (const [index, header] of table.headers.entries()) {
+    missingByColumn[header] = table.rows.filter((row) => !row[index]?.trim()).length;
+  }
+
+  return missingByColumn;
+};
+
+export const inspectData = async (filePath: string): Promise<DataInspectResult> => {
+  const table = await loadDataTable(filePath);
+
+  return {
+    status: 'ok',
+    filePath,
+    rowCount: table.rows.length,
+    columnCount: table.headers.length,
+    columns: table.headers,
+    missingByColumn: getMissingByColumn(table),
+  };
+};
+
+export const analyzeData = async (filePath: string): Promise<DataAnalyzeResult> => {
+  const table = await loadDataTable(filePath);
+  const numericColumns: NumericColumnAnalysis[] = [];
+
+  for (const [index, header] of table.headers.entries()) {
+    const numbers = table.rows
+      .map((row) => Number.parseFloat(row[index] ?? ''))
+      .filter((value) => Number.isFinite(value));
+
+    if (numbers.length === 0) {
+      continue;
+    }
+
+    const total = numbers.reduce((sum, value) => sum + value, 0);
+
+    numericColumns.push({
+      column: header,
+      count: numbers.length,
+      min: Math.min(...numbers),
+      max: Math.max(...numbers),
+      average: total / numbers.length,
+    });
+  }
+
+  return {
+    status: 'ok',
+    filePath,
+    numericColumns,
+  };
+};
+
+export const cleanData = async (
+  inputPath: string,
+  options: { outputPath?: string; yes?: boolean } = {}
+): Promise<DataCleanResult> => {
+  const table = await loadDataTable(inputPath);
+  const lines = [
+    serializeDelimitedLine(table.headers, table.delimiter),
+    ...table.rows.map((row) => serializeDelimitedLine(row, table.delimiter)),
+  ];
+  const content = `${lines.join('\n')}\n`;
+
+  if (options.outputPath && options.yes) {
+    await writeFile(options.outputPath, content, 'utf8');
+  }
+
+  return {
+    status: options.outputPath && !options.yes ? 'preview' : 'ok',
+    inputPath,
+    outputPath: options.outputPath,
+    content,
+    wroteFile: Boolean(options.outputPath && options.yes),
+    removedEmptyRows: table.emptyLineCount,
+    trimmedCells: table.trimmedCellCount,
+    missingByColumn: getMissingByColumn(table),
+  };
+};
+
+const isBoolean = (value: string): boolean => ['true', 'false'].includes(value.toLowerCase());
+
+const getColumnType = (values: readonly string[]): DataColumnSchema['type'] => {
+  const nonEmpty = values.filter((value) => value.trim());
+
+  if (nonEmpty.length === 0) {
+    return 'empty';
+  }
+
+  if (nonEmpty.every((value) => Number.isFinite(Number(value)))) {
+    return 'number';
+  }
+
+  if (nonEmpty.every(isBoolean)) {
+    return 'boolean';
+  }
+
+  if (
+    nonEmpty.some((value) => Number.isFinite(Number(value)) || isBoolean(value)) &&
+    nonEmpty.some((value) => !Number.isFinite(Number(value)) && !isBoolean(value))
+  ) {
+    return 'mixed';
+  }
+
+  return 'string';
+};
+
+export const inferDataSchema = async (filePath: string): Promise<DataSchemaResult> => {
+  const table = await loadDataTable(filePath);
+
+  return {
+    status: 'ok',
+    filePath,
+    columns: table.headers.map((header, index) => {
+      const values = table.rows.map((row) => row[index] ?? '');
+
+      return {
+        column: header,
+        index,
+        type: getColumnType(values),
+        nullable: values.some((value) => !value.trim()),
+        examples: [...new Set(values.filter(Boolean))].slice(0, 3),
+      };
+    }),
+  };
+};
+
+export const sampleData = async (
+  filePath: string,
+  options: { rows?: number } = {}
+): Promise<DataSampleResult> => {
+  const table = await loadDataTable(filePath);
+  const requestedRows = options.rows ?? 5;
+  const rowCount =
+    Number.isFinite(requestedRows) && requestedRows > 0 ? Math.floor(requestedRows) : 5;
+  const rows = table.rows
+    .slice(0, rowCount)
+    .map((row) =>
+      Object.fromEntries(table.headers.map((header, index) => [header, row[index] ?? '']))
+    );
+
+  return {
+    status: 'ok',
+    filePath,
+    rowCount: rows.length,
+    rows,
+  };
+};

@@ -1,7 +1,9 @@
 {
   "name": "zaowu",
   "version": "0.0.1",
-  "description": "ZaoWu is an open-source AI-powered toolkit for development, automation, documents, data, and workflows.",
+  "private": true,
+  "packageManager": "pnpm@10.34.1",
+  "description": "Open-source AI toolkit for development, automation, documents, data, teaching, plugins, and workflows.",
   "type": "module",
   "license": "Apache-2.0",
   "author": "ZaoWu Labs",
@@ -21,20 +23,21 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "pnpm --recursive run build",
-    "test": "vitest",
+    "build": "tsc -b --pretty false",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "test:ui": "vitest --ui",
-    "typecheck": "tsc --noEmit",
-    "lint": "eslint . --ext .ts,.tsx",
+    "typecheck": "tsc -b --pretty false",
+    "lint": "eslint .",
     "format": "prettier --write \"**/*.{ts,tsx,json,md,yml,yaml}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,json,md,yml,yaml}\"",
     "dev": "pnpm --recursive run dev"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
-    "@types/node": "^20.11.0",
-    "@typescript-eslint/eslint-plugin": "^7.0.0",
-    "@typescript-eslint/parser": "^7.0.0",
+    "@types/node": "^20.19.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
     "@vitest/ui": "^1.0.0",
     "eslint": "^9.0.0",
     "prettier": "^3.2.0",
@@ -42,7 +45,7 @@
     "vitest": "^1.0.0"
   },
   "engines": {
-    "node": ">=20.11.0",
-    "pnpm": ">=8.0.0"
+    "node": ">=20.19.0",
+    "pnpm": ">=10.34.1 <11"
   }
 }

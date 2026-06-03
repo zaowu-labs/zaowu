@@ -22,12 +22,12 @@ Example:
 
 Who is this for?
 
-* Developer
-* Technical creator
-* Small team
-* Learner
-* Plugin author
-* Other
+- Developer
+- Technical creator
+- Small team
+- Learner
+- Plugin author
+- Other
 
 Describe the user briefly.
 
@@ -112,13 +112,13 @@ What input does the command read?
 
 Possible inputs:
 
-* current directory
-* Git diff
-* file path
-* user prompt
-* config file
-* environment variable
-* workflow file
+- current directory
+- Git diff
+- file path
+- user prompt
+- config file
+- environment variable
+- workflow file
 
 Input rules:
 
@@ -152,8 +152,8 @@ JSON output if supported:
 
 Should this command support `--json`?
 
-* [ ] Yes
-* [ ] No
+- [ ] Yes
+- [ ] No
 
 ---
 
@@ -161,22 +161,22 @@ Should this command support `--json`?
 
 Does this command do any sensitive action?
 
-* [ ] Read files
-* [ ] Write files
-* [ ] Delete files
-* [ ] Run shell commands
-* [ ] Modify Git state
-* [ ] Access network
-* [ ] Access secrets
-* [ ] Submit forms
-* [ ] Install dependencies
+- [ ] Read files
+- [ ] Write files
+- [ ] Delete files
+- [ ] Run shell commands
+- [ ] Modify Git state
+- [ ] Access network
+- [ ] Access secrets
+- [ ] Submit forms
+- [ ] Install dependencies
 
 Required safety behavior:
 
-* [ ] Preview
-* [ ] Confirmation
-* [ ] `--dry-run`
-* [ ] Not needed
+- [ ] Preview
+- [ ] Confirmation
+- [ ] `--dry-run`
+- [ ] Not needed
 
 Explain:
 
@@ -190,8 +190,8 @@ Write safety explanation here.
 
 Does this command use AI?
 
-* [ ] Yes
-* [ ] No
+- [ ] Yes
+- [ ] No
 
 If yes, describe the AI behavior.
 
@@ -271,13 +271,13 @@ Every important command should include at least one practical example.
 
 Required tests:
 
-* [ ] happy path
-* [ ] missing input
-* [ ] invalid input
-* [ ] important error path
-* [ ] `--json` output
-* [ ] `--dry-run` behavior
-* [ ] help output
+- [ ] happy path
+- [ ] missing input
+- [ ] invalid input
+- [ ] important error path
+- [ ] `--json` output
+- [ ] `--dry-run` behavior
+- [ ] help output
 
 Additional tests:
 
@@ -291,12 +291,12 @@ Write additional tests here.
 
 Docs that must be updated:
 
-* [ ] README.md
-* [ ] docs/...
-* [ ] command examples
-* [ ] changelog
-* [ ] plugin docs
-* [ ] not needed
+- [ ] README.md
+- [ ] docs/...
+- [ ] command examples
+- [ ] changelog
+- [ ] plugin docs
+- [ ] not needed
 
 ---
 
@@ -304,16 +304,16 @@ Docs that must be updated:
 
 This feature is ready when:
 
-* [ ] command follows `zw <domain> <action> [target] [options]`
-* [ ] Golden Path works
-* [ ] help text is clear
-* [ ] output is human-readable by default
-* [ ] `--json` is valid if supported
-* [ ] errors are actionable
-* [ ] sensitive actions are safe
-* [ ] tests pass
-* [ ] docs are updated
-* [ ] no unrelated features were added
+- [ ] command follows `zw <domain> <action> [target] [options]`
+- [ ] Golden Path works
+- [ ] help text is clear
+- [ ] output is human-readable by default
+- [ ] `--json` is valid if supported
+- [ ] errors are actionable
+- [ ] sensitive actions are safe
+- [ ] tests pass
+- [ ] docs are updated
+- [ ] no unrelated features were added
 
 ---
 
@@ -324,4 +324,3 @@ List unresolved product or engineering questions.
 ```text
 - ...
 ```
-

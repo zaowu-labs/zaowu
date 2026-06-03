@@ -1,0 +1,40 @@
+{
+  "name": "@zaowu/cli",
+  "version": "0.0.1",
+  "description": "ZaoWu command-line interface",
+  "type": "module",
+  "license": "Apache-2.0",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "zw": "./dist/index.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b --pretty false",
+    "typecheck": "tsc -b --pretty false",
+    "dev": "tsc -b --watch"
+  },
+  "dependencies": {
+    "@zaowu/ai": "workspace:*",
+    "@zaowu/auto": "workspace:*",
+    "@zaowu/config": "workspace:*",
+    "@zaowu/core": "workspace:*",
+    "@zaowu/data": "workspace:*",
+    "@zaowu/dev": "workspace:*",
+    "@zaowu/doc": "workspace:*",
+    "@zaowu/plugin": "workspace:*",
+    "@zaowu/teach": "workspace:*",
+    "@zaowu/web": "workspace:*"
+  },
+  "keywords": [
+    "zaowu",
+    "cli",
+    "zw"
+  ]
+}

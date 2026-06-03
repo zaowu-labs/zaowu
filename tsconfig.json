@@ -1,0 +1,38 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "./packages/core"
+    },
+    {
+      "path": "./packages/config"
+    },
+    {
+      "path": "./packages/ai"
+    },
+    {
+      "path": "./packages/auto"
+    },
+    {
+      "path": "./packages/data"
+    },
+    {
+      "path": "./packages/dev"
+    },
+    {
+      "path": "./packages/doc"
+    },
+    {
+      "path": "./packages/plugin"
+    },
+    {
+      "path": "./packages/teach"
+    },
+    {
+      "path": "./packages/web"
+    },
+    {
+      "path": "./packages/cli"
+    }
+  ]
+}
