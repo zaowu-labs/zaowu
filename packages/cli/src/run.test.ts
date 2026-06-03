@@ -11,6 +11,7 @@ describe('executeCli', () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain('Usage:');
     expect(result.stdout).toContain('zw doctor');
+    expect(result.stdout).toContain('zw dev');
   });
 
   it('shows version output', async () => {
@@ -46,6 +47,53 @@ describe('executeCli', () => {
     expect(result.stdout).toContain('Usage:');
     expect(result.stdout).toContain('zw doctor [options]');
     expect(result.stdout).toContain('zw doctor --json');
+  });
+
+  it('shows domain help for a scaffolded domain', async () => {
+    const result = await executeCli(['dev', '--help']);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain('ZaoWu Dev Domain');
+    expect(result.stdout).toContain('zw dev commit');
+    expect(result.stdout).toContain('planned, sensitive');
+    expect(result.stdout).toContain('zw dev review');
+  });
+
+  it('shows domain help as JSON', async () => {
+    const result = await executeCli(['doc', '--help', '--json']);
+    const payload = JSON.parse(result.stdout);
+
+    expect(result.exitCode).toBe(0);
+    expect(payload.status).toBe('ok');
+    expect(payload.domain.name).toBe('doc');
+    expect(payload.domain.commands.map((command: { name: string }) => command.name)).toEqual([
+      'summary',
+      'extract',
+      'convert',
+    ]);
+  });
+
+  it('returns an actionable error for planned commands', async () => {
+    const result = await executeCli(['dev', 'review']);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain('Error: Command not implemented yet: zw dev review.');
+    expect(result.stderr).toContain('packages/dev');
+  });
+
+  it('returns a JSON error for unknown domain actions', async () => {
+    const result = await executeCli(['doc', 'unknown', '--json']);
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.stderr)).toEqual({
+      error: {
+        code: 'UNKNOWN_DOMAIN_ACTION',
+        message: 'Unknown command: zw doc unknown.',
+        why: 'ZaoWu has the `doc` domain, but it does not have an action named `unknown`.',
+        fix: 'Run `zw doc --help` to see planned commands for this domain.',
+        exitCode: 1,
+      },
+    });
   });
 
   it('returns a formatted error for unknown commands', async () => {

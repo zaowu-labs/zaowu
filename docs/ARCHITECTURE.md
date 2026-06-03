@@ -56,6 +56,9 @@ docs/experience    Product and command experience specs
 
 Do not create a package just because a single helper exists. Create a package
 when the command domain has a stable boundary and tests can describe its behavior.
+The foundation may include empty domain scaffolds so later work has a clear
+destination, but those packages should expose planned commands instead of fake
+implementations.
 
 ## Dependency Direction
 

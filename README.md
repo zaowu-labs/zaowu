@@ -90,6 +90,19 @@ node packages/cli/dist/index.js doctor --json
 The doctor command checks Node.js 20.19.0 or newer, Git, pnpm `>=10.34.1 <11`
 or Corepack-provided pnpm, and the nearest ZaoWu config file.
 
+### Domain Scaffolds
+
+Top-level domains are registered early so future commands have clear homes:
+
+```bash
+node packages/cli/dist/index.js dev --help
+node packages/cli/dist/index.js doc --help
+node packages/cli/dist/index.js data --help
+```
+
+Planned commands return actionable errors until their experience specs and
+package implementations are added.
+
 ## Development
 
 Use Node.js 20.19.0 or newer and pnpm `>=10.34.1 <11`. Corepack will use the
@@ -121,11 +134,18 @@ corepack pnpm format:check
 ## Project Structure
 
 ```text
-packages/cli     Minimal `zw` command-line interface
-packages/core    Shared error and core types
-packages/config  Config discovery and loading helpers
-packages/ai      Empty registry for the future AI provider abstraction
-docs/experience  Product and command experience specs
+packages/cli      Minimal `zw` command-line interface
+packages/core     Shared error, domain, and core types
+packages/config   Config discovery and loading helpers
+packages/ai       AI provider abstraction scaffold
+packages/dev      Developer workflow scaffold
+packages/doc      Document workflow scaffold
+packages/data     Data workflow scaffold
+packages/auto     Automation workflow scaffold
+packages/web      Web workflow scaffold
+packages/teach    Teaching workflow scaffold
+packages/plugin   Plugin workflow scaffold
+docs/experience   Product and command experience specs
 ```
 
 Long-term structure and workflow docs:

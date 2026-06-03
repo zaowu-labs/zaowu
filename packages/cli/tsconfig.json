@@ -7,10 +7,34 @@
   },
   "references": [
     {
+      "path": "../ai"
+    },
+    {
+      "path": "../auto"
+    },
+    {
       "path": "../core"
     },
     {
       "path": "../config"
+    },
+    {
+      "path": "../data"
+    },
+    {
+      "path": "../dev"
+    },
+    {
+      "path": "../doc"
+    },
+    {
+      "path": "../plugin"
+    },
+    {
+      "path": "../teach"
+    },
+    {
+      "path": "../web"
     }
   ],
   "include": ["src"],

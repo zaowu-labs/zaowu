@@ -1,7 +1,7 @@
 {
-  "name": "@zaowu/ai",
+  "name": "@zaowu/plugin",
   "version": "0.0.1",
-  "description": "ZaoWu AI integration",
+  "description": "ZaoWu plugin workflows",
   "type": "module",
   "license": "Apache-2.0",
   "main": "./dist/index.js",
@@ -22,6 +22,6 @@
   },
   "keywords": [
     "zaowu",
-    "ai"
+    "plugins"
   ]
 }

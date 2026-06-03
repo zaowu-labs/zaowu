@@ -19,6 +19,8 @@ Scope:
 - `zw doctor`
 - CI on Ubuntu and Windows
 - architecture and contribution rules
+- top-level domain package scaffolds
+- domain help and planned-command guardrails
 
 Exit criteria:
 

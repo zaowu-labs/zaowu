@@ -35,20 +35,94 @@ importers:
         specifier: ^1.0.0
         version: 1.6.1(@types/node@20.19.41)(@vitest/ui@1.6.1)
 
-  packages/ai: {}
+  packages/ai:
+    dependencies:
+      '@zaowu/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/auto:
+    dependencies:
+      '@zaowu/core':
+        specifier: workspace:*
+        version: link:../core
 
   packages/cli:
     dependencies:
+      '@zaowu/ai':
+        specifier: workspace:*
+        version: link:../ai
+      '@zaowu/auto':
+        specifier: workspace:*
+        version: link:../auto
       '@zaowu/config':
         specifier: workspace:*
         version: link:../config
       '@zaowu/core':
         specifier: workspace:*
         version: link:../core
+      '@zaowu/data':
+        specifier: workspace:*
+        version: link:../data
+      '@zaowu/dev':
+        specifier: workspace:*
+        version: link:../dev
+      '@zaowu/doc':
+        specifier: workspace:*
+        version: link:../doc
+      '@zaowu/plugin':
+        specifier: workspace:*
+        version: link:../plugin
+      '@zaowu/teach':
+        specifier: workspace:*
+        version: link:../teach
+      '@zaowu/web':
+        specifier: workspace:*
+        version: link:../web
 
-  packages/config: {}
+  packages/config:
+    dependencies:
+      '@zaowu/core':
+        specifier: workspace:*
+        version: link:../core
 
   packages/core: {}
+
+  packages/data:
+    dependencies:
+      '@zaowu/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/dev:
+    dependencies:
+      '@zaowu/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/doc:
+    dependencies:
+      '@zaowu/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/plugin:
+    dependencies:
+      '@zaowu/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/teach:
+    dependencies:
+      '@zaowu/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/web:
+    dependencies:
+      '@zaowu/core':
+        specifier: workspace:*
+        version: link:../core
 
 packages:
   '@esbuild/aix-ppc64@0.21.5':

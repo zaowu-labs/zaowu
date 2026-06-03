@@ -2,8 +2,16 @@ import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { findConfigFile } from '@zaowu/config';
-import { isZaoWuError, ZaoWuError } from '@zaowu/core';
+import { AI_DOMAIN } from '@zaowu/ai';
+import { AUTO_DOMAIN } from '@zaowu/auto';
+import { CONFIG_DOMAIN, findConfigFile } from '@zaowu/config';
+import { findDomainCommand, isZaoWuError, ZaoWuError, type DomainDefinition } from '@zaowu/core';
+import { DATA_DOMAIN } from '@zaowu/data';
+import { DEV_DOMAIN } from '@zaowu/dev';
+import { DOC_DOMAIN } from '@zaowu/doc';
+import { PLUGIN_DOMAIN } from '@zaowu/plugin';
+import { TEACH_DOMAIN } from '@zaowu/teach';
+import { WEB_DOMAIN } from '@zaowu/web';
 
 export const ZAOWU_CLI_VERSION = '0.0.1';
 export const DEFAULT_CONFIG_FILE_NAME = 'zw.yml';
@@ -54,6 +62,18 @@ const PNPM_VERSION_FIX =
   `Use pnpm ${MINIMUM_PNPM_VERSION} through Corepack: ` +
   `corepack prepare pnpm@${MINIMUM_PNPM_VERSION} --activate.`;
 
+const DOMAIN_DEFINITIONS: readonly DomainDefinition[] = [
+  AI_DOMAIN,
+  DEV_DOMAIN,
+  DOC_DOMAIN,
+  DATA_DOMAIN,
+  AUTO_DOMAIN,
+  WEB_DOMAIN,
+  TEACH_DOMAIN,
+  PLUGIN_DOMAIN,
+  CONFIG_DOMAIN,
+];
+
 const createResult = (exitCode: number, stdout = '', stderr = ''): CliResult => ({
   exitCode,
   stdout,
@@ -89,6 +109,17 @@ const hasFlag = (args: readonly string[], flag: string): boolean => args.include
 
 const getCommandArgs = (args: readonly string[]): string[] =>
   args.filter((arg) => !['--json', '--dry-run', '--yes', '--help', '--version'].includes(arg));
+
+const findDomain = (name: string): DomainDefinition | undefined =>
+  DOMAIN_DEFINITIONS.find((domain) => domain.name === name);
+
+const formatRows = (rows: readonly (readonly [string, string])[]): string => {
+  const width = Math.max(...rows.map(([label]) => label.length));
+
+  return rows.map(([label, summary]) => `  ${label.padEnd(width + 2)}${summary}`).join('\n');
+};
+
+const toTitleCase = (value: string): string => `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
 
 const satisfiesMinimumVersion = (version: string, minimum: string): boolean => {
   const parse = (value: string): number[] =>
@@ -287,15 +318,26 @@ const formatDoctorHuman = (doctor: DoctorResult): string => {
   return lines.join('\n');
 };
 
-const formatHelp = (): string => `ZaoWu / 造物
+const formatHelp = (): string => {
+  const commands = formatRows([
+    ['zw init', 'Preview or create a ZaoWu config file'],
+    ['zw doctor', 'Check local environment health'],
+    ['zw help', 'Show this help'],
+  ]);
+  const domains = formatRows(
+    DOMAIN_DEFINITIONS.map((domain) => [`zw ${domain.name}`, domain.summary])
+  );
+
+  return `ZaoWu / 造物
 
 Usage:
   zw <command> [options]
 
 Commands:
-  zw init            Preview or create a ZaoWu config file
-  zw doctor          Check local environment health
-  zw help            Show this help
+${commands}
+
+Domains:
+${domains}
 
 Global options:
   --help             Show help
@@ -308,7 +350,38 @@ Examples:
   zw doctor
   zw doctor --json
   zw init --dry-run
-  zw init --yes`;
+  zw init --yes
+  zw dev --help`;
+};
+
+const formatDomainHelp = (domain: DomainDefinition): string => {
+  const commands = formatRows(
+    domain.commands.map((command) => {
+      const flags = [command.status, command.sensitive ? 'sensitive' : undefined]
+        .filter(Boolean)
+        .join(', ');
+
+      return [`zw ${domain.name} ${command.name}`, `${flags} - ${command.summary}`];
+    })
+  );
+
+  return `ZaoWu ${toTitleCase(domain.name)} Domain
+
+Usage:
+  zw ${domain.name} <action> [target] [options]
+
+Description:
+  ${domain.summary}
+
+Commands:
+${commands}
+
+Global options:
+  --help             Show help
+  --json             Output machine-readable JSON
+  --dry-run          Preview without applying changes
+  --yes              Apply a safe confirmed action`;
+};
 
 const formatInitHelp = (): string => `ZaoWu Init
 
@@ -444,6 +517,7 @@ export const executeCli = async (
   const wantsVersion = hasFlag(args, '--version');
   const commandArgs = getCommandArgs(args);
   const command = commandArgs[0];
+  const domain = command ? findDomain(command) : undefined;
 
   try {
     if (wantsVersion || command === 'version') {
@@ -474,6 +548,15 @@ export const executeCli = async (
           json ? JSON.stringify({ status: 'ok', help: formatDoctorHelp() }) : formatDoctorHelp()
         );
       }
+
+      if (domain) {
+        return createResult(
+          0,
+          json
+            ? JSON.stringify({ status: 'ok', domain, help: formatDomainHelp(domain) })
+            : formatDomainHelp(domain)
+        );
+      }
     }
 
     if (command === 'doctor') {
@@ -483,6 +566,52 @@ export const executeCli = async (
 
     if (command === 'init') {
       return await handleInit(args, options, json);
+    }
+
+    if (domain) {
+      const action = commandArgs[1];
+
+      if (!action) {
+        return createResult(
+          0,
+          json
+            ? JSON.stringify({ status: 'ok', domain, help: formatDomainHelp(domain) })
+            : formatDomainHelp(domain)
+        );
+      }
+
+      const domainCommand = findDomainCommand(domain, action);
+
+      if (!domainCommand) {
+        throw new ZaoWuError({
+          code: 'UNKNOWN_DOMAIN_ACTION',
+          message: `Unknown command: zw ${domain.name} ${action}.`,
+          why: `ZaoWu has the \`${domain.name}\` domain, but it does not have an action named \`${action}\`.`,
+          fix: `Run \`zw ${domain.name} --help\` to see planned commands for this domain.`,
+        });
+      }
+
+      if (domainCommand.status === 'planned') {
+        throw new ZaoWuError({
+          code: 'COMMAND_NOT_IMPLEMENTED',
+          message: `Command not implemented yet: zw ${domain.name} ${domainCommand.name}.`,
+          why:
+            `The \`${domain.name}\` domain is scaffolded, but \`${domainCommand.name}\` ` +
+            'is still planned and has no implementation yet.',
+          fix:
+            'Create or update the related experience spec under `docs/experience/`, ' +
+            `then implement it inside the \`packages/${domain.name}\` package.`,
+        });
+      }
+
+      throw new ZaoWuError({
+        code: 'COMMAND_HANDLER_MISSING',
+        message: `Command handler missing: zw ${domain.name} ${domainCommand.name}.`,
+        why:
+          `The \`${domain.name}\` domain marks \`${domainCommand.name}\` as available, ` +
+          'but the CLI has no handler wired for it.',
+        fix: 'Wire the command handler through `packages/cli` without moving domain logic into CLI.',
+      });
     }
 
     throw new ZaoWuError({

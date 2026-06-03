@@ -65,6 +65,11 @@ Preferred top-level domains:
 
 Avoid creating new top-level domains unless there is a strong reason.
 
+Domain entry points may exist before their actions are implemented. In that
+case, `zw <domain> --help` should list planned actions, and
+`zw <domain> <action>` should return an actionable "not implemented yet" error
+instead of silently doing nothing.
+
 ---
 
 ## Common Actions

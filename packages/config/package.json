@@ -17,6 +17,9 @@
     "typecheck": "tsc -b --pretty false",
     "dev": "tsc -b --watch"
   },
+  "dependencies": {
+    "@zaowu/core": "workspace:*"
+  },
   "keywords": [
     "zaowu",
     "config"

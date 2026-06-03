@@ -1,6 +1,7 @@
 import { constants } from 'node:fs';
 import { access, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
+import type { DomainDefinition } from '@zaowu/core';
 
 export const CONFIG_FILE_NAMES = [
   'zw.yml',
@@ -21,6 +22,23 @@ export interface LoadedConfig {
   filePath: string;
   content: string;
 }
+
+export const CONFIG_DOMAIN: DomainDefinition = {
+  name: 'config',
+  summary: 'Inspect and manage ZaoWu configuration',
+  commands: [
+    {
+      name: 'show',
+      summary: 'Show resolved ZaoWu configuration',
+      status: 'planned',
+    },
+    {
+      name: 'path',
+      summary: 'Print the resolved configuration file path',
+      status: 'planned',
+    },
+  ],
+};
 
 const isReadableFile = async (filePath: string): Promise<boolean> => {
   try {

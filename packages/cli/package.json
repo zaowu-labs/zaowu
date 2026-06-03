@@ -21,8 +21,16 @@
     "dev": "tsc -b --watch"
   },
   "dependencies": {
+    "@zaowu/ai": "workspace:*",
+    "@zaowu/auto": "workspace:*",
     "@zaowu/config": "workspace:*",
-    "@zaowu/core": "workspace:*"
+    "@zaowu/core": "workspace:*",
+    "@zaowu/data": "workspace:*",
+    "@zaowu/dev": "workspace:*",
+    "@zaowu/doc": "workspace:*",
+    "@zaowu/plugin": "workspace:*",
+    "@zaowu/teach": "workspace:*",
+    "@zaowu/web": "workspace:*"
   },
   "keywords": [
     "zaowu",

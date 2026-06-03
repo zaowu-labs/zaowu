@@ -2,9 +2,14 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { findConfigFile, loadConfig } from './index';
+import { CONFIG_DOMAIN, findConfigFile, loadConfig } from './index';
 
 describe('config utilities', () => {
+  it('defines the config domain boundary', () => {
+    expect(CONFIG_DOMAIN.name).toBe('config');
+    expect(CONFIG_DOMAIN.commands.map((command) => command.name)).toEqual(['show', 'path']);
+  });
+
   it('finds a config file by walking up from the current directory', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-config-'));
     const nested = path.join(root, 'a', 'b');
