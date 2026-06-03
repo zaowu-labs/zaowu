@@ -104,6 +104,18 @@ pnpm lint
 
 Do not run dependency installation, commits, pushes, or destructive actions unless the user explicitly asks for them.
 
+## Continuous Integration
+
+Pull requests run the foundation checks on Ubuntu and Windows with Node.js 20.11.0 and 24.x:
+
+```bash
+corepack pnpm install --frozen-lockfile
+corepack pnpm build
+corepack pnpm test
+corepack pnpm lint
+corepack pnpm format:check
+```
+
 ## Project Structure
 
 ```text
