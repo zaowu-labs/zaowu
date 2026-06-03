@@ -87,11 +87,13 @@ node packages/cli/dist/index.js doctor
 node packages/cli/dist/index.js doctor --json
 ```
 
-The doctor command checks Node.js, Git, pnpm or Corepack-provided pnpm, and the nearest ZaoWu config file.
+The doctor command checks Node.js 20.19.0 or newer, Git, pnpm `>=10.34.1 <11`
+or Corepack-provided pnpm, and the nearest ZaoWu config file.
 
 ## Development
 
-Use Node.js 20.19.0 or newer. Corepack will use the pinned pnpm version from `package.json`.
+Use Node.js 20.19.0 or newer and pnpm `>=10.34.1 <11`. Corepack will use the
+pinned pnpm version from `package.json`.
 
 ```bash
 corepack enable

@@ -52,7 +52,7 @@ Reads:
 
 - current Node.js version
 - local Git availability
-- local pnpm availability, including pnpm provided through Corepack
+- local pnpm availability and supported version, including pnpm provided through Corepack
 - nearest ZaoWu config file
 
 ## 7. Output Rules
@@ -80,11 +80,12 @@ This command does not use AI.
 
 Expected missing prerequisites should be shown as checks, not raw stack traces.
 
-| Error          | Why it happens       | User-facing fix                         |
-| -------------- | -------------------- | --------------------------------------- |
-| Missing Git    | Git is not on PATH   | Install Git and make sure it is on PATH |
-| Missing pnpm   | pnpm is not on PATH  | Run `corepack enable` or install pnpm   |
-| Missing config | No config file found | Run `zw init`, then `zw init --yes`     |
+| Error            | Why it happens                  | User-facing fix                         |
+| ---------------- | ------------------------------- | --------------------------------------- |
+| Missing Git      | Git is not on PATH              | Install Git and make sure it is on PATH |
+| Missing pnpm     | pnpm is not on PATH             | Run `corepack enable` or install pnpm   |
+| Unsupported pnpm | pnpm is outside `>=10.34.1 <11` | Use pnpm 10.34.1 through Corepack       |
+| Missing config   | No config file found            | Run `zw init`, then `zw init --yes`     |
 
 ## 11. Help Text
 
@@ -103,6 +104,7 @@ Examples:
 
 - [x] happy path
 - [x] missing tools
+- [x] unsupported pnpm version
 - [x] `--json` output
 - [x] config discovery
 - [x] help output
@@ -117,4 +119,5 @@ Examples:
 - [x] Human output is readable
 - [x] JSON output is valid
 - [x] Missing prerequisites produce actionable next steps
+- [x] Unsupported pnpm versions produce actionable next steps
 - [x] The command does not write files or modify Git state

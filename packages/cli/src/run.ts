@@ -46,6 +46,14 @@ export interface CliExecutionOptions {
   commandRunner?: CommandRunner;
 }
 
+const MINIMUM_NODE_VERSION = '20.19.0';
+const MINIMUM_PNPM_VERSION = '10.34.1';
+const MAXIMUM_PNPM_MAJOR = 11;
+const PNPM_MISSING_FIX = 'Run `corepack enable` or install pnpm.';
+const PNPM_VERSION_FIX =
+  `Use pnpm ${MINIMUM_PNPM_VERSION} through Corepack: ` +
+  `corepack prepare pnpm@${MINIMUM_PNPM_VERSION} --activate.`;
+
 const createResult = (exitCode: number, stdout = '', stderr = ''): CliResult => ({
   exitCode,
   stdout,
@@ -113,6 +121,16 @@ const extractVersion = (output: string): string | undefined => {
   return match?.[0];
 };
 
+const getMajorVersion = (version: string): number =>
+  Number.parseInt(version.replace(/^v/, '').split('.')[0] ?? '', 10) || 0;
+
+const satisfiesPnpmVersion = (version?: string): boolean =>
+  Boolean(
+    version &&
+    satisfiesMinimumVersion(version, MINIMUM_PNPM_VERSION) &&
+    getMajorVersion(version) < MAXIMUM_PNPM_MAJOR
+  );
+
 const checkCommand = (
   name: string,
   command: string,
@@ -139,29 +157,56 @@ const checkCommand = (
   }
 };
 
+const checkPnpmCommand = (
+  command: string,
+  args: readonly string[],
+  commandRunner: CommandRunner,
+  details?: string
+): DoctorCheck => {
+  try {
+    const output = commandRunner(command, args);
+    const version = extractVersion(output);
+    const isSupported = satisfiesPnpmVersion(version);
+
+    return {
+      name: 'pnpm',
+      status: isSupported ? 'ok' : 'warning',
+      version,
+      details,
+      fix: isSupported ? undefined : PNPM_VERSION_FIX,
+    };
+  } catch {
+    return {
+      name: 'pnpm',
+      status: 'missing',
+      fix: PNPM_MISSING_FIX,
+    };
+  }
+};
+
 const checkPnpm = (commandRunner: CommandRunner): DoctorCheck => {
-  const pnpmCheck = checkCommand(
-    'pnpm',
-    'pnpm',
-    ['--version'],
-    'Run `corepack enable` or install pnpm.',
-    commandRunner
-  );
+  const pnpmCheck = checkPnpmCommand('pnpm', ['--version'], commandRunner);
 
   if (pnpmCheck.status === 'ok') {
     return pnpmCheck;
   }
 
-  const corepackPnpmCheck = checkCommand(
-    'pnpm',
+  const corepackPnpmCheck = checkPnpmCommand(
     'corepack',
     ['pnpm', '--version'],
-    'Run `corepack enable` or install pnpm.',
     commandRunner,
     'via corepack'
   );
 
-  return corepackPnpmCheck.status === 'ok' ? corepackPnpmCheck : pnpmCheck;
+  if (corepackPnpmCheck.status === 'ok') {
+    return corepackPnpmCheck;
+  }
+
+  if (pnpmCheck.status !== 'missing') {
+    return pnpmCheck;
+  }
+
+  return corepackPnpmCheck.status !== 'missing' ? corepackPnpmCheck : pnpmCheck;
 };
 
 const buildDoctorResult = async (options: CliExecutionOptions = {}): Promise<DoctorResult> => {
@@ -172,11 +217,11 @@ const buildDoctorResult = async (options: CliExecutionOptions = {}): Promise<Doc
 
   checks.push({
     name: 'Node.js',
-    status: satisfiesMinimumVersion(nodeVersion, '20.19.0') ? 'ok' : 'warning',
+    status: satisfiesMinimumVersion(nodeVersion, MINIMUM_NODE_VERSION) ? 'ok' : 'warning',
     version: `v${nodeVersion.replace(/^v/, '')}`,
-    fix: satisfiesMinimumVersion(nodeVersion, '20.19.0')
+    fix: satisfiesMinimumVersion(nodeVersion, MINIMUM_NODE_VERSION)
       ? undefined
-      : 'Install Node.js 20.19.0 or newer.',
+      : `Install Node.js ${MINIMUM_NODE_VERSION} or newer.`,
   });
 
   checks.push(

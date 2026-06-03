@@ -87,7 +87,7 @@ describe('executeCli', () => {
           }
 
           if (command === 'pnpm') {
-            return '9.15.0';
+            return '10.34.1';
           }
 
           throw new Error('unexpected command');
@@ -111,7 +111,7 @@ describe('executeCli', () => {
           {
             name: 'pnpm',
             status: 'ok',
-            version: '9.15.0',
+            version: '10.34.1',
           },
           {
             name: 'Config',
@@ -167,7 +167,7 @@ describe('executeCli', () => {
           }
 
           if (command === 'corepack' && args.join(' ') === 'pnpm --version') {
-            return '11.5.1';
+            return '10.34.1';
           }
 
           throw new Error('unexpected command');
@@ -180,9 +180,49 @@ describe('executeCli', () => {
       expect(pnpmCheck).toEqual({
         name: 'pnpm',
         status: 'ok',
-        version: '11.5.1',
+        version: '10.34.1',
         details: 'via corepack',
       });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('warns when pnpm is outside the supported range', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
+
+    try {
+      await executeCli(['init', '--yes'], { cwd: root });
+
+      const result = await executeCli(['doctor', '--json'], {
+        cwd: root,
+        nodeVersion: '20.19.0',
+        commandRunner: (command) => {
+          if (command === 'git') {
+            return 'git version 2.44.0';
+          }
+
+          if (command === 'pnpm') {
+            return '11.5.1';
+          }
+
+          throw new Error('unexpected command');
+        },
+      });
+
+      const payload = JSON.parse(result.stdout);
+      const pnpmCheck = payload.checks.find((check: { name: string }) => check.name === 'pnpm');
+
+      expect(payload.status).toBe('warning');
+      expect(pnpmCheck).toEqual({
+        name: 'pnpm',
+        status: 'warning',
+        version: '11.5.1',
+        fix: 'Use pnpm 10.34.1 through Corepack: corepack prepare pnpm@10.34.1 --activate.',
+      });
+      expect(payload.nextSteps).toContain(
+        'Use pnpm 10.34.1 through Corepack: corepack prepare pnpm@10.34.1 --activate.'
+      );
     } finally {
       await rm(root, { recursive: true, force: true });
     }

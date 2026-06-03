@@ -251,8 +251,8 @@ Raw stack traces should not be shown by default. Use debug or verbose output for
 Use these defaults unless there is a strong reason not to:
 
 - TypeScript
-- Node.js 20+
-- pnpm workspace
+- Node.js 20.19+
+- pnpm workspace with pnpm `>=10.34.1 <11`
 - modular packages
 - small dependencies
 - tests for new behavior
