@@ -91,7 +91,7 @@ The doctor command checks Node.js, Git, pnpm or Corepack-provided pnpm, and the 
 
 ## Development
 
-Use Node.js 20.11.0 or newer. Corepack will use the pinned pnpm version from `package.json`.
+Use Node.js 20.19.0 or newer. Corepack will use the pinned pnpm version from `package.json`.
 
 ```bash
 corepack enable
@@ -106,7 +106,7 @@ Do not run dependency installation, commits, pushes, or destructive actions unle
 
 ## Continuous Integration
 
-Pull requests run the foundation checks on Ubuntu and Windows with Node.js 20.11.0 and 24.x:
+Pull requests run the foundation checks on Ubuntu and Windows with Node.js 20.19.0 and 24.x:
 
 ```bash
 corepack pnpm install --frozen-lockfile

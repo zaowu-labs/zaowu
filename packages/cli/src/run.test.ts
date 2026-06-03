@@ -80,7 +80,7 @@ describe('executeCli', () => {
 
       const result = await executeCli(['doctor', '--json'], {
         cwd: root,
-        nodeVersion: '20.11.0',
+        nodeVersion: '20.19.0',
         commandRunner: (command) => {
           if (command === 'git') {
             return 'git version 2.44.0';
@@ -101,7 +101,7 @@ describe('executeCli', () => {
           {
             name: 'Node.js',
             status: 'ok',
-            version: 'v20.11.0',
+            version: 'v20.19.0',
           },
           {
             name: 'Git',
@@ -143,7 +143,7 @@ describe('executeCli', () => {
       expect(result.stdout).toContain('- Git: missing');
       expect(result.stdout).toContain('- pnpm: missing');
       expect(result.stdout).toContain('- Config: missing');
-      expect(result.stdout).toContain('Install Node.js 20.11.0 or newer.');
+      expect(result.stdout).toContain('Install Node.js 20.19.0 or newer.');
       expect(result.stdout).toContain('Run `corepack enable` or install pnpm.');
     } finally {
       await rm(root, { recursive: true, force: true });
@@ -156,7 +156,7 @@ describe('executeCli', () => {
     try {
       const result = await executeCli(['doctor', '--json'], {
         cwd: root,
-        nodeVersion: '20.11.0',
+        nodeVersion: '20.19.0',
         commandRunner: (command, args) => {
           if (command === 'git') {
             return 'git version 2.44.0';
@@ -234,7 +234,7 @@ describe('executeCli', () => {
 
       const doctor = await executeCli(['doctor'], {
         cwd: nested,
-        nodeVersion: '20.11.0',
+        nodeVersion: '20.19.0',
         commandRunner: () => '1.0.0',
       });
 

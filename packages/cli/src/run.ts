@@ -172,11 +172,11 @@ const buildDoctorResult = async (options: CliExecutionOptions = {}): Promise<Doc
 
   checks.push({
     name: 'Node.js',
-    status: satisfiesMinimumVersion(nodeVersion, '20.11.0') ? 'ok' : 'warning',
+    status: satisfiesMinimumVersion(nodeVersion, '20.19.0') ? 'ok' : 'warning',
     version: `v${nodeVersion.replace(/^v/, '')}`,
-    fix: satisfiesMinimumVersion(nodeVersion, '20.11.0')
+    fix: satisfiesMinimumVersion(nodeVersion, '20.19.0')
       ? undefined
-      : 'Install Node.js 20.11.0 or newer.',
+      : 'Install Node.js 20.19.0 or newer.',
   });
 
   checks.push(

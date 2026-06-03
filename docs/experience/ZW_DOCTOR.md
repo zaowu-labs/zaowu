@@ -26,7 +26,7 @@ ZaoWu Doctor
 Status: Warning
 
 Checks:
-- Node.js: ok v20.11.0
+- Node.js: ok v20.19.0
 - Git: ok 2.44.0
 - pnpm: missing
 - Config: missing
