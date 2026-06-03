@@ -8,6 +8,8 @@ export interface DataTable {
   delimiter: ',' | '\t';
   headers: string[];
   rows: string[][];
+  emptyLineCount: number;
+  trimmedCellCount: number;
 }
 
 export interface DataInspectResult {
@@ -39,6 +41,30 @@ export interface DataCleanResult {
   outputPath?: string;
   content: string;
   wroteFile: boolean;
+  removedEmptyRows: number;
+  trimmedCells: number;
+  missingByColumn: Record<string, number>;
+}
+
+export interface DataColumnSchema {
+  column: string;
+  index: number;
+  type: 'number' | 'boolean' | 'string' | 'empty' | 'mixed';
+  nullable: boolean;
+  examples: string[];
+}
+
+export interface DataSchemaResult {
+  status: 'ok';
+  filePath: string;
+  columns: DataColumnSchema[];
+}
+
+export interface DataSampleResult {
+  status: 'ok';
+  filePath: string;
+  rowCount: number;
+  rows: Record<string, string>[];
 }
 
 export const DATA_DOMAIN: DomainDefinition = {
@@ -60,6 +86,16 @@ export const DATA_DOMAIN: DomainDefinition = {
       summary: 'Clean data with preview and explicit output control',
       status: 'available',
       sensitive: true,
+    },
+    {
+      name: 'schema',
+      summary: 'Infer a lightweight schema for CSV or TSV data',
+      status: 'available',
+    },
+    {
+      name: 'sample',
+      summary: 'Show sample rows from CSV or TSV data',
+      status: 'available',
     },
   ],
 };
@@ -83,12 +119,35 @@ const assertSupportedDataFile = (filePath: string): ',' | '\t' => {
   });
 };
 
-const parseDelimitedLine = (line: string, delimiter: ',' | '\t'): string[] => {
+interface ParsedDelimitedLine {
+  values: string[];
+  trimmedCells: number;
+}
+
+const parseDelimitedLineDetailed = (line: string, delimiter: ',' | '\t'): ParsedDelimitedLine => {
+  const values: string[] = [];
+  let trimmedCells = 0;
+  const pushValue = (value: string): void => {
+    const trimmed = value.trim();
+
+    if (value !== trimmed) {
+      trimmedCells += 1;
+    }
+
+    values.push(trimmed);
+  };
+
   if (delimiter === '\t') {
-    return line.split('\t').map((value) => value.trim());
+    for (const value of line.split('\t')) {
+      pushValue(value);
+    }
+
+    return {
+      values,
+      trimmedCells,
+    };
   }
 
-  const values: string[] = [];
   let current = '';
   let quoted = false;
 
@@ -108,7 +167,7 @@ const parseDelimitedLine = (line: string, delimiter: ',' | '\t'): string[] => {
     }
 
     if (char === ',' && !quoted) {
-      values.push(current.trim());
+      pushValue(current);
       current = '';
       continue;
     }
@@ -116,8 +175,12 @@ const parseDelimitedLine = (line: string, delimiter: ',' | '\t'): string[] => {
     current += char;
   }
 
-  values.push(current.trim());
-  return values;
+  pushValue(current);
+
+  return {
+    values,
+    trimmedCells,
+  };
 };
 
 const serializeDelimitedLine = (values: readonly string[], delimiter: ',' | '\t'): string =>
@@ -148,25 +211,40 @@ export const loadDataTable = async (filePath: string): Promise<DataTable> => {
     });
   }
 
-  const lines = content.split(/\r?\n/).filter((line) => line.trim());
-  const headers = lines[0] ? parseDelimitedLine(lines[0], delimiter) : [];
-  const rows = lines.slice(1).map((line) => parseDelimitedLine(line, delimiter));
+  const rawLines = content.split(/\r?\n/);
+  const contentLines = rawLines.at(-1) === '' ? rawLines.slice(0, -1) : rawLines;
+  const lines = contentLines.filter((line) => line.trim());
+  const emptyLineCount = contentLines.length - lines.length;
+  const parsedHeaders = lines[0]
+    ? parseDelimitedLineDetailed(lines[0], delimiter)
+    : { values: [], trimmedCells: 0 };
+  const parsedRows = lines.slice(1).map((line) => parseDelimitedLineDetailed(line, delimiter));
+  const trimmedCellCount =
+    parsedHeaders.trimmedCells +
+    parsedRows.reduce((count, parsedLine) => count + parsedLine.trimmedCells, 0);
 
   return {
     filePath,
     delimiter,
-    headers,
-    rows,
+    headers: parsedHeaders.values,
+    rows: parsedRows.map((row) => row.values),
+    emptyLineCount,
+    trimmedCellCount,
   };
 };
 
-export const inspectData = async (filePath: string): Promise<DataInspectResult> => {
-  const table = await loadDataTable(filePath);
+const getMissingByColumn = (table: DataTable): Record<string, number> => {
   const missingByColumn: Record<string, number> = {};
 
   for (const [index, header] of table.headers.entries()) {
     missingByColumn[header] = table.rows.filter((row) => !row[index]?.trim()).length;
   }
+
+  return missingByColumn;
+};
+
+export const inspectData = async (filePath: string): Promise<DataInspectResult> => {
+  const table = await loadDataTable(filePath);
 
   return {
     status: 'ok',
@@ -174,7 +252,7 @@ export const inspectData = async (filePath: string): Promise<DataInspectResult> 
     rowCount: table.rows.length,
     columnCount: table.headers.length,
     columns: table.headers,
-    missingByColumn,
+    missingByColumn: getMissingByColumn(table),
   };
 };
 
@@ -230,5 +308,77 @@ export const cleanData = async (
     outputPath: options.outputPath,
     content,
     wroteFile: Boolean(options.outputPath && options.yes),
+    removedEmptyRows: table.emptyLineCount,
+    trimmedCells: table.trimmedCellCount,
+    missingByColumn: getMissingByColumn(table),
+  };
+};
+
+const isBoolean = (value: string): boolean => ['true', 'false'].includes(value.toLowerCase());
+
+const getColumnType = (values: readonly string[]): DataColumnSchema['type'] => {
+  const nonEmpty = values.filter((value) => value.trim());
+
+  if (nonEmpty.length === 0) {
+    return 'empty';
+  }
+
+  if (nonEmpty.every((value) => Number.isFinite(Number(value)))) {
+    return 'number';
+  }
+
+  if (nonEmpty.every(isBoolean)) {
+    return 'boolean';
+  }
+
+  if (
+    nonEmpty.some((value) => Number.isFinite(Number(value)) || isBoolean(value)) &&
+    nonEmpty.some((value) => !Number.isFinite(Number(value)) && !isBoolean(value))
+  ) {
+    return 'mixed';
+  }
+
+  return 'string';
+};
+
+export const inferDataSchema = async (filePath: string): Promise<DataSchemaResult> => {
+  const table = await loadDataTable(filePath);
+
+  return {
+    status: 'ok',
+    filePath,
+    columns: table.headers.map((header, index) => {
+      const values = table.rows.map((row) => row[index] ?? '');
+
+      return {
+        column: header,
+        index,
+        type: getColumnType(values),
+        nullable: values.some((value) => !value.trim()),
+        examples: [...new Set(values.filter(Boolean))].slice(0, 3),
+      };
+    }),
+  };
+};
+
+export const sampleData = async (
+  filePath: string,
+  options: { rows?: number } = {}
+): Promise<DataSampleResult> => {
+  const table = await loadDataTable(filePath);
+  const requestedRows = options.rows ?? 5;
+  const rowCount =
+    Number.isFinite(requestedRows) && requestedRows > 0 ? Math.floor(requestedRows) : 5;
+  const rows = table.rows
+    .slice(0, rowCount)
+    .map((row) =>
+      Object.fromEntries(table.headers.map((header, index) => [header, row[index] ?? '']))
+    );
+
+  return {
+    status: 'ok',
+    filePath,
+    rowCount: rows.length,
+    rows,
   };
 };

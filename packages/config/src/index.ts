@@ -1,5 +1,5 @@
 import { constants } from 'node:fs';
-import { access, readFile, stat } from 'node:fs/promises';
+import { access, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { stripUtf8Bom, ZaoWuError, type DomainDefinition } from '@zaowu/core';
 
@@ -44,6 +44,37 @@ export interface ResolvedConfig {
   config: ZaoWuConfig;
 }
 
+export type ConfigKey =
+  | 'project.name'
+  | 'ai.provider'
+  | 'defaults.output'
+  | 'paths.workspace'
+  | 'paths.cache';
+
+export interface ConfigValidationResult {
+  status: 'ok' | 'warning';
+  filePath: string;
+  config: ZaoWuConfig;
+  warnings: string[];
+}
+
+export interface ConfigGetResult {
+  status: 'ok';
+  filePath: string;
+  key: ConfigKey;
+  value: string | null;
+}
+
+export interface ConfigSetResult {
+  status: 'ok' | 'preview';
+  filePath: string;
+  key: ConfigKey;
+  oldValue: string | null;
+  newValue: string | null;
+  content: string;
+  wroteFile: boolean;
+}
+
 export const CONFIG_DOMAIN: DomainDefinition = {
   name: 'config',
   summary: 'Inspect and manage ZaoWu configuration',
@@ -58,10 +89,33 @@ export const CONFIG_DOMAIN: DomainDefinition = {
       summary: 'Print the resolved configuration file path',
       status: 'available',
     },
+    {
+      name: 'validate',
+      summary: 'Validate the resolved configuration file',
+      status: 'available',
+    },
+    {
+      name: 'get',
+      summary: 'Read one supported configuration key',
+      status: 'available',
+    },
+    {
+      name: 'set',
+      summary: 'Preview or write one supported configuration key',
+      status: 'available',
+      sensitive: true,
+    },
   ],
 };
 
 const SECRET_KEY_PATTERN = /(?:secret|token|password|api[_-]?key|private[_-]?key|recovery)/i;
+const CONFIG_KEYS: readonly ConfigKey[] = [
+  'project.name',
+  'ai.provider',
+  'defaults.output',
+  'paths.workspace',
+  'paths.cache',
+];
 
 const DEFAULT_CONFIG: ZaoWuConfig = {
   project: {
@@ -259,6 +313,146 @@ const getString = (value: unknown, fallback: string): string =>
 
 const getOutput = (value: unknown): 'human' | 'json' => (value === 'json' ? 'json' : 'human');
 
+const assertConfigKey = (key: string): ConfigKey => {
+  if (SECRET_KEY_PATTERN.test(key)) {
+    throw new ZaoWuError({
+      code: 'CONFIG_SECRET_KEY_NOT_ALLOWED',
+      message: 'Config key looks like a secret.',
+      why: `The key \`${key}\` looks like a secret and should not be stored in ZaoWu config.`,
+      fix: 'Use environment variables or a future explicit secret provider for sensitive values.',
+    });
+  }
+
+  if (!CONFIG_KEYS.includes(key as ConfigKey)) {
+    throw new ZaoWuError({
+      code: 'CONFIG_KEY_UNSUPPORTED',
+      message: 'Config key is not supported.',
+      why: `This version can manage these keys: ${CONFIG_KEYS.join(', ')}.`,
+      fix: 'Use one of the supported keys, or extend `packages/config` before adding a new key.',
+    });
+  }
+
+  return key as ConfigKey;
+};
+
+const normalizeConfigValue = (key: ConfigKey, value: string): string | null => {
+  const trimmed = value.trim();
+
+  if (key === 'ai.provider' && ['none', 'null'].includes(trimmed.toLowerCase())) {
+    return null;
+  }
+
+  if (key === 'defaults.output' && !['human', 'json'].includes(trimmed)) {
+    throw new ZaoWuError({
+      code: 'CONFIG_VALUE_INVALID',
+      message: 'Config value is invalid.',
+      why: '`defaults.output` must be either `human` or `json`.',
+      fix: 'Run `zw config set defaults.output json --yes` or `zw config set defaults.output human --yes`.',
+    });
+  }
+
+  if (!trimmed) {
+    throw new ZaoWuError({
+      code: 'CONFIG_VALUE_INVALID',
+      message: 'Config value is invalid.',
+      why: `\`${key}\` cannot be empty.`,
+      fix: 'Provide a non-empty value.',
+    });
+  }
+
+  return trimmed;
+};
+
+const getConfigValue = (config: ZaoWuConfig, key: ConfigKey): string | null => {
+  switch (key) {
+    case 'project.name':
+      return config.project.name;
+    case 'ai.provider':
+      return config.ai.provider;
+    case 'defaults.output':
+      return config.defaults.output;
+    case 'paths.workspace':
+      return config.paths.workspace;
+    case 'paths.cache':
+      return config.paths.cache;
+  }
+};
+
+const withConfigValue = (
+  config: ZaoWuConfig,
+  key: ConfigKey,
+  value: string | null
+): ZaoWuConfig => {
+  const next: ZaoWuConfig = {
+    project: { ...config.project },
+    ai: { ...config.ai },
+    defaults: { ...config.defaults },
+    paths: { ...config.paths },
+  };
+
+  switch (key) {
+    case 'project.name':
+      next.project.name = value ?? DEFAULT_CONFIG.project.name;
+      break;
+    case 'ai.provider':
+      next.ai.provider = value;
+      break;
+    case 'defaults.output':
+      next.defaults.output = value === 'json' ? 'json' : 'human';
+      break;
+    case 'paths.workspace':
+      next.paths.workspace = value ?? DEFAULT_CONFIG.paths.workspace;
+      break;
+    case 'paths.cache':
+      next.paths.cache = value ?? DEFAULT_CONFIG.paths.cache;
+      break;
+  }
+
+  return next;
+};
+
+const serializeConfig = (config: ZaoWuConfig, filePath: string): string => {
+  const extension = path.extname(filePath).toLowerCase();
+
+  if (extension === '.json' || path.basename(filePath) === '.zaowurc') {
+    return `${JSON.stringify(config, null, 2)}\n`;
+  }
+
+  return [
+    'project:',
+    `  name: ${config.project.name}`,
+    '',
+    'ai:',
+    `  provider: ${config.ai.provider ?? 'null'}`,
+    '',
+    'defaults:',
+    `  output: ${config.defaults.output}`,
+    '',
+    'paths:',
+    `  workspace: ${config.paths.workspace}`,
+    `  cache: ${config.paths.cache}`,
+    '',
+  ].join('\n');
+};
+
+const getValidationWarnings = (config: ZaoWuConfig): string[] => {
+  const warnings: string[] = [];
+
+  if (!config.ai.provider) {
+    warnings.push('AI provider is not set; ZaoWu will use the local echo provider by default.');
+  }
+
+  if (!config.paths.workspace.trim()) {
+    warnings.push('Workspace path is empty.');
+  }
+
+  if (!config.paths.cache.trim()) {
+    warnings.push('Cache path is empty.');
+  }
+
+  return warnings;
+};
+
 export const parseConfig = (content: string, filePath = 'zw.yml'): ZaoWuConfig => {
   const parsed = parseConfigObject(content, filePath);
   assertNoSecretKeys(parsed);
@@ -308,5 +502,60 @@ export const loadResolvedConfig = async (cwd?: string): Promise<ResolvedConfig> 
   return {
     filePath,
     config: parseConfig(loaded.content, loaded.filePath),
+  };
+};
+
+export const validateResolvedConfig = async (cwd?: string): Promise<ConfigValidationResult> => {
+  const resolved = await loadResolvedConfig(cwd);
+  const warnings = getValidationWarnings(resolved.config);
+
+  return {
+    status: warnings.length > 0 ? 'warning' : 'ok',
+    filePath: resolved.filePath,
+    config: resolved.config,
+    warnings,
+  };
+};
+
+export const getResolvedConfigValue = async (
+  key: string,
+  cwd?: string
+): Promise<ConfigGetResult> => {
+  const configKey = assertConfigKey(key);
+  const resolved = await loadResolvedConfig(cwd);
+
+  return {
+    status: 'ok',
+    filePath: resolved.filePath,
+    key: configKey,
+    value: getConfigValue(resolved.config, configKey),
+  };
+};
+
+export const setResolvedConfigValue = async (
+  key: string,
+  value: string,
+  options: { cwd?: string; yes?: boolean } = {}
+): Promise<ConfigSetResult> => {
+  const configKey = assertConfigKey(key);
+  const normalizedValue = normalizeConfigValue(configKey, value);
+  const filePath = await findConfigPathOrThrow(options.cwd);
+  const loaded = await loadConfig(filePath);
+  const currentConfig = parseConfig(loaded.content, loaded.filePath);
+  const nextConfig = withConfigValue(currentConfig, configKey, normalizedValue);
+  const content = serializeConfig(nextConfig, filePath);
+
+  if (options.yes) {
+    await writeFile(filePath, content, 'utf8');
+  }
+
+  return {
+    status: options.yes ? 'ok' : 'preview',
+    filePath,
+    key: configKey,
+    oldValue: getConfigValue(currentConfig, configKey),
+    newValue: getConfigValue(nextConfig, configKey),
+    content,
+    wroteFile: Boolean(options.yes),
   };
 };

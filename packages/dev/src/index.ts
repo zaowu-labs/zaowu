@@ -20,6 +20,15 @@ export interface DevCommitResult {
   message: string;
 }
 
+export interface DevStatusResult {
+  status: 'ok';
+  branch: string;
+  clean: boolean;
+  staged: string[];
+  unstaged: string[];
+  untracked: string[];
+}
+
 export interface DevReviewFinding {
   severity: 'info' | 'warning';
   title: string;
@@ -32,6 +41,8 @@ export interface DevReviewResult {
   summary: GitChangeSummary;
   findings: DevReviewFinding[];
 }
+
+export type DevReviewMode = 'auto' | 'staged' | 'worktree';
 
 export const DEV_DOMAIN: DomainDefinition = {
   name: 'dev',
@@ -46,6 +57,11 @@ export const DEV_DOMAIN: DomainDefinition = {
     {
       name: 'review',
       summary: 'Review a repository change without modifying files',
+      status: 'available',
+    },
+    {
+      name: 'status',
+      summary: 'Show Git working tree status for the current project',
       status: 'available',
     },
   ],
@@ -114,6 +130,17 @@ const getSummary = (
   return parseNumstat(runGit(commandRunner, numstatArgs, cwd), files);
 };
 
+const getStagedSummary = (commandRunner: DevCommandRunner, cwd?: string): GitChangeSummary =>
+  getSummary(
+    commandRunner,
+    ['diff', '--cached', '--name-only'],
+    ['diff', '--cached', '--numstat'],
+    cwd
+  );
+
+const getWorkingTreeSummary = (commandRunner: DevCommandRunner, cwd?: string): GitChangeSummary =>
+  getSummary(commandRunner, ['diff', '--name-only'], ['diff', '--numstat'], cwd);
+
 const inferCommitType = (files: readonly string[]): string => {
   if (files.every((file) => file.startsWith('docs/') || file.endsWith('.md'))) {
     return 'docs';
@@ -154,12 +181,7 @@ export const previewDevCommit = (
   commandRunner: DevCommandRunner,
   options: { cwd?: string } = {}
 ): DevCommitResult => {
-  const summary = getSummary(
-    commandRunner,
-    ['diff', '--cached', '--name-only'],
-    ['diff', '--cached', '--numstat'],
-    options.cwd
-  );
+  const summary = getStagedSummary(commandRunner, options.cwd);
 
   if (summary.files.length === 0) {
     throw new ZaoWuError({
@@ -181,33 +203,83 @@ export const previewDevCommit = (
   };
 };
 
-export const reviewDevChanges = (
+export const getDevStatus = (
   commandRunner: DevCommandRunner,
   options: { cwd?: string } = {}
+): DevStatusResult => {
+  const output = runGit(commandRunner, ['status', '--short', '--branch'], options.cwd);
+  const lines = output.split(/\r?\n/).filter(Boolean);
+  const firstLine = lines[0] ?? '';
+  const branch =
+    /^##\s+(.+?)(?:\.{3}.+)?$/.exec(firstLine)?.[1].replace(/\s+\[.+\]$/, '') ?? 'unknown';
+  const staged: string[] = [];
+  const unstaged: string[] = [];
+  const untracked: string[] = [];
+
+  for (const line of lines.slice(firstLine.startsWith('##') ? 1 : 0)) {
+    const indexStatus = line[0] ?? ' ';
+    const worktreeStatus = line[1] ?? ' ';
+    const file = line.slice(3).trim();
+
+    if (!file) {
+      continue;
+    }
+
+    if (indexStatus === '?' && worktreeStatus === '?') {
+      untracked.push(file);
+      continue;
+    }
+
+    if (indexStatus !== ' ') {
+      staged.push(file);
+    }
+
+    if (worktreeStatus !== ' ') {
+      unstaged.push(file);
+    }
+  }
+
+  return {
+    status: 'ok',
+    branch,
+    clean: staged.length === 0 && unstaged.length === 0 && untracked.length === 0,
+    staged,
+    unstaged,
+    untracked,
+  };
+};
+
+export const reviewDevChanges = (
+  commandRunner: DevCommandRunner,
+  options: { cwd?: string; mode?: DevReviewMode } = {}
 ): DevReviewResult => {
   let source: DevReviewResult['source'] = 'staged';
-  let summary = getSummary(
-    commandRunner,
-    ['diff', '--cached', '--name-only'],
-    ['diff', '--cached', '--numstat'],
-    options.cwd
-  );
+  let summary =
+    options.mode === 'worktree'
+      ? getWorkingTreeSummary(commandRunner, options.cwd)
+      : getStagedSummary(commandRunner, options.cwd);
 
-  if (summary.files.length === 0) {
+  if (options.mode === 'worktree') {
     source = 'working-tree';
-    summary = getSummary(
-      commandRunner,
-      ['diff', '--name-only'],
-      ['diff', '--numstat'],
-      options.cwd
-    );
+  }
+
+  if (summary.files.length === 0 && (!options.mode || options.mode === 'auto')) {
+    source = 'working-tree';
+    summary = getWorkingTreeSummary(commandRunner, options.cwd);
   }
 
   if (summary.files.length === 0) {
+    const sourceDescription =
+      options.mode === 'staged'
+        ? 'staged changes'
+        : options.mode === 'worktree'
+          ? 'working-tree changes'
+          : 'staged or working-tree changes';
+
     throw new ZaoWuError({
       code: 'NO_CHANGES_TO_REVIEW',
       message: 'No changes found to review.',
-      why: '`zw dev review` reads staged changes first, then unstaged working-tree changes.',
+      why: `ZaoWu could not find ${sourceDescription}.`,
       fix: 'Change files or stage changes before running `zw dev review`.',
     });
   }

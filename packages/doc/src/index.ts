@@ -18,6 +18,7 @@ export interface DocumentExtract {
   headings: string[];
   links: string[];
   codeBlockCount: number;
+  frontmatter: Record<string, string>;
 }
 
 export interface DocumentConversion {
@@ -27,6 +28,30 @@ export interface DocumentConversion {
   format: 'markdown' | 'text';
   content: string;
   wroteFile: boolean;
+}
+
+export interface DocumentOutlineItem {
+  level: number;
+  title: string;
+  line: number;
+}
+
+export interface DocumentOutline {
+  status: 'ok';
+  filePath: string;
+  outline: DocumentOutlineItem[];
+}
+
+export interface DocumentSearchMatch {
+  line: number;
+  text: string;
+}
+
+export interface DocumentSearchResult {
+  status: 'ok';
+  filePath: string;
+  keyword: string;
+  matches: DocumentSearchMatch[];
 }
 
 export const DOC_DOMAIN: DomainDefinition = {
@@ -48,6 +73,16 @@ export const DOC_DOMAIN: DomainDefinition = {
       summary: 'Convert a document with explicit output control',
       status: 'available',
       sensitive: true,
+    },
+    {
+      name: 'outline',
+      summary: 'Create an outline from document headings',
+      status: 'available',
+    },
+    {
+      name: 'search',
+      summary: 'Search a supported document for a keyword',
+      status: 'available',
     },
   ],
 };
@@ -108,6 +143,48 @@ const getFirstMeaningfulLines = (content: string, count: number): string[] =>
     .filter((line) => line && !line.startsWith('#'))
     .slice(0, count);
 
+const getFrontmatter = (content: string): Record<string, string> => {
+  const lines = content.split(/\r?\n/);
+
+  if (lines[0] !== '---') {
+    return {};
+  }
+
+  const endIndex = lines.slice(1).findIndex((line) => line === '---');
+
+  if (endIndex < 0) {
+    return {};
+  }
+
+  const frontmatter: Record<string, string> = {};
+
+  for (const line of lines.slice(1, endIndex + 1)) {
+    const match = /^([A-Za-z0-9_-]+):\s*(.+)$/.exec(line);
+
+    if (match) {
+      frontmatter[match[1]] = match[2].trim();
+    }
+  }
+
+  return frontmatter;
+};
+
+const getOutline = (content: string): DocumentOutlineItem[] =>
+  content
+    .split(/\r?\n/)
+    .map((line, index) => {
+      const match = /^(#{1,6})\s+(.+)$/.exec(line.trim());
+
+      return match
+        ? {
+            level: match[1].length,
+            title: match[2].trim(),
+            line: index + 1,
+          }
+        : null;
+    })
+    .filter((item): item is DocumentOutlineItem => Boolean(item));
+
 export const summarizeDocument = async (filePath: string): Promise<DocumentSummary> => {
   const content = await readTextDocument(filePath);
   const lines = content.split(/\r?\n/);
@@ -136,6 +213,50 @@ export const extractDocument = async (filePath: string): Promise<DocumentExtract
     headings,
     links,
     codeBlockCount: Math.floor(codeBlockCount),
+    frontmatter: getFrontmatter(content),
+  };
+};
+
+export const outlineDocument = async (filePath: string): Promise<DocumentOutline> => {
+  const content = await readTextDocument(filePath);
+
+  return {
+    status: 'ok',
+    filePath,
+    outline: getOutline(content),
+  };
+};
+
+export const searchDocument = async (
+  filePath: string,
+  keyword: string
+): Promise<DocumentSearchResult> => {
+  const trimmedKeyword = keyword.trim();
+
+  if (!trimmedKeyword) {
+    throw new ZaoWuError({
+      code: 'DOCUMENT_SEARCH_KEYWORD_REQUIRED',
+      message: 'Search keyword is required.',
+      why: '`zw doc search` needs a non-empty keyword.',
+      fix: 'Run `zw doc search README.md install`.',
+    });
+  }
+
+  const content = await readTextDocument(filePath);
+  const lowerKeyword = trimmedKeyword.toLowerCase();
+  const matches = content
+    .split(/\r?\n/)
+    .map((line, index) => ({
+      line: index + 1,
+      text: line.trim(),
+    }))
+    .filter((match) => match.text.toLowerCase().includes(lowerKeyword));
+
+  return {
+    status: 'ok',
+    filePath,
+    keyword: trimmedKeyword,
+    matches,
   };
 };
 

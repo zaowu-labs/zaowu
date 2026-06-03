@@ -1,12 +1,24 @@
-import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import type { DomainDefinition } from '@zaowu/core';
+import { stripUtf8Bom, type DomainDefinition } from '@zaowu/core';
 import { ZaoWuError } from '@zaowu/core';
 
 export interface PluginManifest {
   id: string;
   source: string;
   installedAt: string | null;
+}
+
+export interface PluginSourceCommand {
+  name: string;
+  summary?: string;
+}
+
+export interface PluginSourceManifest {
+  id: string;
+  name?: string;
+  version?: string;
+  commands?: PluginSourceCommand[];
 }
 
 export interface PluginListResult {
@@ -21,6 +33,15 @@ export interface PluginChangeResult {
   plugin: PluginManifest;
   wroteFile: boolean;
   removedFile?: boolean;
+}
+
+export interface PluginValidationResult {
+  status: 'ok' | 'warning';
+  target: string;
+  manifestPath?: string;
+  manifest?: PluginSourceManifest;
+  warnings: string[];
+  errors: string[];
 }
 
 export const PLUGIN_DOMAIN: DomainDefinition = {
@@ -44,6 +65,11 @@ export const PLUGIN_DOMAIN: DomainDefinition = {
       status: 'available',
       sensitive: true,
     },
+    {
+      name: 'validate',
+      summary: 'Validate a local plugin manifest or plugin id',
+      status: 'available',
+    },
   ],
 };
 
@@ -63,6 +89,120 @@ const assertPluginId = (id: string): void => {
 };
 
 const getPluginPath = (pluginDir: string, id: string): string => path.join(pluginDir, `${id}.json`);
+
+const isPathLike = (target: string): boolean =>
+  target.includes('/') || target.includes('\\') || target.endsWith('.json') || target === '.';
+
+const readJson = async (filePath: string): Promise<unknown> =>
+  JSON.parse(stripUtf8Bom(await readFile(filePath, 'utf8'))) as unknown;
+
+const getManifestPath = async (target: string): Promise<string | null> => {
+  try {
+    const info = await stat(target);
+
+    if (info.isDirectory()) {
+      const candidates = [path.join(target, 'zaowu.plugin.json'), path.join(target, 'plugin.json')];
+
+      for (const candidate of candidates) {
+        try {
+          if ((await stat(candidate)).isFile()) {
+            return candidate;
+          }
+        } catch {
+          // Try the next manifest candidate.
+        }
+      }
+
+      return null;
+    }
+
+    return info.isFile() ? target : null;
+  } catch {
+    return null;
+  }
+};
+
+const validateSourceManifest = (value: unknown): PluginValidationResult['errors'] => {
+  const errors: string[] = [];
+  const manifest = value as Partial<PluginSourceManifest>;
+
+  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
+    return ['Manifest must be a JSON object.'];
+  }
+
+  if (typeof manifest.id !== 'string' || !PLUGIN_ID_PATTERN.test(manifest.id)) {
+    errors.push('Manifest `id` must be a valid plugin id.');
+  }
+
+  if (manifest.version !== undefined && typeof manifest.version !== 'string') {
+    errors.push('Manifest `version` must be a string when provided.');
+  }
+
+  if (manifest.commands !== undefined) {
+    if (!Array.isArray(manifest.commands)) {
+      errors.push('Manifest `commands` must be an array when provided.');
+    } else {
+      manifest.commands.forEach((command, index) => {
+        if (!command || typeof command !== 'object' || Array.isArray(command)) {
+          errors.push(`Command at index ${index} must be an object.`);
+          return;
+        }
+
+        if (typeof command.name !== 'string' || !PLUGIN_ID_PATTERN.test(command.name)) {
+          errors.push(`Command at index ${index} has an invalid name.`);
+        }
+      });
+    }
+  }
+
+  return errors;
+};
+
+export const validatePluginSource = async (target: string): Promise<PluginValidationResult> => {
+  const manifestPath = await getManifestPath(target);
+
+  if (!manifestPath) {
+    if (!isPathLike(target)) {
+      assertPluginId(target);
+
+      return {
+        status: 'warning',
+        target,
+        warnings: ['No local manifest was read; target was treated as a plugin id.'],
+        errors: [],
+      };
+    }
+
+    return {
+      status: 'warning',
+      target,
+      warnings: [],
+      errors: ['No `zaowu.plugin.json` or `plugin.json` manifest was found.'],
+    };
+  }
+
+  try {
+    const manifest = (await readJson(manifestPath)) as PluginSourceManifest;
+    const errors = validateSourceManifest(manifest);
+
+    return {
+      status: errors.length > 0 ? 'warning' : 'ok',
+      target,
+      manifestPath,
+      manifest,
+      warnings: [],
+      errors,
+    };
+  } catch {
+    return {
+      status: 'warning',
+      target,
+      manifestPath,
+      warnings: [],
+      errors: ['Manifest JSON could not be parsed.'],
+    };
+  }
+};
 
 export const listPlugins = async (options: { cwd?: string } = {}): Promise<PluginListResult> => {
   const cwd = options.cwd ?? process.cwd();
@@ -110,9 +250,30 @@ export const installPlugin = async (
 
   const cwd = options.cwd ?? process.cwd();
   const pluginDir = getPluginDir(cwd);
+  const source = options.source ?? id;
+  const sourceValidation = isPathLike(source) ? await validatePluginSource(source) : null;
+
+  if (sourceValidation?.errors.length) {
+    throw new ZaoWuError({
+      code: 'PLUGIN_SOURCE_INVALID',
+      message: 'Plugin source is invalid.',
+      why: sourceValidation.errors.join(' '),
+      fix: 'Fix the plugin manifest, then run `zw plugin validate <path>` again.',
+    });
+  }
+
+  if (sourceValidation?.manifest?.id && sourceValidation.manifest.id !== id) {
+    throw new ZaoWuError({
+      code: 'PLUGIN_SOURCE_ID_MISMATCH',
+      message: 'Plugin source id does not match install id.',
+      why: `The source manifest id is \`${sourceValidation.manifest.id}\`, but the requested install id is \`${id}\`.`,
+      fix: `Run \`zw plugin install ${sourceValidation.manifest.id} --source ${source}\` or update the manifest.`,
+    });
+  }
+
   const plugin: PluginManifest = {
     id,
-    source: options.source ?? id,
+    source,
     installedAt: options.yes ? (options.installedAt ?? new Date().toISOString()) : null,
   };
 

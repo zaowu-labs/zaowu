@@ -6,15 +6,24 @@ import {
   CONFIG_DOMAIN,
   findConfigFile,
   findConfigPathOrThrow,
+  getResolvedConfigValue,
   loadConfig,
   loadResolvedConfig,
   parseConfig,
+  setResolvedConfigValue,
+  validateResolvedConfig,
 } from './index';
 
 describe('config utilities', () => {
   it('defines the config domain boundary', () => {
     expect(CONFIG_DOMAIN.name).toBe('config');
-    expect(CONFIG_DOMAIN.commands.map((command) => command.name)).toEqual(['show', 'path']);
+    expect(CONFIG_DOMAIN.commands.map((command) => command.name)).toEqual([
+      'show',
+      'path',
+      'validate',
+      'get',
+      'set',
+    ]);
   });
 
   it('finds a config file by walking up from the current directory', async () => {
@@ -117,6 +126,121 @@ describe('config utilities', () => {
 
     try {
       await expect(findConfigPathOrThrow(root)).rejects.toThrow('ZaoWu config not found.');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('validates resolved config and reports warnings', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-config-'));
+
+    await writeFile(path.join(root, 'zw.yml'), 'project:\n  name: resolved\n', 'utf8');
+
+    try {
+      await expect(validateResolvedConfig(root)).resolves.toMatchObject({
+        status: 'warning',
+        warnings: ['AI provider is not set; ZaoWu will use the local echo provider by default.'],
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('gets supported config keys', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-config-'));
+
+    await writeFile(path.join(root, 'zw.yml'), 'project:\n  name: resolved\n', 'utf8');
+
+    try {
+      await expect(getResolvedConfigValue('project.name', root)).resolves.toMatchObject({
+        status: 'ok',
+        key: 'project.name',
+        value: 'resolved',
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('previews config set without writing by default', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-config-'));
+    const filePath = path.join(root, 'zw.yml');
+
+    await writeFile(filePath, 'project:\n  name: old\n', 'utf8');
+
+    try {
+      await expect(setResolvedConfigValue('project.name', 'new', { cwd: root })).resolves.toEqual({
+        status: 'preview',
+        filePath,
+        key: 'project.name',
+        oldValue: 'old',
+        newValue: 'new',
+        content:
+          'project:\n' +
+          '  name: new\n' +
+          '\n' +
+          'ai:\n' +
+          '  provider: null\n' +
+          '\n' +
+          'defaults:\n' +
+          '  output: human\n' +
+          '\n' +
+          'paths:\n' +
+          '  workspace: .\n' +
+          '  cache: .zaowu/cache\n',
+        wroteFile: false,
+      });
+      await expect(loadResolvedConfig(root)).resolves.toMatchObject({
+        config: {
+          project: {
+            name: 'old',
+          },
+        },
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('writes config set when confirmed', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-config-'));
+
+    await writeFile(path.join(root, 'zaowu.config.json'), '{"project":{"name":"old"}}', 'utf8');
+
+    try {
+      await expect(
+        setResolvedConfigValue('defaults.output', 'json', { cwd: root, yes: true })
+      ).resolves.toMatchObject({
+        status: 'ok',
+        key: 'defaults.output',
+        oldValue: 'human',
+        newValue: 'json',
+        wroteFile: true,
+      });
+      await expect(loadResolvedConfig(root)).resolves.toMatchObject({
+        config: {
+          defaults: {
+            output: 'json',
+          },
+        },
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects unsupported config keys and invalid values', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-config-'));
+
+    await writeFile(path.join(root, 'zw.yml'), 'project:\n  name: resolved\n', 'utf8');
+
+    try {
+      await expect(getResolvedConfigValue('ai.apiKey', root)).rejects.toThrow(
+        'Config key looks like a secret.'
+      );
+      await expect(setResolvedConfigValue('defaults.output', 'xml', { cwd: root })).rejects.toThrow(
+        'Config value is invalid.'
+      );
     } finally {
       await rm(root, { recursive: true, force: true });
     }

@@ -2,7 +2,14 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { analyzeData, cleanData, DATA_DOMAIN, inspectData } from './index';
+import {
+  analyzeData,
+  cleanData,
+  DATA_DOMAIN,
+  inferDataSchema,
+  inspectData,
+  sampleData,
+} from './index';
 
 describe('data domain', () => {
   it('declares data workflow commands', () => {
@@ -11,6 +18,8 @@ describe('data domain', () => {
       'inspect',
       'analyze',
       'clean',
+      'schema',
+      'sample',
     ]);
   });
 
@@ -82,7 +91,7 @@ describe('data domain', () => {
     const inputPath = path.join(root, 'sales.csv');
     const outputPath = path.join(root, 'clean.csv');
 
-    await writeFile(inputPath, ' name , amount \n A , 10 \n', 'utf8');
+    await writeFile(inputPath, ' name , amount \n A , 10 \n\n', 'utf8');
 
     try {
       await expect(cleanData(inputPath, { outputPath })).resolves.toEqual({
@@ -91,6 +100,69 @@ describe('data domain', () => {
         outputPath,
         content: 'name,amount\nA,10\n',
         wroteFile: false,
+        removedEmptyRows: 1,
+        trimmedCells: 4,
+        missingByColumn: {
+          name: 0,
+          amount: 0,
+        },
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('infers CSV schema', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-data-'));
+    const filePath = path.join(root, 'sales.csv');
+
+    await writeFile(filePath, 'name,amount,active,note\nA,10,true,\nB,20,false,text\n', 'utf8');
+
+    try {
+      await expect(inferDataSchema(filePath)).resolves.toMatchObject({
+        columns: [
+          {
+            column: 'name',
+            type: 'string',
+            nullable: false,
+          },
+          {
+            column: 'amount',
+            type: 'number',
+            nullable: false,
+          },
+          {
+            column: 'active',
+            type: 'boolean',
+            nullable: false,
+          },
+          {
+            column: 'note',
+            type: 'string',
+            nullable: true,
+          },
+        ],
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('samples CSV rows', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-data-'));
+    const filePath = path.join(root, 'sales.csv');
+
+    await writeFile(filePath, 'name,amount\nA,10\nB,20\n', 'utf8');
+
+    try {
+      await expect(sampleData(filePath, { rows: 1 })).resolves.toMatchObject({
+        rowCount: 1,
+        rows: [
+          {
+            name: 'A',
+            amount: '10',
+          },
+        ],
       });
     } finally {
       await rm(root, { recursive: true, force: true });

@@ -10,14 +10,16 @@ zw
 
 ## Current Phase
 
-ZaoWu is in the early foundation phase. The repository is focused on:
+ZaoWu is in the first runnable foundation phase. The repository is focused on:
 
 - experience rules
 - monorepo structure
-- a minimal `zw` CLI
+- a coherent `zw` CLI
 - standard user-facing errors
 - `zw init`
 - `zw doctor`
+- safe first-version domain commands
+- command-specific help and JSON output
 
 Later modules should build on this foundation instead of becoming separate scripts:
 
@@ -90,18 +92,27 @@ node packages/cli/dist/index.js doctor --json
 The doctor command checks Node.js 20.19.0 or newer, Git, pnpm `>=10.34.1 <11`
 or Corepack-provided pnpm, and the nearest ZaoWu config file.
 
-### Domain Scaffolds
+### Domain Commands
 
-Top-level domains are registered early so future commands have clear homes:
+Top-level domains now have safe first-version commands:
 
 ```bash
-node packages/cli/dist/index.js dev --help
-node packages/cli/dist/index.js doc --help
-node packages/cli/dist/index.js data --help
+node packages/cli/dist/index.js ai providers
+node packages/cli/dist/index.js dev status
+node packages/cli/dist/index.js doc outline README.md
+node packages/cli/dist/index.js data schema sample.csv
+node packages/cli/dist/index.js auto plan workflow.yml
+node packages/cli/dist/index.js plugin validate readme-gen
 ```
 
-Planned commands return actionable errors until their experience specs and
-package implementations are added.
+Use `--help` on any domain or action:
+
+```bash
+node packages/cli/dist/index.js data --help
+node packages/cli/dist/index.js data schema --help
+```
+
+See the full catalog in `docs/experience/COMMAND_CATALOG.md`.
 
 ## Development
 
@@ -151,6 +162,7 @@ docs/experience   Product and command experience specs
 Long-term structure and workflow docs:
 
 ```text
+docs/GETTING_STARTED.md  Local setup, common commands, and common errors
 docs/ARCHITECTURE.md  Package boundaries, dependency direction, and command rules
 docs/ROADMAP.md       Preferred phase order for growing ZaoWu
 docs/CONTRIBUTING.md  Development workflow, safety rules, and validation

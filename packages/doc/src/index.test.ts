@@ -2,7 +2,14 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { convertDocument, DOC_DOMAIN, extractDocument, summarizeDocument } from './index';
+import {
+  convertDocument,
+  DOC_DOMAIN,
+  extractDocument,
+  outlineDocument,
+  searchDocument,
+  summarizeDocument,
+} from './index';
 
 describe('doc domain', () => {
   it('declares document workflow commands', () => {
@@ -11,6 +18,8 @@ describe('doc domain', () => {
       'summary',
       'extract',
       'convert',
+      'outline',
+      'search',
     ]);
   });
 
@@ -54,7 +63,7 @@ describe('doc domain', () => {
 
     await writeFile(
       filePath,
-      '# Title\n\nSee [docs](https://example.com).\n```ts\nx\n```\n',
+      '---\nauthor: team\n---\n# Title\n\nSee [docs](https://example.com).\n```ts\nx\n```\n',
       'utf8'
     );
 
@@ -63,6 +72,63 @@ describe('doc domain', () => {
         headings: ['Title'],
         links: ['https://example.com'],
         codeBlockCount: 1,
+        frontmatter: {
+          author: 'team',
+        },
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('creates a heading outline', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-doc-'));
+    const filePath = path.join(root, 'note.md');
+
+    await writeFile(filePath, '# Title\n\n## Step one\n\n### Detail\n', 'utf8');
+
+    try {
+      await expect(outlineDocument(filePath)).resolves.toMatchObject({
+        outline: [
+          {
+            level: 1,
+            title: 'Title',
+            line: 1,
+          },
+          {
+            level: 2,
+            title: 'Step one',
+            line: 3,
+          },
+          {
+            level: 3,
+            title: 'Detail',
+            line: 5,
+          },
+        ],
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('searches supported documents by keyword', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-doc-'));
+    const filePath = path.join(root, 'note.md');
+
+    await writeFile(filePath, '# Title\n\nInstall ZaoWu locally.\nRun tests.\n', 'utf8');
+
+    try {
+      await expect(searchDocument(filePath, 'zaowu')).resolves.toEqual({
+        status: 'ok',
+        filePath,
+        keyword: 'zaowu',
+        matches: [
+          {
+            line: 3,
+            text: 'Install ZaoWu locally.',
+          },
+        ],
       });
     } finally {
       await rm(root, { recursive: true, force: true });

@@ -15,6 +15,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
+    pool: 'forks',
     include: ['packages/**/*.test.ts'],
     coverage: {
       reporter: ['text', 'json', 'html'],

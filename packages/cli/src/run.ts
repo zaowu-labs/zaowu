@@ -366,6 +366,375 @@ Global options:
   --yes              Apply a safe confirmed action`;
 };
 
+const ACTION_HELP: Record<string, Record<string, string>> = {
+  ai: {
+    ask: `ZaoWu AI Ask
+
+Usage:
+  zw ai ask [prompt] [--file <path>] [--provider <id>] [--model <name>] [options]
+
+Description:
+  Ask a registered provider with explicit prompt and optional file input.
+
+Options:
+  --file <path>      Include a readable text file as input
+  --provider <id>    Provider id, defaults to echo
+  --model <name>     Provider model hint
+  --json             Output machine-readable JSON`,
+    providers: `ZaoWu AI Providers
+
+Usage:
+  zw ai providers [--provider <id>] [options]
+
+Description:
+  List registered providers and show whether required configuration is present.
+
+Options:
+  --provider <id>    Validate one provider in detail
+  --json             Output machine-readable JSON`,
+  },
+  auto: {
+    validate: `ZaoWu Auto Validate
+
+Usage:
+  zw auto validate <workflow.yml> [options]
+
+Description:
+  Validate a JSON or YAML workflow without running it.
+
+Options:
+  --json             Output machine-readable JSON`,
+    plan: `ZaoWu Auto Plan
+
+Usage:
+  zw auto plan <workflow.yml> [options]
+
+Description:
+  Show the dry execution plan, variable substitution, blocked steps, and warnings.
+
+Options:
+  --json             Output machine-readable JSON`,
+    run: `ZaoWu Auto Run
+
+Usage:
+  zw auto run <workflow.yml> [--yes] [options]
+
+Description:
+  Preview a workflow by default. Confirmed runs execute supported message steps only.
+
+Options:
+  --dry-run          Force preview mode
+  --yes              Confirm supported non-shell steps
+  --json             Output machine-readable JSON`,
+  },
+  config: {
+    show: `ZaoWu Config Show
+
+Usage:
+  zw config show [options]
+
+Description:
+  Show the resolved ZaoWu configuration.
+
+Options:
+  --json             Output machine-readable JSON`,
+    path: `ZaoWu Config Path
+
+Usage:
+  zw config path [options]
+
+Description:
+  Print the resolved configuration file path.
+
+Options:
+  --json             Output machine-readable JSON`,
+    validate: `ZaoWu Config Validate
+
+Usage:
+  zw config validate [options]
+
+Description:
+  Parse and validate the resolved configuration file.
+
+Options:
+  --json             Output machine-readable JSON`,
+    get: `ZaoWu Config Get
+
+Usage:
+  zw config get <key> [options]
+
+Description:
+  Read one supported key, such as project.name or ai.provider.
+
+Options:
+  --json             Output machine-readable JSON`,
+    set: `ZaoWu Config Set
+
+Usage:
+  zw config set <key> <value> [--yes] [options]
+
+Description:
+  Preview or write one supported configuration key. Secret-like keys are rejected.
+
+Options:
+  --dry-run          Force preview mode
+  --yes              Write the updated config file
+  --json             Output machine-readable JSON`,
+  },
+  data: {
+    inspect: `ZaoWu Data Inspect
+
+Usage:
+  zw data inspect <file.csv|file.tsv> [options]
+
+Description:
+  Inspect rows, columns, and missing values.
+
+Options:
+  --json             Output machine-readable JSON`,
+    analyze: `ZaoWu Data Analyze
+
+Usage:
+  zw data analyze <file.csv|file.tsv> [options]
+
+Description:
+  Analyze numeric columns in supported data files.
+
+Options:
+  --json             Output machine-readable JSON`,
+    clean: `ZaoWu Data Clean
+
+Usage:
+  zw data clean <file.csv|file.tsv> [--output <path>] [--yes] [options]
+
+Description:
+  Trim cells, remove empty lines, and preview cleaned output by default.
+
+Options:
+  --output <path>    Output file path
+  --dry-run          Force preview mode
+  --yes              Write the cleaned output file
+  --json             Output machine-readable JSON`,
+    schema: `ZaoWu Data Schema
+
+Usage:
+  zw data schema <file.csv|file.tsv> [options]
+
+Description:
+  Infer a lightweight schema for each column.
+
+Options:
+  --json             Output machine-readable JSON`,
+    sample: `ZaoWu Data Sample
+
+Usage:
+  zw data sample <file.csv|file.tsv> [--rows <count>] [options]
+
+Description:
+  Show sample rows from supported data files.
+
+Options:
+  --rows <count>     Number of rows to return, defaults to 5
+  --json             Output machine-readable JSON`,
+  },
+  dev: {
+    status: `ZaoWu Dev Status
+
+Usage:
+  zw dev status [options]
+
+Description:
+  Show Git branch, staged, unstaged, and untracked files.
+
+Options:
+  --json             Output machine-readable JSON`,
+    review: `ZaoWu Dev Review
+
+Usage:
+  zw dev review [--staged|--worktree] [options]
+
+Description:
+  Review staged changes by default, falling back to working-tree changes unless a mode is specified.
+
+Options:
+  --staged           Review only staged changes
+  --worktree         Review only unstaged working-tree changes
+  --json             Output machine-readable JSON`,
+    commit: `ZaoWu Dev Commit
+
+Usage:
+  zw dev commit [options]
+
+Description:
+  Suggest a commit message from staged changes without modifying Git state.
+
+Options:
+  --json             Output machine-readable JSON`,
+  },
+  doc: {
+    summary: `ZaoWu Doc Summary
+
+Usage:
+  zw doc summary <file> [options]
+
+Description:
+  Summarize a supported text or Markdown-like document.
+
+Options:
+  --json             Output machine-readable JSON`,
+    extract: `ZaoWu Doc Extract
+
+Usage:
+  zw doc extract <file> [options]
+
+Description:
+  Extract headings, links, code block counts, and frontmatter.
+
+Options:
+  --json             Output machine-readable JSON`,
+    convert: `ZaoWu Doc Convert
+
+Usage:
+  zw doc convert <file> [--format markdown|text] [--output <path>] [--yes] [options]
+
+Description:
+  Convert supported text documents. File writes require --yes.
+
+Options:
+  --format <format>  markdown or text
+  --output <path>    Output file path
+  --dry-run          Force preview mode
+  --yes              Write the output file
+  --json             Output machine-readable JSON`,
+    outline: `ZaoWu Doc Outline
+
+Usage:
+  zw doc outline <file> [options]
+
+Description:
+  Create an outline from Markdown headings.
+
+Options:
+  --json             Output machine-readable JSON`,
+    search: `ZaoWu Doc Search
+
+Usage:
+  zw doc search <file> <keyword> [options]
+
+Description:
+  Search a supported document for a keyword.
+
+Options:
+  --json             Output machine-readable JSON`,
+  },
+  plugin: {
+    list: `ZaoWu Plugin List
+
+Usage:
+  zw plugin list [options]
+
+Description:
+  List locally installed plugin manifests.
+
+Options:
+  --json             Output machine-readable JSON`,
+    install: `ZaoWu Plugin Install
+
+Usage:
+  zw plugin install <id> [--source <path-or-id>] [--yes] [options]
+
+Description:
+  Preview or install a local plugin manifest entry.
+
+Options:
+  --source <value>   Plugin source id or local directory
+  --dry-run          Force preview mode
+  --yes              Write the local plugin manifest
+  --json             Output machine-readable JSON`,
+    remove: `ZaoWu Plugin Remove
+
+Usage:
+  zw plugin remove <id> [--yes] [options]
+
+Description:
+  Preview or remove a local plugin manifest.
+
+Options:
+  --dry-run          Force preview mode
+  --yes              Remove the local plugin manifest
+  --json             Output machine-readable JSON`,
+    validate: `ZaoWu Plugin Validate
+
+Usage:
+  zw plugin validate <id-or-path> [options]
+
+Description:
+  Validate a plugin id, zaowu.plugin.json, plugin.json, or local source directory.
+
+Options:
+  --json             Output machine-readable JSON`,
+  },
+  teach: {
+    plan: `ZaoWu Teach Plan
+
+Usage:
+  zw teach plan <topic-or-file> [options]
+
+Description:
+  Create a small teaching plan from a topic or readable file.
+
+Options:
+  --json             Output machine-readable JSON`,
+    quiz: `ZaoWu Teach Quiz
+
+Usage:
+  zw teach quiz <topic-or-file> [options]
+
+Description:
+  Create practice questions from a topic or readable file.
+
+Options:
+  --json             Output machine-readable JSON`,
+  },
+  web: {
+    inspect: `ZaoWu Web Inspect
+
+Usage:
+  zw web inspect <https-url> [--yes] [options]
+
+Description:
+  Preview a target by default. Confirmed use performs a HEAD request.
+
+Options:
+  --dry-run          Force preview mode
+  --yes              Perform the network request
+  --json             Output machine-readable JSON`,
+    fetch: `ZaoWu Web Fetch
+
+Usage:
+  zw web fetch <https-url> [--yes] [options]
+
+Description:
+  Preview a target by default. Confirmed use fetches response text.
+
+Options:
+  --dry-run          Force preview mode
+  --yes              Perform the network request
+  --json             Output machine-readable JSON`,
+  },
+};
+
+const formatActionHelp = (domain: DomainDefinition, action: string): string =>
+  ACTION_HELP[domain.name]?.[action] ??
+  `ZaoWu ${toTitleCase(domain.name)} ${toTitleCase(action)}
+
+Usage:
+  zw ${domain.name} ${action} [target] [options]
+
+Options:
+  --help             Show help
+  --json             Output machine-readable JSON`;
+
 const formatInitHelp = (): string => `ZaoWu Init
 
 Usage:
@@ -536,6 +905,33 @@ export const executeCli = async (
       }
 
       if (domain) {
+        const action = commandArgs[1];
+
+        if (action) {
+          const domainCommand = findDomainCommand(domain, action);
+
+          if (!domainCommand) {
+            throw new ZaoWuError({
+              code: 'UNKNOWN_DOMAIN_ACTION',
+              message: `Unknown command: zw ${domain.name} ${action}.`,
+              why: `ZaoWu has the \`${domain.name}\` domain, but it does not have an action named \`${action}\`.`,
+              fix: `Run \`zw ${domain.name} --help\` to see commands for this domain.`,
+            });
+          }
+
+          return createResult(
+            0,
+            json
+              ? JSON.stringify({
+                  status: 'ok',
+                  domain: domain.name,
+                  action,
+                  help: formatActionHelp(domain, action),
+                })
+              : formatActionHelp(domain, action)
+          );
+        }
+
         return createResult(
           0,
           json
@@ -599,7 +995,7 @@ export const executeCli = async (
           dryRun: hasParsedFlag(parsed, '--dry-run'),
           json,
           parsed,
-          yes: hasParsedFlag(parsed, '--yes'),
+          yes: hasParsedFlag(parsed, '--yes') && !hasParsedFlag(parsed, '--dry-run'),
         });
       }
 

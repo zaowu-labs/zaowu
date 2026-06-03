@@ -7,7 +7,7 @@ release promise. It is the preferred order of work.
 
 Goal: make the repository dependable before adding many tools.
 
-Status: first runnable version in progress.
+Status: first runnable version established and being hardened.
 
 Scope:
 
@@ -21,7 +21,15 @@ Scope:
 - architecture and contribution rules
 - top-level domain package scaffolds
 - domain help and planned-command guardrails
-- first safe MVP commands across config, ai, dev, doc, data, auto, plugin, teach, and web
+- safe MVP commands across config, ai, dev, doc, data, auto, plugin, teach, and web
+- action-level help for runnable commands
+- config validate/get/set with preview-first writes
+- local AI provider listing and explicit file input
+- developer status/review/commit previews
+- document outline/search and frontmatter extraction
+- data schema/sample and clean metadata
+- automation planning with variable checks
+- local plugin manifest validation
 
 Exit criteria:
 
@@ -30,6 +38,7 @@ Exit criteria:
 - Command boundaries are documented.
 - New contributors can see where a new command belongs.
 - First-version commands are safe by default and documented in the command catalog.
+- New users can follow `docs/GETTING_STARTED.md` from install to validation.
 
 ## Phase 2: Config System
 
@@ -42,6 +51,7 @@ Scope:
 - default config shape
 - config error messages
 - JSON output for config-related diagnostics
+- preview-first config writes for supported non-secret keys
 
 Out of scope:
 
@@ -60,6 +70,7 @@ Scope:
 - provider config resolution
 - provider error mapping
 - non-streaming text generation first
+- transparent prompt and file input reporting
 
 Out of scope:
 

@@ -4,7 +4,15 @@ export interface ParsedArgs {
   values: ReadonlyMap<string, string>;
 }
 
-const FLAGS_WITH_VALUES = new Set(['--format', '--model', '--output', '--provider', '--source']);
+const FLAGS_WITH_VALUES = new Set([
+  '--file',
+  '--format',
+  '--model',
+  '--output',
+  '--provider',
+  '--rows',
+  '--source',
+]);
 
 export const parseArgs = (args: readonly string[]): ParsedArgs => {
   const positionals: string[] = [];

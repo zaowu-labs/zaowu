@@ -356,15 +356,20 @@ Already established:
 6. `zw doctor`
 7. top-level domain packages
 8. safe MVP commands across config, ai, dev, doc, data, auto, plugin, teach, and web
+9. action-level help for runnable commands
+10. config validate/get/set
+11. local AI provider listing and file input
+12. dev status/review/commit previews
+13. doc outline/search and data schema/sample
+14. automation planning and plugin manifest validation
 
 Priority order:
 
-1. harden command experience specs
-2. improve config schema validation
-3. add real AI provider adapters behind `packages/ai`
-4. expand document and data format support with focused dependencies
-5. improve `zw dev commit` and `zw dev review`
-6. harden workflow execution rules
-7. only then consider plugin distribution
+1. keep command experience specs current
+2. add real AI provider adapters behind `packages/ai`
+3. expand document and data format support with focused dependencies
+4. improve `zw dev commit` and `zw dev review`
+5. harden workflow execution rules before shell execution
+6. only then consider plugin distribution
 
 Do not jump ahead to full agents, desktop apps, cloud services, plugin markets, or browser automation until the foundation is stable.

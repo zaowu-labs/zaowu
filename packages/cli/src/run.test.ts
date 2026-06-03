@@ -70,7 +70,17 @@ describe('executeCli', () => {
       'summary',
       'extract',
       'convert',
+      'outline',
+      'search',
     ]);
+  });
+
+  it('shows action-specific help', async () => {
+    const result = await executeCli(['data', 'schema', '--help']);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain('ZaoWu Data Schema');
+    expect(result.stdout).toContain('zw data schema <file.csv|file.tsv>');
   });
 
   it('runs available domain commands through handlers', async () => {
@@ -126,6 +136,91 @@ describe('executeCli', () => {
     });
   });
 
+  it('lists AI providers and reads file input for AI ask', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
+    const filePath = path.join(root, 'note.md');
+
+    await writeFile(filePath, '# ZaoWu\n\nLocal file input.\n', 'utf8');
+
+    try {
+      const providers = await executeCli(['ai', 'providers', '--json']);
+      const ask = await executeCli(['ai', 'ask', 'Summarize', '--file', filePath, '--json']);
+
+      expect(JSON.parse(providers.stdout)).toMatchObject({
+        status: 'ok',
+        providers: [
+          {
+            id: 'echo',
+          },
+          {
+            id: 'openai',
+          },
+        ],
+      });
+      expect(JSON.parse(ask.stdout)).toMatchObject({
+        input: {
+          source: 'prompt+file',
+          filePath,
+        },
+        output: expect.stringContaining('Local file input.'),
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('runs config validate, get, and preview set from CLI', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
+
+    try {
+      await executeCli(['init', '--yes'], { cwd: root });
+
+      const validate = await executeCli(['config', 'validate', '--json'], { cwd: root });
+      const get = await executeCli(['config', 'get', 'project.name', '--json'], { cwd: root });
+      const set = await executeCli(['config', 'set', 'project.name', 'demo', '--json'], {
+        cwd: root,
+      });
+
+      expect(JSON.parse(validate.stdout)).toMatchObject({
+        status: 'ok',
+      });
+      expect(JSON.parse(get.stdout)).toMatchObject({
+        key: 'project.name',
+        value: 'zaowu-project',
+      });
+      expect(JSON.parse(set.stdout)).toMatchObject({
+        status: 'preview',
+        key: 'project.name',
+        oldValue: 'zaowu-project',
+        newValue: 'demo',
+        wroteFile: false,
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('runs dev status from CLI', async () => {
+    const result = await executeCli(['dev', 'status', '--json'], {
+      commandRunner: (_command, args) => {
+        if (args.join(' ') === 'status --short --branch') {
+          return '## main\nM  packages/dev/src/index.ts\n?? README.md';
+        }
+
+        throw new Error('unexpected command');
+      },
+    });
+
+    expect(JSON.parse(result.stdout)).toEqual({
+      status: 'ok',
+      branch: 'main',
+      clean: false,
+      staged: ['packages/dev/src/index.ts'],
+      unstaged: [],
+      untracked: ['README.md'],
+    });
+  });
+
   it('runs document summary from CLI', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
     const filePath = path.join(root, 'note.md');
@@ -140,6 +235,42 @@ describe('executeCli', () => {
         status: 'ok',
         title: 'Note',
         summary: 'Useful content.',
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('runs document outline and search from CLI', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
+    const filePath = path.join(root, 'note.md');
+
+    await writeFile(filePath, '# Note\n\n## Install\n\nUse ZaoWu locally.\n', 'utf8');
+
+    try {
+      const outline = await executeCli(['doc', 'outline', filePath, '--json']);
+      const search = await executeCli(['doc', 'search', filePath, 'zaowu', '--json']);
+
+      expect(JSON.parse(outline.stdout)).toMatchObject({
+        outline: [
+          {
+            level: 1,
+            title: 'Note',
+          },
+          {
+            level: 2,
+            title: 'Install',
+          },
+        ],
+      });
+      expect(JSON.parse(search.stdout)).toMatchObject({
+        keyword: 'zaowu',
+        matches: [
+          {
+            line: 5,
+            text: 'Use ZaoWu locally.',
+          },
+        ],
       });
     } finally {
       await rm(root, { recursive: true, force: true });
@@ -166,6 +297,72 @@ describe('executeCli', () => {
     }
   });
 
+  it('runs data schema and sample from CLI', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
+    const filePath = path.join(root, 'data.csv');
+
+    await writeFile(filePath, 'name,amount\nA,10\nB,20\n', 'utf8');
+
+    try {
+      const schema = await executeCli(['data', 'schema', filePath, '--json']);
+      const sample = await executeCli(['data', 'sample', filePath, '--rows', '1', '--json']);
+
+      expect(JSON.parse(schema.stdout)).toMatchObject({
+        columns: [
+          {
+            column: 'name',
+            type: 'string',
+          },
+          {
+            column: 'amount',
+            type: 'number',
+          },
+        ],
+      });
+      expect(JSON.parse(sample.stdout)).toMatchObject({
+        rowCount: 1,
+        rows: [
+          {
+            name: 'A',
+            amount: '10',
+          },
+        ],
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('runs auto plan from CLI', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
+    const filePath = path.join(root, 'workflow.yml');
+
+    await writeFile(
+      filePath,
+      'name: demo\nvars:\n  target: ZaoWu\nsteps:\n  - name: hello\n    message: Hello {{target}}\n',
+      'utf8'
+    );
+
+    try {
+      const plan = await executeCli(['auto', 'plan', filePath, '--json']);
+
+      expect(JSON.parse(plan.stdout)).toMatchObject({
+        workflow: {
+          name: 'demo',
+        },
+        steps: [
+          {
+            name: 'hello',
+            preview: 'Hello ZaoWu',
+            blocked: false,
+          },
+        ],
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('previews sensitive plugin and web commands by default', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
 
@@ -180,6 +377,30 @@ describe('executeCli', () => {
       expect(JSON.parse(web.stdout)).toMatchObject({
         status: 'preview',
         url: 'https://example.com/',
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('runs plugin validate from CLI', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
+
+    await writeFile(
+      path.join(root, 'zaowu.plugin.json'),
+      JSON.stringify({ id: 'local-tool' }),
+      'utf8'
+    );
+
+    try {
+      const validation = await executeCli(['plugin', 'validate', root, '--json']);
+
+      expect(JSON.parse(validation.stdout)).toMatchObject({
+        status: 'ok',
+        manifest: {
+          id: 'local-tool',
+        },
+        errors: [],
       });
     } finally {
       await rm(root, { recursive: true, force: true });

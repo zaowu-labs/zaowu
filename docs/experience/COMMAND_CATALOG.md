@@ -1,16 +1,17 @@
 # ZaoWu Command Catalog
 
-This catalog describes the first runnable command set. Commands are grouped by
-domain so future work stays separated.
+This catalog describes the current runnable command set. Commands stay grouped
+by domain so future work does not mix unrelated tools.
 
 ## Global Rules
 
 - Default output is human-readable.
 - Use `--json` for machine-readable output.
-- Sensitive commands preview by default or require `--yes` before writing files
-  or sending network requests.
-- Unsupported formats should return actionable errors instead of pretending to
-  work.
+- Use `--help` on root, domains, and actions.
+- Sensitive commands preview by default or require `--yes` before writing files,
+  removing files, or sending network requests.
+- `--dry-run` forces preview mode when it is used with `--yes`.
+- Unsupported formats return actionable errors instead of pretending to work.
 
 ## Root Commands
 
@@ -27,39 +28,60 @@ Common failure:
 
 ## `zw config`
 
-| Command          | Description                    | Example                 |
-| ---------------- | ------------------------------ | ----------------------- |
-| `zw config path` | Print the resolved config path | `zw config path`        |
-| `zw config show` | Show validated config          | `zw config show --json` |
+| Command              | Description                        | Example                                 |
+| -------------------- | ---------------------------------- | --------------------------------------- |
+| `zw config path`     | Print the resolved config path     | `zw config path`                        |
+| `zw config show`     | Show resolved config               | `zw config show --json`                 |
+| `zw config validate` | Validate config and warnings       | `zw config validate`                    |
+| `zw config get`      | Read one supported key             | `zw config get project.name`            |
+| `zw config set`      | Preview or write one supported key | `zw config set project.name demo --yes` |
+
+Supported keys:
+
+- `project.name`
+- `ai.provider`
+- `defaults.output`
+- `paths.workspace`
+- `paths.cache`
 
 Common failures:
 
 - Missing config: run `zw init`, then `zw init --yes`.
 - Secret-like config keys: move secrets to environment variables.
+- Unsupported keys: extend `packages/config` before adding new keys.
 
 ## `zw ai`
 
-| Command     | Description                         | Example                     |
-| ----------- | ----------------------------------- | --------------------------- |
-| `zw ai ask` | Ask through the local echo provider | `zw ai ask "Explain ZaoWu"` |
+| Command           | Description                        | Example                             |
+| ----------------- | ---------------------------------- | ----------------------------------- |
+| `zw ai ask`       | Ask through a registered provider  | `zw ai ask "Explain ZaoWu"`         |
+| `zw ai providers` | List provider configuration status | `zw ai providers --provider openai` |
 
 First-version behavior:
 
 - Uses the local `echo` provider by default.
-- Does not call external AI services.
-- Unknown providers return an actionable error.
+- `zw ai ask --file README.md` includes a readable file as explicit input.
+- The OpenAI provider is registered for configuration validation only.
+- No external AI network calls are made in this foundation version.
+
+Common failures:
+
+- Missing prompt and file input: pass a prompt or `--file`.
+- Unknown provider: run `zw ai providers`.
 
 ## `zw dev`
 
-| Command         | Description                                      | Example         |
-| --------------- | ------------------------------------------------ | --------------- |
-| `zw dev commit` | Suggest a commit message from staged changes     | `zw dev commit` |
-| `zw dev review` | Review staged changes, then working-tree changes | `zw dev review` |
+| Command         | Description                                  | Example                  |
+| --------------- | -------------------------------------------- | ------------------------ |
+| `zw dev status` | Show branch, staged, unstaged, and untracked | `zw dev status`          |
+| `zw dev review` | Review staged or working-tree changes        | `zw dev review --staged` |
+| `zw dev commit` | Suggest a commit message from staged changes | `zw dev commit`          |
 
 Safety:
 
 - No Git state is modified.
 - `zw dev commit` reads staged changes only.
+- `zw dev review --staged` and `zw dev review --worktree` keep sources explicit.
 
 Common failures:
 
@@ -68,11 +90,13 @@ Common failures:
 
 ## `zw doc`
 
-| Command          | Description                                        | Example                                      |
-| ---------------- | -------------------------------------------------- | -------------------------------------------- |
-| `zw doc summary` | Summarize text/Markdown                            | `zw doc summary notes.md`                    |
-| `zw doc extract` | Extract headings, links, and code block count      | `zw doc extract notes.md`                    |
-| `zw doc convert` | Convert text/Markdown with explicit output control | `zw doc convert notes.md --output notes.txt` |
+| Command          | Description                                       | Example                                      |
+| ---------------- | ------------------------------------------------- | -------------------------------------------- |
+| `zw doc summary` | Summarize text/Markdown-like files                | `zw doc summary notes.md`                    |
+| `zw doc extract` | Extract headings, links, code blocks, frontmatter | `zw doc extract notes.md`                    |
+| `zw doc convert` | Convert with explicit output control              | `zw doc convert notes.md --output notes.txt` |
+| `zw doc outline` | Create a heading outline                          | `zw doc outline notes.md`                    |
+| `zw doc search`  | Search by keyword                                 | `zw doc search notes.md install`             |
 
 Safety:
 
@@ -86,11 +110,13 @@ Current format support:
 
 ## `zw data`
 
-| Command           | Description                | Example                                      |
-| ----------------- | -------------------------- | -------------------------------------------- |
-| `zw data inspect` | Show CSV/TSV shape         | `zw data inspect sales.csv`                  |
-| `zw data analyze` | Analyze numeric columns    | `zw data analyze sales.csv`                  |
-| `zw data clean`   | Trim CSV/TSV values safely | `zw data clean sales.csv --output clean.csv` |
+| Command           | Description                           | Example                                      |
+| ----------------- | ------------------------------------- | -------------------------------------------- |
+| `zw data inspect` | Show CSV/TSV shape and missing values | `zw data inspect sales.csv`                  |
+| `zw data analyze` | Analyze numeric columns               | `zw data analyze sales.csv`                  |
+| `zw data clean`   | Trim values and remove empty lines    | `zw data clean sales.csv --output clean.csv` |
+| `zw data schema`  | Infer lightweight column schema       | `zw data schema sales.csv`                   |
+| `zw data sample`  | Show sample rows                      | `zw data sample sales.csv --rows 3`          |
 
 Safety:
 
@@ -104,29 +130,44 @@ Current format support:
 
 ## `zw auto`
 
-| Command            | Description                        | Example                         |
-| ------------------ | ---------------------------------- | ------------------------------- |
-| `zw auto validate` | Validate a simple workflow         | `zw auto validate workflow.yml` |
-| `zw auto run`      | Dry-run or run safe workflow steps | `zw auto run workflow.yml`      |
+| Command            | Description                             | Example                         |
+| ------------------ | --------------------------------------- | ------------------------------- |
+| `zw auto validate` | Validate a simple workflow              | `zw auto validate workflow.yml` |
+| `zw auto plan`     | Show variable substitution and blockers | `zw auto plan workflow.yml`     |
+| `zw auto run`      | Dry-run or run supported message steps  | `zw auto run workflow.yml`      |
+
+Workflow support:
+
+- JSON or simple YAML.
+- `vars` can be referenced as `{{name}}`.
+- `message` steps can run when confirmed.
+- `run` shell steps are detected, planned, and blocked.
 
 Safety:
 
 - `zw auto run` previews by default.
 - Use `--yes` to execute supported `message` steps.
-- Shell `run` steps are detected but not executed in this first version.
+- Shell execution is not enabled in this foundation version.
 
 ## `zw plugin`
 
-| Command             | Description                               | Example                        |
-| ------------------- | ----------------------------------------- | ------------------------------ |
-| `zw plugin list`    | List local plugin manifests               | `zw plugin list`               |
-| `zw plugin install` | Preview or write a local plugin manifest  | `zw plugin install readme-gen` |
-| `zw plugin remove`  | Preview or remove a local plugin manifest | `zw plugin remove readme-gen`  |
+| Command              | Description                               | Example                                   |
+| -------------------- | ----------------------------------------- | ----------------------------------------- |
+| `zw plugin list`     | List local plugin manifests               | `zw plugin list`                          |
+| `zw plugin install`  | Preview or write a local plugin manifest  | `zw plugin install readme-gen`            |
+| `zw plugin remove`   | Preview or remove a local plugin manifest | `zw plugin remove readme-gen`             |
+| `zw plugin validate` | Validate a plugin id or local manifest    | `zw plugin validate ./plugins/readme-gen` |
+
+Manifest support:
+
+- Local source directories can contain `zaowu.plugin.json` or `plugin.json`.
+- Install/remove writes only under `.zaowu/plugins`.
+- There is no public marketplace in this foundation version.
 
 Safety:
 
 - Install/remove previews by default.
-- Use `--yes` to write or remove files under `.zaowu/plugins`.
+- Use `--yes` to write or remove files.
 
 ## `zw teach`
 
