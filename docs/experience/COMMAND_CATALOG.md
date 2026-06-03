@@ -10,6 +10,8 @@ by domain so future work does not mix unrelated tools.
 - Use `--help` on root, domains, and actions.
 - Sensitive commands preview by default or require `--yes` before writing files,
   removing files, or sending network requests.
+- Sensitive JSON output includes `operationPlan` with reads, writes, execution,
+  network, secrets, risk, and confirmation requirements.
 - `--dry-run` forces preview mode when it is used with `--yes`.
 - Unsupported formats return actionable errors instead of pretending to work.
 
@@ -21,6 +23,7 @@ by domain so future work does not mix unrelated tools.
 | `zw init --yes` | Create `zw.yml`                       | `zw init --yes` |
 | `zw doctor`     | Check local environment health        | `zw doctor`     |
 | `zw --help`     | Show root help and registered domains | `zw --help`     |
+| `zw --version`  | Show CLI version                      | `zw --version`  |
 
 Common failure:
 
@@ -28,16 +31,18 @@ Common failure:
 
 ## `zw config`
 
-| Command              | Description                        | Example                                 |
-| -------------------- | ---------------------------------- | --------------------------------------- |
-| `zw config path`     | Print the resolved config path     | `zw config path`                        |
-| `zw config show`     | Show resolved config               | `zw config show --json`                 |
-| `zw config validate` | Validate config and warnings       | `zw config validate`                    |
-| `zw config get`      | Read one supported key             | `zw config get project.name`            |
-| `zw config set`      | Preview or write one supported key | `zw config set project.name demo --yes` |
+| Command              | Description                          | Example                                 |
+| -------------------- | ------------------------------------ | --------------------------------------- |
+| `zw config path`     | Print the resolved config path       | `zw config path`                        |
+| `zw config show`     | Show resolved config                 | `zw config show --json`                 |
+| `zw config validate` | Validate config and warnings         | `zw config validate`                    |
+| `zw config get`      | Read one supported key               | `zw config get project.name`            |
+| `zw config set`      | Preview or write one supported key   | `zw config set project.name demo --yes` |
+| `zw config migrate`  | Preview or write canonical config v1 | `zw config migrate --yes`               |
 
 Supported keys:
 
+- `version`
 - `project.name`
 - `ai.provider`
 - `defaults.output`
@@ -61,13 +66,16 @@ First-version behavior:
 
 - Uses the local `echo` provider by default.
 - `zw ai ask --file README.md` includes a readable file as explicit input.
-- The OpenAI provider is registered for configuration validation only.
-- No external AI network calls are made in this foundation version.
+- The OpenAI provider uses the Responses API when `OPENAI_API_KEY` is set.
+- `OPENAI_MODEL` or `--model` can override the default model.
+- API keys must come from environment variables, not from `zw.yml`.
+- Network providers preview by default; use `--yes` to send the request.
 
 Common failures:
 
 - Missing prompt and file input: pass a prompt or `--file`.
 - Unknown provider: run `zw ai providers`.
+- Missing OpenAI key: set `OPENAI_API_KEY` in the shell environment.
 
 ## `zw dev`
 
@@ -92,7 +100,7 @@ Common failures:
 
 | Command          | Description                                       | Example                                      |
 | ---------------- | ------------------------------------------------- | -------------------------------------------- |
-| `zw doc summary` | Summarize text/Markdown-like files                | `zw doc summary notes.md`                    |
+| `zw doc summary` | Summarize supported documents                     | `zw doc summary notes.md`                    |
 | `zw doc extract` | Extract headings, links, code blocks, frontmatter | `zw doc extract notes.md`                    |
 | `zw doc convert` | Convert with explicit output control              | `zw doc convert notes.md --output notes.txt` |
 | `zw doc outline` | Create a heading outline                          | `zw doc outline notes.md`                    |
@@ -105,18 +113,20 @@ Safety:
 
 Current format support:
 
-- Supported: `.txt`, `.md`, `.markdown`, `.csv`, `.json`, `.yml`, `.yaml`
-- Unsupported for now: `.pdf`, `.docx`
+- Supported: `.txt`, `.md`, `.markdown`, `.csv`, `.json`, `.yml`, `.yaml`,
+  `.pdf`, `.docx`
+- PDF and DOCX are extracted as text. Rich layout, comments, tracked changes,
+  and embedded media are not preserved in this foundation version.
 
 ## `zw data`
 
-| Command           | Description                           | Example                                      |
-| ----------------- | ------------------------------------- | -------------------------------------------- |
-| `zw data inspect` | Show CSV/TSV shape and missing values | `zw data inspect sales.csv`                  |
-| `zw data analyze` | Analyze numeric columns               | `zw data analyze sales.csv`                  |
-| `zw data clean`   | Trim values and remove empty lines    | `zw data clean sales.csv --output clean.csv` |
-| `zw data schema`  | Infer lightweight column schema       | `zw data schema sales.csv`                   |
-| `zw data sample`  | Show sample rows                      | `zw data sample sales.csv --rows 3`          |
+| Command           | Description                         | Example                                      |
+| ----------------- | ----------------------------------- | -------------------------------------------- |
+| `zw data inspect` | Show table shape and missing values | `zw data inspect sales.csv`                  |
+| `zw data analyze` | Analyze numeric columns             | `zw data analyze sales.csv`                  |
+| `zw data clean`   | Trim values and remove empty lines  | `zw data clean sales.csv --output clean.csv` |
+| `zw data schema`  | Infer lightweight column schema     | `zw data schema sales.csv`                   |
+| `zw data sample`  | Show sample rows                    | `zw data sample sales.csv --rows 3`          |
 
 Safety:
 
@@ -125,8 +135,8 @@ Safety:
 
 Current format support:
 
-- Supported: `.csv`, `.tsv`
-- Unsupported for now: `.xlsx`
+- Supported: `.csv`, `.tsv`, `.xlsx`
+- XLSX support reads the first worksheet and normalizes values to strings.
 
 ## `zw auto`
 
@@ -148,6 +158,8 @@ Safety:
 - `zw auto run` previews by default.
 - Use `--yes` to execute supported `message` steps.
 - Shell execution is not enabled in this foundation version.
+- Shell-like steps remain visible in plans so users can see exactly what is
+  blocked.
 
 ## `zw plugin`
 
@@ -192,3 +204,13 @@ Safety:
 
 - Network requests are not sent by default.
 - Use `--yes` to make the request.
+
+## Contract Guards
+
+The CLI keeps a command contract registry in `packages/cli/src/command-contracts.ts`.
+Every registered command must keep action help available in both human and JSON
+forms.
+
+Domain packages also declare capability ledgers. The boundary guard test checks
+that feature packages do not import each other directly, so document, data,
+developer, automation, teaching, web, plugin, config, and AI logic stay separated.

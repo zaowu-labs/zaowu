@@ -1,6 +1,6 @@
 import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { stripUtf8Bom, type DomainDefinition } from '@zaowu/core';
+import { createCapabilityLedger, stripUtf8Bom, type DomainDefinition } from '@zaowu/core';
 import { ZaoWuError } from '@zaowu/core';
 
 export interface PluginManifest {
@@ -47,6 +47,10 @@ export interface PluginValidationResult {
 export const PLUGIN_DOMAIN: DomainDefinition = {
   name: 'plugin',
   summary: 'Plugin workflows for listing, installing, and removing extensions',
+  capabilities: createCapabilityLedger({
+    readsFiles: true,
+    writesFiles: true,
+  }),
   commands: [
     {
       name: 'list',

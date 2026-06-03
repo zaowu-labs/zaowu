@@ -1,7 +1,12 @@
 import { constants } from 'node:fs';
 import { access, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { stripUtf8Bom, ZaoWuError, type DomainDefinition } from '@zaowu/core';
+import {
+  createCapabilityLedger,
+  stripUtf8Bom,
+  ZaoWuError,
+  type DomainDefinition,
+} from '@zaowu/core';
 
 export const CONFIG_FILE_NAMES = [
   'zw.yml',
@@ -24,6 +29,7 @@ export interface LoadedConfig {
 }
 
 export interface ZaoWuConfig {
+  version: 1;
   project: {
     name: string;
   };
@@ -45,6 +51,7 @@ export interface ResolvedConfig {
 }
 
 export type ConfigKey =
+  | 'version'
   | 'project.name'
   | 'ai.provider'
   | 'defaults.output'
@@ -75,9 +82,23 @@ export interface ConfigSetResult {
   wroteFile: boolean;
 }
 
+export interface ConfigMigrationResult {
+  status: 'ok' | 'preview';
+  filePath: string;
+  fromVersion: number | null;
+  toVersion: 1;
+  changed: boolean;
+  content: string;
+  wroteFile: boolean;
+}
+
 export const CONFIG_DOMAIN: DomainDefinition = {
   name: 'config',
   summary: 'Inspect and manage ZaoWu configuration',
+  capabilities: createCapabilityLedger({
+    readsFiles: true,
+    writesFiles: true,
+  }),
   commands: [
     {
       name: 'show',
@@ -105,11 +126,18 @@ export const CONFIG_DOMAIN: DomainDefinition = {
       status: 'available',
       sensitive: true,
     },
+    {
+      name: 'migrate',
+      summary: 'Preview or apply safe config migrations',
+      status: 'available',
+      sensitive: true,
+    },
   ],
 };
 
 const SECRET_KEY_PATTERN = /(?:secret|token|password|api[_-]?key|private[_-]?key|recovery)/i;
 const CONFIG_KEYS: readonly ConfigKey[] = [
+  'version',
   'project.name',
   'ai.provider',
   'defaults.output',
@@ -118,6 +146,7 @@ const CONFIG_KEYS: readonly ConfigKey[] = [
 ];
 
 const DEFAULT_CONFIG: ZaoWuConfig = {
+  version: 1,
   project: {
     name: 'zaowu-project',
   },
@@ -313,6 +342,19 @@ const getString = (value: unknown, fallback: string): string =>
 
 const getOutput = (value: unknown): 'human' | 'json' => (value === 'json' ? 'json' : 'human');
 
+const getVersion = (value: unknown): 1 => {
+  if (value === undefined || value === null || value === '' || value === 1 || value === '1') {
+    return 1;
+  }
+
+  throw new ZaoWuError({
+    code: 'CONFIG_VERSION_UNSUPPORTED',
+    message: 'Config version is not supported.',
+    why: `ZaoWu supports config version 1, but this file declares \`${String(value)}\`.`,
+    fix: 'Run a newer ZaoWu version that supports this config, or migrate the file manually.',
+  });
+};
+
 const assertConfigKey = (key: string): ConfigKey => {
   if (SECRET_KEY_PATTERN.test(key)) {
     throw new ZaoWuError({
@@ -351,6 +393,15 @@ const normalizeConfigValue = (key: ConfigKey, value: string): string | null => {
     });
   }
 
+  if (key === 'version' && trimmed !== '1') {
+    throw new ZaoWuError({
+      code: 'CONFIG_VALUE_INVALID',
+      message: 'Config value is invalid.',
+      why: '`version` must be `1` in this ZaoWu release.',
+      fix: 'Run `zw config migrate` to preview the supported config version.',
+    });
+  }
+
   if (!trimmed) {
     throw new ZaoWuError({
       code: 'CONFIG_VALUE_INVALID',
@@ -365,6 +416,8 @@ const normalizeConfigValue = (key: ConfigKey, value: string): string | null => {
 
 const getConfigValue = (config: ZaoWuConfig, key: ConfigKey): string | null => {
   switch (key) {
+    case 'version':
+      return String(config.version);
     case 'project.name':
       return config.project.name;
     case 'ai.provider':
@@ -384,6 +437,7 @@ const withConfigValue = (
   value: string | null
 ): ZaoWuConfig => {
   const next: ZaoWuConfig = {
+    version: config.version,
     project: { ...config.project },
     ai: { ...config.ai },
     defaults: { ...config.defaults },
@@ -391,6 +445,9 @@ const withConfigValue = (
   };
 
   switch (key) {
+    case 'version':
+      next.version = 1;
+      break;
     case 'project.name':
       next.project.name = value ?? DEFAULT_CONFIG.project.name;
       break;
@@ -419,6 +476,8 @@ const serializeConfig = (config: ZaoWuConfig, filePath: string): string => {
   }
 
   return [
+    'version: 1',
+    '',
     'project:',
     `  name: ${config.project.name}`,
     '',
@@ -464,6 +523,7 @@ export const parseConfig = (content: string, filePath = 'zw.yml'): ZaoWuConfig =
   const provider = ai.provider;
 
   return {
+    version: getVersion(parsed.version),
     project: {
       name: getString(project.name, DEFAULT_CONFIG.project.name),
     },
@@ -503,6 +563,26 @@ export const loadResolvedConfig = async (cwd?: string): Promise<ResolvedConfig> 
     filePath,
     config: parseConfig(loaded.content, loaded.filePath),
   };
+};
+
+const getRawConfigVersion = (content: string, filePath: string): number | null => {
+  const parsed = parseConfigObject(content, filePath);
+  const rawVersion = parsed.version;
+
+  if (rawVersion === undefined || rawVersion === null || rawVersion === '') {
+    return null;
+  }
+
+  if (rawVersion === 1 || rawVersion === '1') {
+    return 1;
+  }
+
+  throw new ZaoWuError({
+    code: 'CONFIG_VERSION_UNSUPPORTED',
+    message: 'Config version is not supported.',
+    why: `ZaoWu supports config version 1, but this file declares \`${String(rawVersion)}\`.`,
+    fix: 'Run a newer ZaoWu version that supports this config, or migrate the file manually.',
+  });
 };
 
 export const validateResolvedConfig = async (cwd?: string): Promise<ConfigValidationResult> => {
@@ -555,6 +635,43 @@ export const setResolvedConfigValue = async (
     key: configKey,
     oldValue: getConfigValue(currentConfig, configKey),
     newValue: getConfigValue(nextConfig, configKey),
+    content,
+    wroteFile: Boolean(options.yes),
+  };
+};
+
+export const migrateResolvedConfig = async (
+  options: { cwd?: string; yes?: boolean } = {}
+): Promise<ConfigMigrationResult> => {
+  const filePath = await findConfigPathOrThrow(options.cwd);
+  const loaded = await loadConfig(filePath);
+  const fromVersion = getRawConfigVersion(loaded.content, loaded.filePath);
+  const config = parseConfig(loaded.content, loaded.filePath);
+  const content = serializeConfig(config, filePath);
+  const changed = fromVersion !== 1 || stripUtf8Bom(loaded.content) !== content;
+
+  if (!changed) {
+    return {
+      status: 'ok',
+      filePath,
+      fromVersion,
+      toVersion: 1,
+      changed: false,
+      content,
+      wroteFile: false,
+    };
+  }
+
+  if (options.yes) {
+    await writeFile(filePath, content, 'utf8');
+  }
+
+  return {
+    status: options.yes ? 'ok' : 'preview',
+    filePath,
+    fromVersion,
+    toVersion: 1,
+    changed,
     content,
     wroteFile: Boolean(options.yes),
   };

@@ -26,6 +26,7 @@ describe('AI provider registry', () => {
         network: true,
         configured: false,
         requiredEnv: ['OPENAI_API_KEY'],
+        defaultModel: 'gpt-4.1-mini',
       },
     ]);
   });
@@ -77,6 +78,7 @@ describe('AI provider registry', () => {
         network: true,
         configured: false,
         requiredEnv: ['OPENAI_API_KEY'],
+        defaultModel: 'gpt-4.1-mini',
       },
       warnings: ['Missing environment variable(s): OPENAI_API_KEY.'],
     });
@@ -88,6 +90,97 @@ describe('AI provider registry', () => {
       },
       warnings: [],
     });
+  });
+
+  it('asks OpenAI through the Responses API with an environment key', async () => {
+    const calls: Array<{
+      url: string;
+      init: {
+        method: string;
+        headers: Record<string, string>;
+        body: string;
+      };
+    }> = [];
+
+    await expect(
+      askAI({
+        provider: 'openai',
+        prompt: 'Explain ZaoWu',
+        model: 'test-model',
+        env: {
+          OPENAI_API_KEY: 'test-key',
+        },
+        fetcher: async (url, init) => {
+          calls.push({ url, init });
+
+          return {
+            ok: true,
+            status: 200,
+            statusText: 'OK',
+            async json() {
+              return {
+                output_text: 'ZaoWu is a toolkit.',
+              };
+            },
+          };
+        },
+      })
+    ).resolves.toMatchObject({
+      provider: {
+        id: 'openai',
+        network: true,
+        configured: true,
+      },
+      model: 'test-model',
+      output: 'ZaoWu is a toolkit.',
+    });
+
+    expect(calls).toEqual([
+      {
+        url: 'https://api.openai.com/v1/responses',
+        init: {
+          method: 'POST',
+          headers: {
+            Authorization: 'Bearer test-key',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'test-model',
+            input: 'Explain ZaoWu',
+          }),
+        },
+      },
+    ]);
+  });
+
+  it('rejects OpenAI requests without an environment key', async () => {
+    await expect(
+      askAI({
+        provider: 'openai',
+        prompt: 'Explain ZaoWu',
+        env: {},
+      })
+    ).rejects.toThrow('AI provider configuration is missing.');
+  });
+
+  it('maps OpenAI HTTP errors to actionable errors', async () => {
+    await expect(
+      askAI({
+        provider: 'openai',
+        prompt: 'Explain ZaoWu',
+        env: {
+          OPENAI_API_KEY: 'test-key',
+        },
+        fetcher: async () => ({
+          ok: false,
+          status: 401,
+          statusText: 'Unauthorized',
+          async json() {
+            return {};
+          },
+        }),
+      })
+    ).rejects.toThrow('AI provider request failed.');
   });
 
   it('rejects unknown providers', () => {

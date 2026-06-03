@@ -16,11 +16,14 @@ import { hasFlag as hasParsedFlag, parseArgs } from './args.js';
 import { getDomainActionHandler } from './domain-handlers.js';
 import { createResult, formatRows } from './output.js';
 import type { CliExecutionOptions, CliResult, CommandRunner } from './types.js';
+import { getCliVersion } from './version.js';
 
-export const ZAOWU_CLI_VERSION = '0.0.1';
+export const ZAOWU_CLI_VERSION = getCliVersion();
 export const DEFAULT_CONFIG_FILE_NAME = 'zw.yml';
 
-const DEFAULT_CONFIG_CONTENT = `project:
+const DEFAULT_CONFIG_CONTENT = `version: 1
+
+project:
   name: zaowu-project
 
 ai:
@@ -59,7 +62,7 @@ const PNPM_VERSION_FIX =
   `Use pnpm ${MINIMUM_PNPM_VERSION} through Corepack: ` +
   `corepack prepare pnpm@${MINIMUM_PNPM_VERSION} --activate.`;
 
-const DOMAIN_DEFINITIONS: readonly DomainDefinition[] = [
+export const DOMAIN_DEFINITIONS: readonly DomainDefinition[] = [
   AI_DOMAIN,
   DEV_DOMAIN,
   DOC_DOMAIN,
@@ -347,6 +350,12 @@ const formatDomainHelp = (domain: DomainDefinition): string => {
       return [`zw ${domain.name} ${command.name}`, `${flags} - ${command.summary}`];
     })
   );
+  const capabilities = domain.capabilities
+    ? Object.entries(domain.capabilities)
+        .filter(([, enabled]) => enabled)
+        .map(([name]) => `- ${name}`)
+        .join('\n') || '- none'
+    : '- none';
 
   return `ZaoWu ${toTitleCase(domain.name)} Domain
 
@@ -358,6 +367,9 @@ Description:
 
 Commands:
 ${commands}
+
+Capabilities:
+${capabilities}
 
 Global options:
   --help             Show help
@@ -480,12 +492,24 @@ Options:
   --dry-run          Force preview mode
   --yes              Write the updated config file
   --json             Output machine-readable JSON`,
+    migrate: `ZaoWu Config Migrate
+
+Usage:
+  zw config migrate [--yes] [options]
+
+Description:
+  Preview or apply safe migrations to the current config file.
+
+Options:
+  --dry-run          Force preview mode
+  --yes              Write the migrated config file
+  --json             Output machine-readable JSON`,
   },
   data: {
     inspect: `ZaoWu Data Inspect
 
 Usage:
-  zw data inspect <file.csv|file.tsv> [options]
+  zw data inspect <file.csv|file.tsv|file.xlsx> [options]
 
 Description:
   Inspect rows, columns, and missing values.
@@ -495,7 +519,7 @@ Options:
     analyze: `ZaoWu Data Analyze
 
 Usage:
-  zw data analyze <file.csv|file.tsv> [options]
+  zw data analyze <file.csv|file.tsv|file.xlsx> [options]
 
 Description:
   Analyze numeric columns in supported data files.
@@ -505,7 +529,7 @@ Options:
     clean: `ZaoWu Data Clean
 
 Usage:
-  zw data clean <file.csv|file.tsv> [--output <path>] [--yes] [options]
+  zw data clean <file.csv|file.tsv|file.xlsx> [--output <path>] [--yes] [options]
 
 Description:
   Trim cells, remove empty lines, and preview cleaned output by default.
@@ -518,7 +542,7 @@ Options:
     schema: `ZaoWu Data Schema
 
 Usage:
-  zw data schema <file.csv|file.tsv> [options]
+  zw data schema <file.csv|file.tsv|file.xlsx> [options]
 
 Description:
   Infer a lightweight schema for each column.
@@ -528,7 +552,7 @@ Options:
     sample: `ZaoWu Data Sample
 
 Usage:
-  zw data sample <file.csv|file.tsv> [--rows <count>] [options]
+  zw data sample <file.csv|file.tsv|file.xlsx> [--rows <count>] [options]
 
 Description:
   Show sample rows from supported data files.
@@ -578,7 +602,7 @@ Usage:
   zw doc summary <file> [options]
 
 Description:
-  Summarize a supported text or Markdown-like document.
+  Summarize a supported document.
 
 Options:
   --json             Output machine-readable JSON`,

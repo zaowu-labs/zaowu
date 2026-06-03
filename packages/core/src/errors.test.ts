@@ -1,5 +1,32 @@
+import { readFile, readdir } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { ZaoWuError } from './errors';
+import { isKnownZaoWuErrorCode, ZAOWU_ERROR_CODES, ZaoWuError } from './index';
+
+const rootDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
+
+const readSourceFiles = async (directory: string): Promise<string[]> => {
+  const entries = await readdir(directory, {
+    withFileTypes: true,
+  });
+  const files: string[] = [];
+
+  for (const entry of entries) {
+    const entryPath = path.join(directory, entry.name);
+
+    if (entry.isDirectory()) {
+      files.push(...(await readSourceFiles(entryPath)));
+      continue;
+    }
+
+    if (entry.name.endsWith('.ts')) {
+      files.push(entryPath);
+    }
+  }
+
+  return files;
+};
 
 describe('ZaoWuError', () => {
   it('formats expected errors for human-readable output', () => {
@@ -35,5 +62,27 @@ Run \`git add .\` and try again.`);
         exitCode: 2,
       },
     });
+  });
+
+  it('keeps a registry of stable error codes', () => {
+    expect(isKnownZaoWuErrorCode('NO_STAGED_CHANGES')).toBe(true);
+    expect(isKnownZaoWuErrorCode('NOT_A_REAL_CODE')).toBe(false);
+  });
+
+  it('registers every expected error code used in source', async () => {
+    const files = await readSourceFiles(path.join(rootDirectory, 'packages'));
+    const usedCodes = new Set<string>();
+
+    for (const file of files) {
+      const content = await readFile(file, 'utf8');
+
+      for (const match of content.matchAll(/\bcode:\s*'([A-Z0-9_]+)'/g)) {
+        usedCodes.add(match[1]);
+      }
+    }
+
+    expect([...usedCodes].sort()).toEqual(
+      [...ZAOWU_ERROR_CODES].filter((code) => usedCodes.has(code)).sort()
+    );
   });
 });

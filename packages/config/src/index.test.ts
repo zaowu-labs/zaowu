@@ -9,6 +9,7 @@ import {
   getResolvedConfigValue,
   loadConfig,
   loadResolvedConfig,
+  migrateResolvedConfig,
   parseConfig,
   setResolvedConfigValue,
   validateResolvedConfig,
@@ -23,6 +24,7 @@ describe('config utilities', () => {
       'validate',
       'get',
       'set',
+      'migrate',
     ]);
   });
 
@@ -71,6 +73,7 @@ describe('config utilities', () => {
 
   it('parses supported YAML config with defaults', () => {
     expect(parseConfig(`project:\n  name: demo\n\nai:\n  provider: echo\n`, 'zw.yml')).toEqual({
+      version: 1,
       project: {
         name: 'demo',
       },
@@ -92,6 +95,12 @@ describe('config utilities', () => {
     expect(
       parseConfig('\uFEFF{"project":{"name":"json-demo"}}', 'zaowu.config.json').project.name
     ).toBe('json-demo');
+  });
+
+  it('rejects unsupported config versions', () => {
+    expect(() => parseConfig('version: 2\nproject:\n  name: demo\n', 'zw.yml')).toThrow(
+      'Config version is not supported.'
+    );
   });
 
   it('rejects secret-like keys in config', () => {
@@ -176,6 +185,8 @@ describe('config utilities', () => {
         oldValue: 'old',
         newValue: 'new',
         content:
+          'version: 1\n' +
+          '\n' +
           'project:\n' +
           '  name: new\n' +
           '\n' +
@@ -223,6 +234,50 @@ describe('config utilities', () => {
             output: 'json',
           },
         },
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('previews migration from legacy config to versioned canonical config', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-config-'));
+    const filePath = path.join(root, 'zw.yml');
+
+    await writeFile(filePath, 'project:\n  name: legacy\n', 'utf8');
+
+    try {
+      await expect(migrateResolvedConfig({ cwd: root })).resolves.toMatchObject({
+        status: 'preview',
+        filePath,
+        fromVersion: null,
+        toVersion: 1,
+        changed: true,
+        wroteFile: false,
+        content: expect.stringContaining('version: 1'),
+      });
+      await expect(loadConfig(filePath)).resolves.toMatchObject({
+        content: 'project:\n  name: legacy\n',
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('writes migrated config when confirmed', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-config-'));
+    const filePath = path.join(root, 'zw.yml');
+
+    await writeFile(filePath, 'project:\n  name: legacy\n', 'utf8');
+
+    try {
+      await expect(migrateResolvedConfig({ cwd: root, yes: true })).resolves.toMatchObject({
+        status: 'ok',
+        changed: true,
+        wroteFile: true,
+      });
+      await expect(loadConfig(filePath)).resolves.toMatchObject({
+        content: expect.stringContaining('version: 1'),
       });
     } finally {
       await rm(root, { recursive: true, force: true });

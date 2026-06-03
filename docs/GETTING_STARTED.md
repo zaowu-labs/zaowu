@@ -1,7 +1,7 @@
-# Getting Started
+﻿# Getting Started
 
 This guide is for local development of ZaoWu while the CLI foundation is still
-private to the repository.
+run from the repository workspace.
 
 ## Requirements
 
@@ -24,13 +24,13 @@ Build all packages:
 corepack pnpm build
 ```
 
-Run the local CLI entry point:
+Run the workspace `zw` binary:
 
 ```bash
-node packages/cli/dist/index.js --help
+corepack pnpm --silent zw --help
 ```
 
-Until packaging is added, treat this command as the local `zw` equivalent:
+The direct Node entry point is still useful for low-level debugging:
 
 ```bash
 node packages/cli/dist/index.js <command>
@@ -41,20 +41,21 @@ node packages/cli/dist/index.js <command>
 Preview config creation:
 
 ```bash
-node packages/cli/dist/index.js init
+corepack pnpm --silent zw init
 ```
 
 Create `zw.yml` only when confirmed:
 
 ```bash
-node packages/cli/dist/index.js init --yes
+corepack pnpm --silent zw init --yes
 ```
 
 Check the environment and config:
 
 ```bash
-node packages/cli/dist/index.js doctor
-node packages/cli/dist/index.js config validate
+corepack pnpm --silent zw doctor
+corepack pnpm --silent zw config validate
+corepack pnpm --silent zw config migrate
 ```
 
 ## Common Workflows
@@ -62,63 +63,77 @@ node packages/cli/dist/index.js config validate
 Ask through the local provider without network access:
 
 ```bash
-node packages/cli/dist/index.js ai ask "Explain this project"
-node packages/cli/dist/index.js ai ask "Summarize" --file README.md
-node packages/cli/dist/index.js ai providers
+corepack pnpm --silent zw ai ask "Explain this project"
+corepack pnpm --silent zw ai ask "Summarize" --file README.md
+corepack pnpm --silent zw ai providers
 ```
+
+Use OpenAI only through environment variables:
+
+```bash
+$env:OPENAI_API_KEY="..."
+corepack pnpm --silent zw ai ask "Explain ZaoWu" --provider openai
+corepack pnpm --silent zw ai ask "Explain ZaoWu" --provider openai --yes
+```
+
+Do not put API keys or tokens in `zw.yml`.
 
 Review Git state without modifying it:
 
 ```bash
-node packages/cli/dist/index.js dev status
-node packages/cli/dist/index.js dev review
-node packages/cli/dist/index.js dev review --staged
-node packages/cli/dist/index.js dev commit
+corepack pnpm --silent zw dev status
+corepack pnpm --silent zw dev review
+corepack pnpm --silent zw dev review --staged
+corepack pnpm --silent zw dev commit
 ```
 
-Work with supported documents:
+Work with supported documents. Text, Markdown-like files, PDF, and DOCX are
+handled as extracted text in this foundation version:
 
 ```bash
-node packages/cli/dist/index.js doc summary README.md
-node packages/cli/dist/index.js doc outline README.md
-node packages/cli/dist/index.js doc search README.md install
+corepack pnpm --silent zw doc summary README.md
+corepack pnpm --silent zw doc outline README.md
+corepack pnpm --silent zw doc search README.md install
 ```
 
-Work with CSV or TSV data:
+Work with CSV, TSV, or XLSX data. XLSX reads the first worksheet:
 
 ```bash
-node packages/cli/dist/index.js data inspect sample.csv
-node packages/cli/dist/index.js data schema sample.csv
-node packages/cli/dist/index.js data sample sample.csv --rows 3
-node packages/cli/dist/index.js data clean sample.csv --output clean.csv
-node packages/cli/dist/index.js data clean sample.csv --output clean.csv --yes
+corepack pnpm --silent zw data inspect sample.csv
+corepack pnpm --silent zw data schema sample.csv
+corepack pnpm --silent zw data sample sample.csv --rows 3
+corepack pnpm --silent zw data clean sample.csv --output clean.csv
+corepack pnpm --silent zw data clean sample.csv --output clean.csv --yes
 ```
 
 Validate and preview automation workflows:
 
 ```bash
-node packages/cli/dist/index.js auto validate workflow.yml
-node packages/cli/dist/index.js auto plan workflow.yml
-node packages/cli/dist/index.js auto run workflow.yml
+corepack pnpm --silent zw auto validate workflow.yml
+corepack pnpm --silent zw auto plan workflow.yml
+corepack pnpm --silent zw auto run workflow.yml
 ```
 
 Manage local plugin manifests:
 
 ```bash
-node packages/cli/dist/index.js plugin validate readme-gen
-node packages/cli/dist/index.js plugin install readme-gen
-node packages/cli/dist/index.js plugin install readme-gen --yes
-node packages/cli/dist/index.js plugin list
+corepack pnpm --silent zw plugin validate readme-gen
+corepack pnpm --silent zw plugin install readme-gen
+corepack pnpm --silent zw plugin install readme-gen --yes
+corepack pnpm --silent zw plugin list
 ```
 
 ## Safety Defaults
 
 - File writes preview by default.
 - Network requests preview by default.
+- Network AI requests preview by default and require `--yes`.
 - Plugin install/remove previews by default.
 - Automation shell steps are detected but not executed.
 - Git commands do not commit, push, reset, or checkout.
 - Config rejects secret-like keys such as `token`, `password`, and `apiKey`.
+- Sensitive JSON outputs include an `operationPlan` that lists reads, writes,
+  network requests, secrets, execution, and confirmation requirements.
 
 Use `--json` for machine-readable output and `--help` on any command for
 command-specific usage.
@@ -142,8 +157,8 @@ corepack pnpm format:check
 Run:
 
 ```bash
-node packages/cli/dist/index.js init
-node packages/cli/dist/index.js init --yes
+corepack pnpm --silent zw init
+corepack pnpm --silent zw init --yes
 ```
 
 `No staged changes found.`
@@ -152,15 +167,14 @@ Run:
 
 ```bash
 git add <files>
-node packages/cli/dist/index.js dev commit
+corepack pnpm --silent zw dev commit
 ```
 
 `Data format is not supported yet.`
 
-Use `.csv` or `.tsv` for now. XLSX support should be added inside
-`packages/data` later.
+Use `.csv`, `.tsv`, or `.xlsx`. XLSX currently reads the first worksheet.
 
 `Document format is not supported yet.`
 
-Use `.txt`, `.md`, `.markdown`, `.csv`, `.json`, `.yml`, or `.yaml` for now.
-PDF and DOCX support should be added inside `packages/doc` later.
+Use `.txt`, `.md`, `.markdown`, `.csv`, `.json`, `.yml`, `.yaml`, `.pdf`, or
+`.docx`. PDF and DOCX are extracted as text.

@@ -1,4 +1,4 @@
-import type { DomainDefinition } from '@zaowu/core';
+import { createCapabilityLedger, type DomainDefinition } from '@zaowu/core';
 import { ZaoWuError } from '@zaowu/core';
 
 export type DevCommandRunner = (
@@ -47,6 +47,9 @@ export type DevReviewMode = 'auto' | 'staged' | 'worktree';
 export const DEV_DOMAIN: DomainDefinition = {
   name: 'dev',
   summary: 'Developer workflows for review, commit, and repository assistance',
+  capabilities: createCapabilityLedger({
+    modifiesGit: true,
+  }),
   commands: [
     {
       name: 'commit',

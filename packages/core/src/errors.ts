@@ -1,5 +1,7 @@
+import type { ZaoWuErrorCode } from './error-codes.js';
+
 export interface ZaoWuErrorOptions {
-  code: string;
+  code: ZaoWuErrorCode;
   message: string;
   why?: string;
   fix?: string;
@@ -7,7 +9,7 @@ export interface ZaoWuErrorOptions {
 }
 
 export interface ZaoWuErrorJSON {
-  code: string;
+  code: ZaoWuErrorCode;
   message: string;
   why: string | null;
   fix: string | null;
@@ -15,7 +17,7 @@ export interface ZaoWuErrorJSON {
 }
 
 export class ZaoWuError extends Error {
-  public readonly code: string;
+  public readonly code: ZaoWuErrorCode;
   public readonly why?: string;
   public readonly fix?: string;
   public readonly exitCode: number;

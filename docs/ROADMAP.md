@@ -15,6 +15,7 @@ Scope:
 - pnpm workspace
 - minimal `zw` CLI
 - standard user-facing errors
+- stable error-code registry
 - `zw init`
 - `zw doctor`
 - CI on Ubuntu and Windows
@@ -24,10 +25,15 @@ Scope:
 - safe MVP commands across config, ai, dev, doc, data, auto, plugin, teach, and web
 - action-level help for runnable commands
 - config validate/get/set with preview-first writes
+- config versioning and migration preview
+- command contract tests for root/domain/action help
+- package boundary guard for domain packages
+- capability ledgers and operation plans for sensitive commands
 - local AI provider listing and explicit file input
+- non-streaming OpenAI provider adapter behind `packages/ai`
 - developer status/review/commit previews
-- document outline/search and frontmatter extraction
-- data schema/sample and clean metadata
+- document outline/search, frontmatter extraction, PDF, and DOCX text extraction
+- data schema/sample, clean metadata, and XLSX first-sheet support
 - automation planning with variable checks
 - local plugin manifest validation
 
@@ -39,6 +45,8 @@ Exit criteria:
 - New contributors can see where a new command belongs.
 - First-version commands are safe by default and documented in the command catalog.
 - New users can follow `docs/GETTING_STARTED.md` from install to validation.
+- Error codes, command help, package boundaries, and sensitive operation plans
+  are covered by automated tests.
 
 ## Phase 2: Config System
 
@@ -52,6 +60,7 @@ Scope:
 - config error messages
 - JSON output for config-related diagnostics
 - preview-first config writes for supported non-secret keys
+- migration preview and canonical config serialization
 
 Out of scope:
 
@@ -71,6 +80,7 @@ Scope:
 - provider error mapping
 - non-streaming text generation first
 - transparent prompt and file input reporting
+- OpenAI adapter through the Responses API
 
 Out of scope:
 
@@ -78,6 +88,7 @@ Out of scope:
 - provider marketplaces
 - complex memory systems
 - long-running autonomous tasks
+- tool-calling and streaming until the non-streaming surface is stable
 
 ## Phase 4: Developer Workflows
 
@@ -121,6 +132,7 @@ Scope:
 - document extraction
 - summaries and structured outputs
 - JSON output when requested
+- PDF and DOCX text extraction
 
 Out of scope:
 
@@ -142,7 +154,7 @@ zw data clean input.csv
 
 Scope:
 
-- CSV and spreadsheet validation
+- CSV, TSV, and first-sheet XLSX validation
 - basic profiling
 - readable summaries
 - JSON output for automation

@@ -1,6 +1,6 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { stripUtf8Bom, type DomainDefinition } from '@zaowu/core';
+import { createCapabilityLedger, stripUtf8Bom, type DomainDefinition } from '@zaowu/core';
 import { ZaoWuError } from '@zaowu/core';
 
 export interface DocumentSummary {
@@ -57,6 +57,10 @@ export interface DocumentSearchResult {
 export const DOC_DOMAIN: DomainDefinition = {
   name: 'doc',
   summary: 'Document workflows for summary, extraction, and conversion',
+  capabilities: createCapabilityLedger({
+    readsFiles: true,
+    writesFiles: true,
+  }),
   commands: [
     {
       name: 'summary',
@@ -95,6 +99,8 @@ const SUPPORTED_TEXT_EXTENSIONS = new Set([
   '.json',
   '.yml',
   '.yaml',
+  '.pdf',
+  '.docx',
 ]);
 
 const assertSupportedDocument = (filePath: string): void => {
@@ -104,16 +110,41 @@ const assertSupportedDocument = (filePath: string): void => {
     throw new ZaoWuError({
       code: 'DOCUMENT_FORMAT_UNSUPPORTED',
       message: 'Document format is not supported yet.',
-      why: `This first version reads text and Markdown-like files. It cannot parse \`${extension || 'unknown'}\` files yet.`,
-      fix: 'Convert the file to `.txt` or `.md`, or add a parser inside `packages/doc` before using this format.',
+      why: `ZaoWu can read text, Markdown-like, PDF, and DOCX files. It cannot parse \`${extension || 'unknown'}\` files yet.`,
+      fix: 'Use `.txt`, `.md`, `.pdf`, or `.docx`, or add a parser inside `packages/doc` before using this format.',
     });
   }
 };
 
 const readTextDocument = async (filePath: string): Promise<string> => {
   assertSupportedDocument(filePath);
+  const extension = path.extname(filePath).toLowerCase();
 
   try {
+    if (extension === '.pdf') {
+      const { PDFParse } = await import('pdf-parse');
+      const parser = new PDFParse({
+        data: new Uint8Array(await readFile(filePath)),
+      });
+
+      try {
+        const parsed = await parser.getText();
+
+        return stripUtf8Bom(parsed.text ?? '');
+      } finally {
+        await parser.destroy();
+      }
+    }
+
+    if (extension === '.docx') {
+      const mammoth = await import('mammoth');
+      const parsed = await mammoth.extractRawText({
+        buffer: await readFile(filePath),
+      });
+
+      return stripUtf8Bom(parsed.value);
+    }
+
     return stripUtf8Bom(await readFile(filePath, 'utf8'));
   } catch {
     throw new ZaoWuError({

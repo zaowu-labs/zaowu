@@ -26,7 +26,7 @@ Examples:
 zw dev review
 zw dev commit
 zw doc summary report.pdf
-zw doc ask contract.pdf "What are the risks?"
+zw ai ask "What are the risks?" --file contract.pdf
 zw data analyze sales.xlsx
 zw auto run workflow.yml
 zw plugin install readme-gen

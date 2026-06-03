@@ -11,6 +11,7 @@ export interface DomainDefinition {
   name: string;
   summary: string;
   commands: readonly DomainCommandDefinition[];
+  capabilities?: import('./capabilities.js').CapabilityLedger;
 }
 
 export const findDomainCommand = (
