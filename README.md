@@ -154,6 +154,7 @@ Long-term structure and workflow docs:
 docs/ARCHITECTURE.md  Package boundaries, dependency direction, and command rules
 docs/ROADMAP.md       Preferred phase order for growing ZaoWu
 docs/CONTRIBUTING.md  Development workflow, safety rules, and validation
+docs/experience/COMMAND_CATALOG.md  First-version command behavior and limits
 ```
 
 ## Experience Rules

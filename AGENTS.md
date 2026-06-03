@@ -344,18 +344,27 @@ Risks:
 
 ## Current Project Phase
 
-The project is currently in the early foundation phase.
+The project is currently in the first runnable foundation phase.
 
-Priority order:
+Already established:
 
 1. experience foundation
 2. monorepo setup
 3. minimal `zw` CLI
 4. standard error system
-5. `zw doctor`
-6. config system
-7. AI provider abstraction
-8. `zw dev commit`
-9. `zw dev review`
+5. `zw init`
+6. `zw doctor`
+7. top-level domain packages
+8. safe MVP commands across config, ai, dev, doc, data, auto, plugin, teach, and web
+
+Priority order:
+
+1. harden command experience specs
+2. improve config schema validation
+3. add real AI provider adapters behind `packages/ai`
+4. expand document and data format support with focused dependencies
+5. improve `zw dev commit` and `zw dev review`
+6. harden workflow execution rules
+7. only then consider plugin distribution
 
 Do not jump ahead to full agents, desktop apps, cloud services, plugin markets, or browser automation until the foundation is stable.

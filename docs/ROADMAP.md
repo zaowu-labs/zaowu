@@ -7,7 +7,7 @@ release promise. It is the preferred order of work.
 
 Goal: make the repository dependable before adding many tools.
 
-Status: in progress.
+Status: first runnable version in progress.
 
 Scope:
 
@@ -21,6 +21,7 @@ Scope:
 - architecture and contribution rules
 - top-level domain package scaffolds
 - domain help and planned-command guardrails
+- first safe MVP commands across config, ai, dev, doc, data, auto, plugin, teach, and web
 
 Exit criteria:
 
@@ -28,6 +29,7 @@ Exit criteria:
 - `zw init` and `zw doctor` have specs, tests, and documentation.
 - Command boundaries are documented.
 - New contributors can see where a new command belongs.
+- First-version commands are safe by default and documented in the command catalog.
 
 ## Phase 2: Config System
 

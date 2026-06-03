@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -55,7 +55,7 @@ describe('executeCli', () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain('ZaoWu Dev Domain');
     expect(result.stdout).toContain('zw dev commit');
-    expect(result.stdout).toContain('planned, sensitive');
+    expect(result.stdout).toContain('available, sensitive');
     expect(result.stdout).toContain('zw dev review');
   });
 
@@ -73,12 +73,117 @@ describe('executeCli', () => {
     ]);
   });
 
-  it('returns an actionable error for planned commands', async () => {
-    const result = await executeCli(['dev', 'review']);
+  it('runs available domain commands through handlers', async () => {
+    const result = await executeCli(['dev', 'commit', '--json'], {
+      commandRunner: (_command, args) => {
+        if (args.join(' ') === 'diff --cached --name-only') {
+          return 'packages/dev/src/index.ts';
+        }
 
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain('Error: Command not implemented yet: zw dev review.');
-    expect(result.stderr).toContain('packages/dev');
+        if (args.join(' ') === 'diff --cached --numstat') {
+          return '3\t1\tpackages/dev/src/index.ts';
+        }
+
+        throw new Error('unexpected command');
+      },
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      status: 'ok',
+      source: 'staged',
+      message: 'feat: update dev',
+    });
+  });
+
+  it('runs config path after init', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
+
+    try {
+      await executeCli(['init', '--yes'], { cwd: root });
+      const result = await executeCli(['config', 'path', '--json'], { cwd: root });
+
+      expect(result.exitCode).toBe(0);
+      expect(JSON.parse(result.stdout)).toEqual({
+        status: 'ok',
+        path: path.join(root, DEFAULT_CONFIG_FILE_NAME),
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('runs the local AI ask command', async () => {
+    const result = await executeCli(['ai', 'ask', 'Explain', 'ZaoWu', '--json']);
+
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      status: 'ok',
+      provider: {
+        id: 'echo',
+      },
+      output: expect.stringContaining('Explain ZaoWu'),
+    });
+  });
+
+  it('runs document summary from CLI', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
+    const filePath = path.join(root, 'note.md');
+
+    await writeFile(filePath, '# Note\n\nUseful content.\n', 'utf8');
+
+    try {
+      const result = await executeCli(['doc', 'summary', filePath, '--json']);
+
+      expect(result.exitCode).toBe(0);
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        status: 'ok',
+        title: 'Note',
+        summary: 'Useful content.',
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('runs data inspect from CLI', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
+    const filePath = path.join(root, 'data.csv');
+
+    await writeFile(filePath, 'name,amount\nA,10\n', 'utf8');
+
+    try {
+      const result = await executeCli(['data', 'inspect', filePath, '--json']);
+
+      expect(result.exitCode).toBe(0);
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        status: 'ok',
+        rowCount: 1,
+        columns: ['name', 'amount'],
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('previews sensitive plugin and web commands by default', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
+
+    try {
+      const plugin = await executeCli(['plugin', 'install', 'readme-gen', '--json'], { cwd: root });
+      const web = await executeCli(['web', 'inspect', 'https://example.com', '--json']);
+
+      expect(JSON.parse(plugin.stdout)).toMatchObject({
+        status: 'preview',
+        wroteFile: false,
+      });
+      expect(JSON.parse(web.stdout)).toMatchObject({
+        status: 'preview',
+        url: 'https://example.com/',
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 
   it('returns a JSON error for unknown domain actions', async () => {
@@ -90,7 +195,7 @@ describe('executeCli', () => {
         code: 'UNKNOWN_DOMAIN_ACTION',
         message: 'Unknown command: zw doc unknown.',
         why: 'ZaoWu has the `doc` domain, but it does not have an action named `unknown`.',
-        fix: 'Run `zw doc --help` to see planned commands for this domain.',
+        fix: 'Run `zw doc --help` to see commands for this domain.',
         exitCode: 1,
       },
     });

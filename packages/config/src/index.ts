@@ -1,7 +1,7 @@
 import { constants } from 'node:fs';
 import { access, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
-import type { DomainDefinition } from '@zaowu/core';
+import { stripUtf8Bom, ZaoWuError, type DomainDefinition } from '@zaowu/core';
 
 export const CONFIG_FILE_NAMES = [
   'zw.yml',
@@ -23,6 +23,27 @@ export interface LoadedConfig {
   content: string;
 }
 
+export interface ZaoWuConfig {
+  project: {
+    name: string;
+  };
+  ai: {
+    provider: string | null;
+  };
+  defaults: {
+    output: 'human' | 'json';
+  };
+  paths: {
+    workspace: string;
+    cache: string;
+  };
+}
+
+export interface ResolvedConfig {
+  filePath: string;
+  config: ZaoWuConfig;
+}
+
 export const CONFIG_DOMAIN: DomainDefinition = {
   name: 'config',
   summary: 'Inspect and manage ZaoWu configuration',
@@ -30,14 +51,32 @@ export const CONFIG_DOMAIN: DomainDefinition = {
     {
       name: 'show',
       summary: 'Show resolved ZaoWu configuration',
-      status: 'planned',
+      status: 'available',
     },
     {
       name: 'path',
       summary: 'Print the resolved configuration file path',
-      status: 'planned',
+      status: 'available',
     },
   ],
+};
+
+const SECRET_KEY_PATTERN = /(?:secret|token|password|api[_-]?key|private[_-]?key|recovery)/i;
+
+const DEFAULT_CONFIG: ZaoWuConfig = {
+  project: {
+    name: 'zaowu-project',
+  },
+  ai: {
+    provider: null,
+  },
+  defaults: {
+    output: 'human',
+  },
+  paths: {
+    workspace: '.',
+    cache: '.zaowu/cache',
+  },
 };
 
 const isReadableFile = async (filePath: string): Promise<boolean> => {
@@ -81,5 +120,193 @@ export const loadConfig = async (filePath: string): Promise<LoadedConfig> => {
   return {
     filePath: resolvedPath,
     content,
+  };
+};
+
+const parseScalar = (value: string): unknown => {
+  const trimmed = value.trim();
+
+  if (trimmed === 'null') {
+    return null;
+  }
+
+  if (trimmed === 'true') {
+    return true;
+  }
+
+  if (trimmed === 'false') {
+    return false;
+  }
+
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1);
+  }
+
+  return trimmed;
+};
+
+const parseSimpleYaml = (content: string): Record<string, unknown> => {
+  const result: Record<string, unknown> = {};
+  let currentSection: Record<string, unknown> | null = null;
+
+  for (const rawLine of content.split(/\r?\n/)) {
+    const lineWithoutComment = rawLine.replace(/\s+#.*$/, '');
+
+    if (!lineWithoutComment.trim()) {
+      continue;
+    }
+
+    const match = /^(\s*)([A-Za-z0-9_-]+):(?:\s*(.*))?$/.exec(lineWithoutComment);
+
+    if (!match) {
+      throw new ZaoWuError({
+        code: 'CONFIG_PARSE_FAILED',
+        message: 'Could not parse ZaoWu config.',
+        why: `Unsupported config line: ${rawLine.trim()}`,
+        fix: 'Use simple key/value YAML or JSON for now.',
+      });
+    }
+
+    const indent = match[1].length;
+    const key = match[2];
+    const value = match[3] ?? '';
+
+    if (indent === 0) {
+      if (value.trim()) {
+        result[key] = parseScalar(value);
+        currentSection = null;
+      } else {
+        currentSection = {};
+        result[key] = currentSection;
+      }
+
+      continue;
+    }
+
+    if (indent !== 2 || !currentSection) {
+      throw new ZaoWuError({
+        code: 'CONFIG_PARSE_FAILED',
+        message: 'Could not parse ZaoWu config.',
+        why: `Unsupported indentation near: ${rawLine.trim()}`,
+        fix: 'Use one level of two-space indentation in YAML config.',
+      });
+    }
+
+    currentSection[key] = parseScalar(value);
+  }
+
+  return result;
+};
+
+const parseConfigObject = (content: string, filePath: string): Record<string, unknown> => {
+  const normalizedContent = stripUtf8Bom(content);
+  const extension = path.extname(filePath).toLowerCase();
+
+  if (extension === '.json' || path.basename(filePath) === '.zaowurc') {
+    try {
+      return JSON.parse(normalizedContent) as Record<string, unknown>;
+    } catch (error) {
+      throw new ZaoWuError({
+        code: 'CONFIG_PARSE_FAILED',
+        message: 'Could not parse ZaoWu config.',
+        why: error instanceof Error ? error.message : 'The JSON parser rejected the file.',
+        fix: 'Fix the JSON syntax and run `zw config show` again.',
+      });
+    }
+  }
+
+  if (['.yml', '.yaml', ''].includes(extension)) {
+    return parseSimpleYaml(normalizedContent);
+  }
+
+  throw new ZaoWuError({
+    code: 'CONFIG_FORMAT_UNSUPPORTED',
+    message: 'Config format is not supported yet.',
+    why: `ZaoWu can find ${path.basename(filePath)}, but this first version reads YAML and JSON only.`,
+    fix: 'Use `zw.yml`, `zw.yaml`, `zaowu.config.json`, or `.zaowurc` for now.',
+  });
+};
+
+const assertNoSecretKeys = (value: unknown, pathParts: readonly string[] = []): void => {
+  if (!value || typeof value !== 'object') {
+    return;
+  }
+
+  for (const [key, child] of Object.entries(value)) {
+    if (SECRET_KEY_PATTERN.test(key)) {
+      throw new ZaoWuError({
+        code: 'CONFIG_SECRET_KEY_NOT_ALLOWED',
+        message: 'Config contains a secret-like key.',
+        why: `The key \`${[...pathParts, key].join('.')}\` looks like a secret and should not be stored in ZaoWu config.`,
+        fix: 'Move secrets to environment variables or a future explicit secret provider.',
+      });
+    }
+
+    assertNoSecretKeys(child, [...pathParts, key]);
+  }
+};
+
+const getObject = (value: unknown): Record<string, unknown> =>
+  value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+
+const getString = (value: unknown, fallback: string): string =>
+  typeof value === 'string' && value.trim() ? value.trim() : fallback;
+
+const getOutput = (value: unknown): 'human' | 'json' => (value === 'json' ? 'json' : 'human');
+
+export const parseConfig = (content: string, filePath = 'zw.yml'): ZaoWuConfig => {
+  const parsed = parseConfigObject(content, filePath);
+  assertNoSecretKeys(parsed);
+
+  const project = getObject(parsed.project);
+  const ai = getObject(parsed.ai);
+  const defaults = getObject(parsed.defaults);
+  const paths = getObject(parsed.paths);
+  const provider = ai.provider;
+
+  return {
+    project: {
+      name: getString(project.name, DEFAULT_CONFIG.project.name),
+    },
+    ai: {
+      provider: typeof provider === 'string' && provider.trim() ? provider.trim() : null,
+    },
+    defaults: {
+      output: getOutput(defaults.output),
+    },
+    paths: {
+      workspace: getString(paths.workspace, DEFAULT_CONFIG.paths.workspace),
+      cache: getString(paths.cache, DEFAULT_CONFIG.paths.cache),
+    },
+  };
+};
+
+export const findConfigPathOrThrow = async (cwd?: string): Promise<string> => {
+  const filePath = await findConfigFile({ cwd });
+
+  if (!filePath) {
+    throw new ZaoWuError({
+      code: 'CONFIG_NOT_FOUND',
+      message: 'ZaoWu config not found.',
+      why: 'ZaoWu could not find `zw.yml` or another supported config file in this folder or its parents.',
+      fix: 'Run `zw init` to preview config creation, then `zw init --yes` to create it.',
+    });
+  }
+
+  return filePath;
+};
+
+export const loadResolvedConfig = async (cwd?: string): Promise<ResolvedConfig> => {
+  const filePath = await findConfigPathOrThrow(cwd);
+  const loaded = await loadConfig(filePath);
+
+  return {
+    filePath,
+    config: parseConfig(loaded.content, loaded.filePath),
   };
 };

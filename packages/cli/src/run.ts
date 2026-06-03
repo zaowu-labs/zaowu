@@ -12,6 +12,10 @@ import { DOC_DOMAIN } from '@zaowu/doc';
 import { PLUGIN_DOMAIN } from '@zaowu/plugin';
 import { TEACH_DOMAIN } from '@zaowu/teach';
 import { WEB_DOMAIN } from '@zaowu/web';
+import { hasFlag as hasParsedFlag, parseArgs } from './args.js';
+import { getDomainActionHandler } from './domain-handlers.js';
+import { createResult, formatRows } from './output.js';
+import type { CliExecutionOptions, CliResult, CommandRunner } from './types.js';
 
 export const ZAOWU_CLI_VERSION = '0.0.1';
 export const DEFAULT_CONFIG_FILE_NAME = 'zw.yml';
@@ -20,7 +24,14 @@ const DEFAULT_CONFIG_CONTENT = `project:
   name: zaowu-project
 
 ai:
-  provider: null
+  provider: echo
+
+defaults:
+  output: human
+
+paths:
+  workspace: .
+  cache: .zaowu/cache
 `;
 
 type CheckStatus = 'ok' | 'warning' | 'missing';
@@ -38,20 +49,6 @@ interface DoctorResult {
   status: OverallStatus;
   checks: DoctorCheck[];
   nextSteps: string[];
-}
-
-export interface CliResult {
-  exitCode: number;
-  stdout: string;
-  stderr: string;
-}
-
-export type CommandRunner = (command: string, args: readonly string[]) => string;
-
-export interface CliExecutionOptions {
-  cwd?: string;
-  nodeVersion?: string;
-  commandRunner?: CommandRunner;
 }
 
 const MINIMUM_NODE_VERSION = '20.19.0';
@@ -74,12 +71,6 @@ const DOMAIN_DEFINITIONS: readonly DomainDefinition[] = [
   CONFIG_DOMAIN,
 ];
 
-const createResult = (exitCode: number, stdout = '', stderr = ''): CliResult => ({
-  exitCode,
-  stdout,
-  stderr,
-});
-
 const WINDOWS_COMMAND_PART_PATTERN = /^[a-zA-Z0-9._@:/\\-]+$/;
 
 const toWindowsCommand = (command: string, args: readonly string[]): string => {
@@ -94,12 +85,13 @@ const toWindowsCommand = (command: string, args: readonly string[]): string => {
   return parts.join(' ');
 };
 
-const runSystemCommand: CommandRunner = (command, args) => {
+const runSystemCommand: CommandRunner = (command, args, options) => {
   const executable = process.platform === 'win32' ? 'cmd.exe' : command;
   const commandArgs =
     process.platform === 'win32' ? ['/d', '/s', '/c', toWindowsCommand(command, args)] : [...args];
 
   return execFileSync(executable, commandArgs, {
+    cwd: options?.cwd,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
   }).trim();
@@ -107,17 +99,8 @@ const runSystemCommand: CommandRunner = (command, args) => {
 
 const hasFlag = (args: readonly string[], flag: string): boolean => args.includes(flag);
 
-const getCommandArgs = (args: readonly string[]): string[] =>
-  args.filter((arg) => !['--json', '--dry-run', '--yes', '--help', '--version'].includes(arg));
-
 const findDomain = (name: string): DomainDefinition | undefined =>
   DOMAIN_DEFINITIONS.find((domain) => domain.name === name);
-
-const formatRows = (rows: readonly (readonly [string, string])[]): string => {
-  const width = Math.max(...rows.map(([label]) => label.length));
-
-  return rows.map(([label, summary]) => `  ${label.padEnd(width + 2)}${summary}`).join('\n');
-};
 
 const toTitleCase = (value: string): string => `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
 
@@ -512,12 +495,15 @@ export const executeCli = async (
   args: readonly string[],
   options: CliExecutionOptions = {}
 ): Promise<CliResult> => {
-  const json = hasFlag(args, '--json');
-  const wantsHelp = hasFlag(args, '--help');
-  const wantsVersion = hasFlag(args, '--version');
-  const commandArgs = getCommandArgs(args);
+  const parsed = parseArgs(args);
+  const json = hasParsedFlag(parsed, '--json');
+  const wantsHelp = hasParsedFlag(parsed, '--help');
+  const wantsVersion = hasParsedFlag(parsed, '--version');
+  const commandArgs = parsed.positionals;
   const command = commandArgs[0];
   const domain = command ? findDomain(command) : undefined;
+  const cwd = options.cwd ?? process.cwd();
+  const commandRunner = options.commandRunner ?? runSystemCommand;
 
   try {
     if (wantsVersion || command === 'version') {
@@ -587,7 +573,7 @@ export const executeCli = async (
           code: 'UNKNOWN_DOMAIN_ACTION',
           message: `Unknown command: zw ${domain.name} ${action}.`,
           why: `ZaoWu has the \`${domain.name}\` domain, but it does not have an action named \`${action}\`.`,
-          fix: `Run \`zw ${domain.name} --help\` to see planned commands for this domain.`,
+          fix: `Run \`zw ${domain.name} --help\` to see commands for this domain.`,
         });
       }
 
@@ -601,6 +587,19 @@ export const executeCli = async (
           fix:
             'Create or update the related experience spec under `docs/experience/`, ' +
             `then implement it inside the \`packages/${domain.name}\` package.`,
+        });
+      }
+
+      const handler = getDomainActionHandler(domain.name, domainCommand.name);
+
+      if (handler) {
+        return await handler(commandArgs.slice(2), {
+          commandRunner,
+          cwd,
+          dryRun: hasParsedFlag(parsed, '--dry-run'),
+          json,
+          parsed,
+          yes: hasParsedFlag(parsed, '--yes'),
         });
       }
 
