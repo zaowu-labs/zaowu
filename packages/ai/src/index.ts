@@ -24,6 +24,7 @@ export type AIFetcher = (
     method: string;
     headers: Record<string, string>;
     body: string;
+    signal?: AbortSignal;
   }
 ) => Promise<AIFetchResponse>;
 
@@ -34,6 +35,9 @@ export interface AIAskRequest {
   filePath?: string;
   env?: NodeJS.ProcessEnv;
   fetcher?: AIFetcher;
+  allowNetwork?: boolean;
+  timeoutMs?: number;
+  maxInputCharacters?: number;
 }
 
 export interface AIAskResponse {
@@ -180,6 +184,9 @@ const OPENAI_PROVIDER_DESCRIPTOR: Omit<AIProviderDescriptor, 'configured'> = {
   defaultModel: 'gpt-4.1-mini',
 };
 
+const DEFAULT_PROVIDER_TIMEOUT_MS = 30_000;
+const DEFAULT_MAX_INPUT_CHARACTERS = 200_000;
+
 const getFetcher = (fetcher?: AIFetcher): AIFetcher => {
   if (fetcher) {
     return fetcher;
@@ -246,6 +253,15 @@ const OPENAI_PROVIDER: AIProvider = {
     const env = request.env ?? process.env;
     const apiKey = env.OPENAI_API_KEY?.trim();
 
+    if (!request.allowNetwork) {
+      throw new ZaoWuError({
+        code: 'AI_NETWORK_CONFIRMATION_REQUIRED',
+        message: 'Network AI request requires confirmation.',
+        why: 'The OpenAI provider sends prompt input to a network service.',
+        fix: 'Use the CLI preview first, then re-run with `--yes` when the operation plan is acceptable.',
+      });
+    }
+
     if (!apiKey) {
       throw new ZaoWuError({
         code: 'AI_PROVIDER_CONFIG_MISSING',
@@ -273,22 +289,54 @@ const OPENAI_PROVIDER: AIProvider = {
       });
     }
 
+    const maxInputCharacters = request.maxInputCharacters ?? DEFAULT_MAX_INPUT_CHARACTERS;
+
+    if (combinedPrompt.length > maxInputCharacters) {
+      throw new ZaoWuError({
+        code: 'AI_INPUT_TOO_LARGE',
+        message: 'AI input is too large.',
+        why: `The combined prompt is ${combinedPrompt.length} characters, above the limit of ${maxInputCharacters}.`,
+        fix: 'Use a smaller prompt or a smaller input file.',
+      });
+    }
+
     const model =
       request.model ??
       env.OPENAI_MODEL ??
       OPENAI_PROVIDER_DESCRIPTOR.defaultModel ??
       'gpt-4.1-mini';
-    const response = await getFetcher(request.fetcher)('https://api.openai.com/v1/responses', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model,
-        input: combinedPrompt,
-      }),
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(
+      () => controller.abort(),
+      request.timeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS
+    );
+    let response: AIFetchResponse;
+
+    try {
+      response = await getFetcher(request.fetcher)('https://api.openai.com/v1/responses', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          input: combinedPrompt,
+        }),
+        signal: controller.signal,
+      });
+    } catch {
+      throw new ZaoWuError({
+        code: 'AI_PROVIDER_REQUEST_FAILED',
+        message: 'AI provider request failed.',
+        why: controller.signal.aborted
+          ? `OpenAI did not respond within ${request.timeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS}ms.`
+          : 'The OpenAI request failed before a response was received.',
+        fix: 'Check network access, provider status, and timeout settings, then try again.',
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
 
     if (!response.ok) {
       throw new ZaoWuError({

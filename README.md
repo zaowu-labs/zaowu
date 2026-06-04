@@ -24,8 +24,10 @@ ZaoWu is in the first runnable foundation phase. The repository is focused on:
 - command-specific help and JSON output
 - command contract tests
 - capability ledgers and operation plans for sensitive commands
-- a local echo AI provider plus preview-first non-streaming OpenAI adapter
-- first-pass PDF, DOCX, CSV, TSV, and XLSX support
+- a local echo AI provider plus preview-first non-streaming OpenAI adapter with
+  provider-level confirmation, timeout, and input-size guards
+- overwrite-safe PDF, DOCX, CSV, TSV, and XLSX support with named worksheet
+  selection for XLSX
 
 Later modules should build on this foundation instead of becoming separate scripts:
 
@@ -127,11 +129,11 @@ pinned pnpm version from `package.json`.
 
 ```bash
 corepack enable
-pnpm install
-pnpm build
-pnpm test
-pnpm typecheck
-pnpm lint
+corepack pnpm install --frozen-lockfile
+corepack pnpm build
+corepack pnpm test
+corepack pnpm typecheck
+corepack pnpm lint
 ```
 
 Do not run dependency installation, commits, pushes, or destructive actions unless the user explicitly asks for them.
@@ -146,6 +148,7 @@ corepack pnpm build
 corepack pnpm test
 corepack pnpm lint
 corepack pnpm format:check
+corepack pnpm pack:check
 ```
 
 ## Project Structure

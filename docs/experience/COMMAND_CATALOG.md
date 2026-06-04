@@ -10,8 +10,9 @@ by domain so future work does not mix unrelated tools.
 - Use `--help` on root, domains, and actions.
 - Sensitive commands preview by default or require `--yes` before writing files,
   removing files, or sending network requests.
-- Sensitive JSON output includes `operationPlan` with reads, writes, execution,
-  network, secrets, risk, and confirmation requirements.
+- Sensitive JSON output includes `operationPlan` with `schemaVersion`, reads,
+  writes, deletes, execution, network, secrets, risk, and confirmation
+  requirements.
 - `--dry-run` forces preview mode when it is used with `--yes`.
 - Unsupported formats return actionable errors instead of pretending to work.
 
@@ -70,6 +71,10 @@ First-version behavior:
 - `OPENAI_MODEL` or `--model` can override the default model.
 - API keys must come from environment variables, not from `zw.yml`.
 - Network providers preview by default; use `--yes` to send the request.
+- Network providers require explicit confirmation in the AI package API, not only
+  in the CLI layer.
+- Provider requests have a timeout and a bounded combined prompt/file-input
+  length.
 
 Common failures:
 
@@ -110,6 +115,8 @@ Safety:
 
 - Conversion previews by default when `--output` is used.
 - Use `--yes` to write the output file.
+- Confirmed conversion refuses to overwrite the input file or an existing output
+  file.
 
 Current format support:
 
@@ -122,21 +129,25 @@ Current format support:
 
 | Command           | Description                         | Example                                      |
 | ----------------- | ----------------------------------- | -------------------------------------------- |
-| `zw data inspect` | Show table shape and missing values | `zw data inspect sales.csv`                  |
+| `zw data inspect` | Show table shape and missing values | `zw data inspect sales.xlsx --sheet Q1`      |
 | `zw data analyze` | Analyze numeric columns             | `zw data analyze sales.csv`                  |
 | `zw data clean`   | Trim values and remove empty lines  | `zw data clean sales.csv --output clean.csv` |
-| `zw data schema`  | Infer lightweight column schema     | `zw data schema sales.csv`                   |
+| `zw data schema`  | Infer lightweight column schema     | `zw data schema sales.xlsx --sheet Q1`       |
 | `zw data sample`  | Show sample rows                    | `zw data sample sales.csv --rows 3`          |
 
 Safety:
 
 - Cleaning previews by default when `--output` is used.
 - Use `--yes` to write the output file.
+- Confirmed cleaning refuses to overwrite the input file or an existing output
+  file.
 
 Current format support:
 
 - Supported: `.csv`, `.tsv`, `.xlsx`
-- XLSX support reads the first worksheet and normalizes values to strings.
+- XLSX support reads the first worksheet by default. Use `--sheet <name>` on
+  inspect, analyze, clean, schema, or sample to select a worksheet by name.
+- XLSX values are normalized to strings for this foundation version.
 
 ## `zw auto`
 
@@ -180,6 +191,9 @@ Safety:
 
 - Install/remove previews by default.
 - Use `--yes` to write or remove files.
+- Confirmed install refuses to overwrite an existing plugin manifest.
+- Confirmed remove refuses missing plugin manifests instead of pretending a file
+  was removed.
 
 ## `zw teach`
 
@@ -212,5 +226,6 @@ Every registered command must keep action help available in both human and JSON
 forms.
 
 Domain packages also declare capability ledgers. The boundary guard test checks
-that feature packages do not import each other directly, so document, data,
-developer, automation, teaching, web, plugin, config, and AI logic stay separated.
+source imports and package manifests so feature packages do not import each other
+directly, shared packages do not depend on feature packages, and no package
+depends on the CLI.

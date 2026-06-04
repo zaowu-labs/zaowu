@@ -97,10 +97,12 @@ When two feature packages need the same helper, move the helper to `core` only i
 it is truly generic. If the helper is domain-specific, keep it in the owning
 package and do not share it prematurely.
 
-The boundary guard test in `packages/core/src/boundaries.test.ts` prevents domain
-packages from importing each other directly. Cross-domain behavior should flow
-through `packages/cli` routing or a stable shared abstraction in `core`,
-`config`, or `ai`.
+The boundary guard test in `packages/core/src/boundaries.test.ts` checks source
+imports and package manifests. Feature packages must not import each other,
+shared packages must not depend on feature packages, and no package should
+depend on `packages/cli`. Cross-domain behavior should flow through
+`packages/cli` routing or a stable shared abstraction in `core`, `config`, or
+`ai`.
 
 ## CLI Responsibilities
 
@@ -194,9 +196,11 @@ CLI handlers should also emit an operation plan that lists:
 
 - files read
 - files written
+- files deleted
 - Git or shell execution
 - network targets
 - secrets used
+- plan schema version
 - confirmation requirements
 
 This gives users a predictable preflight view before ZaoWu reads, writes, sends,

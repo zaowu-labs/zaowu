@@ -30,10 +30,12 @@ export const createCapabilityLedger = (
 export type OperationRisk = 'low' | 'medium' | 'high';
 
 export interface OperationPlan {
+  schemaVersion: 1;
   risk: OperationRisk;
   confirmationRequired: boolean;
   reads: string[];
   writes: string[];
+  deletes: string[];
   executes: string[];
   network: string[];
   secrets: string[];
@@ -41,10 +43,12 @@ export interface OperationPlan {
 }
 
 export const createOperationPlan = (overrides: Partial<OperationPlan> = {}): OperationPlan => ({
+  schemaVersion: 1,
   risk: 'low',
   confirmationRequired: false,
   reads: [],
   writes: [],
+  deletes: [],
   executes: [],
   network: [],
   secrets: [],

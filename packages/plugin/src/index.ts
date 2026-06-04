@@ -94,6 +94,14 @@ const assertPluginId = (id: string): void => {
 
 const getPluginPath = (pluginDir: string, id: string): string => path.join(pluginDir, `${id}.json`);
 
+const fileExists = async (filePath: string): Promise<boolean> => {
+  try {
+    return (await stat(filePath)).isFile();
+  } catch {
+    return false;
+  }
+};
+
 const isPathLike = (target: string): boolean =>
   target.includes('/') || target.includes('\\') || target.endsWith('.json') || target === '.';
 
@@ -255,6 +263,7 @@ export const installPlugin = async (
   const cwd = options.cwd ?? process.cwd();
   const pluginDir = getPluginDir(cwd);
   const source = options.source ?? id;
+  const pluginPath = getPluginPath(pluginDir, id);
   const sourceValidation = isPathLike(source) ? await validatePluginSource(source) : null;
 
   if (sourceValidation?.errors.length) {
@@ -283,7 +292,33 @@ export const installPlugin = async (
 
   if (options.yes) {
     await mkdir(pluginDir, { recursive: true });
-    await writeFile(getPluginPath(pluginDir, id), `${JSON.stringify(plugin, null, 2)}\n`, 'utf8');
+
+    if (await fileExists(pluginPath)) {
+      throw new ZaoWuError({
+        code: 'PLUGIN_ALREADY_INSTALLED',
+        message: 'Plugin is already installed.',
+        why: `ZaoWu will not silently overwrite \`${pluginPath}\`.`,
+        fix: 'Remove the plugin first with `zw plugin remove <id> --yes`, then install it again.',
+      });
+    }
+
+    try {
+      await writeFile(pluginPath, `${JSON.stringify(plugin, null, 2)}\n`, {
+        encoding: 'utf8',
+        flag: 'wx',
+      });
+    } catch (error) {
+      if (error instanceof ZaoWuError) {
+        throw error;
+      }
+
+      throw new ZaoWuError({
+        code: 'PLUGIN_WRITE_FAILED',
+        message: 'Could not write plugin manifest.',
+        why: `ZaoWu tried to write \`${pluginPath}\`, but the file system rejected the write.`,
+        fix: 'Check the plugin directory permissions, then run the command again.',
+      });
+    }
   }
 
   return {
@@ -302,6 +337,7 @@ export const removePlugin = async (
 
   const cwd = options.cwd ?? process.cwd();
   const pluginDir = getPluginDir(cwd);
+  const pluginPath = getPluginPath(pluginDir, id);
   const plugin: PluginManifest = {
     id,
     source: id,
@@ -309,7 +345,16 @@ export const removePlugin = async (
   };
 
   if (options.yes) {
-    await rm(getPluginPath(pluginDir, id), { force: true });
+    if (!(await fileExists(pluginPath))) {
+      throw new ZaoWuError({
+        code: 'PLUGIN_NOT_INSTALLED',
+        message: 'Plugin is not installed.',
+        why: `ZaoWu could not find \`${pluginPath}\`.`,
+        fix: 'Run `zw plugin list` to see installed plugin manifests.',
+      });
+    }
+
+    await rm(pluginPath);
   }
 
   return {

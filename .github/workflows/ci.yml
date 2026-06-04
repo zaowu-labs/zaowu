@@ -41,6 +41,9 @@ jobs:
       - name: Build
         run: corepack pnpm build
 
+      - name: Check package contents
+        run: corepack pnpm pack:check
+
       - name: Test
         run: corepack pnpm test
 

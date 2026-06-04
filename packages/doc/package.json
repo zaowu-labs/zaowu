@@ -4,6 +4,9 @@
   "description": "ZaoWu document workflows",
   "type": "module",
   "license": "Apache-2.0",
+  "files": [
+    "dist"
+  ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -25,5 +28,8 @@
   "keywords": [
     "zaowu",
     "documents"
-  ]
+  ],
+  "devDependencies": {
+    "jszip": "^3.10.1"
+  }
 }
