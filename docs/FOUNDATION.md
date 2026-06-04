@@ -101,12 +101,7 @@ Run these before committing:
 
 ```bash
 corepack pnpm install --frozen-lockfile
-corepack pnpm build
-corepack pnpm verify:smoke
-corepack pnpm test
-corepack pnpm lint
-corepack pnpm format:check
-corepack pnpm pack:check
+corepack pnpm verify
 git diff --check
 ```
 

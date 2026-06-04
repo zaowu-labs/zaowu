@@ -133,27 +133,20 @@ pinned pnpm version from `package.json`.
 ```bash
 corepack enable
 corepack pnpm install --frozen-lockfile
-corepack pnpm build
-corepack pnpm verify:smoke
-corepack pnpm test
-corepack pnpm typecheck
-corepack pnpm lint
+corepack pnpm verify
 ```
 
 Do not run dependency installation, commits, pushes, or destructive actions unless the user explicitly asks for them.
 
 ## Continuous Integration
 
-Pull requests run the foundation checks on Ubuntu and Windows with Node.js 20.19.0 and 24.x:
+Pull requests run the same foundation gate as `corepack pnpm verify`, split into
+separate CI steps for easier failure diagnosis. The matrix covers Ubuntu and
+Windows with Node.js 20.19.0 and 24.x:
 
 ```bash
 corepack pnpm install --frozen-lockfile
-corepack pnpm build
-corepack pnpm verify:smoke
-corepack pnpm test
-corepack pnpm lint
-corepack pnpm format:check
-corepack pnpm pack:check
+corepack pnpm verify
 ```
 
 ## Project Structure
