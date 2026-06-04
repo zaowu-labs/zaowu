@@ -79,6 +79,8 @@ corepack pnpm --silent zw ai ask "Explain ZaoWu" --provider openai --yes
 Do not put API keys or tokens in `zw.yml`.
 Network providers preview by default, require `--yes`, and are additionally
 guarded inside `packages/ai` so internal callers cannot bypass confirmation.
+The preview reads any `--file` input and reports combined input size before a
+network request can be sent.
 
 Review Git state without modifying it:
 
@@ -88,6 +90,10 @@ corepack pnpm --silent zw dev review
 corepack pnpm --silent zw dev review --staged
 corepack pnpm --silent zw dev commit
 ```
+
+Review and commit previews include change categories and recommended validation
+commands so the next check is explicit. Worktree review lists untracked files by
+name; stage them when you need full Git diff context.
 
 Work with supported documents. Text, Markdown-like files, PDF, and DOCX are
 handled as extracted text in this foundation version:
@@ -110,6 +116,9 @@ corepack pnpm --silent zw data clean sample.csv --output clean.csv
 corepack pnpm --silent zw data clean sample.csv --output clean.csv --yes
 ```
 
+Blank and duplicate headers are normalized to stable names such as `column_3`
+and `name_2` before schema or sample JSON is produced.
+
 Validate and preview automation workflows:
 
 ```bash
@@ -117,6 +126,9 @@ corepack pnpm --silent zw auto validate workflow.yml
 corepack pnpm --silent zw auto plan workflow.yml
 corepack pnpm --silent zw auto run workflow.yml
 ```
+
+Workflows default to `version: 1`; unsupported explicit versions produce a
+warning and remain visible in validation and plan output.
 
 Manage local plugin manifests:
 
@@ -126,6 +138,10 @@ corepack pnpm --silent zw plugin install readme-gen
 corepack pnpm --silent zw plugin install readme-gen --yes
 corepack pnpm --silent zw plugin list
 ```
+
+Local plugin manifests may declare `schemaVersion: 1`. Unsupported schema
+versions, duplicate command names, and invalid command summaries are reported
+before installation from a local source.
 
 ## Safety Defaults
 
@@ -154,10 +170,23 @@ Run these before committing:
 ```bash
 corepack pnpm install --frozen-lockfile
 corepack pnpm build
+corepack pnpm verify:smoke
 corepack pnpm test
 corepack pnpm lint
 corepack pnpm format:check
 corepack pnpm pack:check
+```
+
+Windows:
+
+```powershell
+.\scripts\verify-local.ps1
+```
+
+macOS or Linux:
+
+```bash
+sh ./scripts/verify-local.sh
 ```
 
 ## Common Errors
@@ -189,3 +218,7 @@ Use `.csv`, `.tsv`, or `.xlsx`. XLSX reads the first worksheet by default; pass
 
 Use `.txt`, `.md`, `.markdown`, `.csv`, `.json`, `.yml`, `.yaml`, `.pdf`, or
 `.docx`. PDF and DOCX are extracted as text.
+
+`Workflow format is not supported yet.`
+
+Use `.json`, `.yml`, or `.yaml` workflow files for `zw auto`.

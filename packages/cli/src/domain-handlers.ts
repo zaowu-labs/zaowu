@@ -1,4 +1,4 @@
-import { askAI, listAIProviders, validateAIProviderConfig } from '@zaowu/ai';
+import { askAI, listAIProviders, previewAIRequest, validateAIProviderConfig } from '@zaowu/ai';
 import { planWorkflowFile, runWorkflowFile, validateWorkflowFile } from '@zaowu/auto';
 import {
   findConfigPathOrThrow,
@@ -84,6 +84,14 @@ const withOperationPlan = <T extends object>(
 
 const formatList = (items: readonly string[]): string =>
   items.length > 0 ? items.map((item) => `- ${item}`).join('\n') : '- none';
+
+const formatCounts = (items: Record<string, number>): string => {
+  const lines = Object.entries(items)
+    .filter(([, count]) => count > 0)
+    .map(([name, count]) => `- ${name}: ${count}`);
+
+  return lines.length > 0 ? lines.join('\n') : '- none';
+};
 
 const formatOperationPlan = (plan: OperationPlan): string =>
   [
@@ -248,17 +256,6 @@ const handleAiAsk: DomainActionHandler = async (args, context) => {
   const requestedModel = getValue(context.parsed, '--model');
   const providerValidation = validateAIProviderConfig(requestedProvider);
   const provider = providerValidation.provider;
-  const model = requestedModel ?? provider.defaultModel ?? 'echo-local';
-  const input = {
-    source:
-      prompt && filePath
-        ? ('prompt+file' as const)
-        : filePath
-          ? ('file' as const)
-          : ('prompt' as const),
-    promptCharacters: prompt.length,
-    ...(filePath ? { filePath } : {}),
-  };
   const operationPlan = createOperationPlan({
     risk: provider.network ? 'medium' : 'low',
     confirmationRequired: provider.network && !context.yes,
@@ -272,30 +269,27 @@ const handleAiAsk: DomainActionHandler = async (args, context) => {
     ],
   });
 
-  if (!prompt && !filePath) {
-    throw new ZaoWuError({
-      code: 'AI_PROMPT_REQUIRED',
-      message: 'AI prompt is required.',
-      why: '`zw ai ask` needs a question, instruction, or readable `--file` input.',
-      fix: 'Run `zw ai ask "Explain this project"` or `zw ai ask --file README.md`.',
-    });
-  }
-
   if (provider.network && !context.yes) {
+    const preview = await previewAIRequest({
+      prompt,
+      filePath,
+      provider: requestedProvider,
+      model: requestedModel,
+    });
     const payload = {
       status: 'preview',
       provider,
-      model,
-      input,
+      model: preview.model,
+      input: preview.input,
       output: null,
-      validation: providerValidation,
+      validation: preview.validation,
     };
     const human = [
       'ZaoWu AI Ask',
       '',
       'Status: preview',
       `Provider: ${provider.id} (${provider.name})`,
-      `Model: ${model}`,
+      `Model: ${preview.model}`,
       '',
       formatOperationPlan(operationPlan),
       '',
@@ -375,6 +369,12 @@ const handleDevCommit: DomainActionHandler = async (_args, context) => {
     `Files: ${preview.summary.files.length}`,
     `Changes: +${preview.summary.additions}/-${preview.summary.deletions}`,
     '',
+    'Categories:',
+    formatCounts(preview.summary.categories),
+    '',
+    'Recommended checks:',
+    formatList(preview.recommendedChecks),
+    '',
     formatOperationPlan(operationPlan),
     '',
     'Suggested message:',
@@ -391,10 +391,15 @@ const handleDevReview: DomainActionHandler = async (_args, context) => {
       ? 'worktree'
       : 'auto';
   const review = reviewDevChanges(context.commandRunner, { cwd: context.cwd, mode });
+  const reviewUsesWorktree = review.source === 'working-tree';
   const operationPlan = createOperationPlan({
     risk: 'low',
-    reads: [mode === 'worktree' ? 'working-tree git diff' : 'staged git diff'],
-    executes: ['git diff'],
+    reads: reviewUsesWorktree
+      ? ['working-tree git diff', 'untracked git file list']
+      : ['staged git diff'],
+    executes: reviewUsesWorktree
+      ? ['git diff', 'git ls-files --others --exclude-standard']
+      : ['git diff --cached'],
     notes: ['No Git state is modified.'],
   });
   const human = [
@@ -404,10 +409,16 @@ const handleDevReview: DomainActionHandler = async (_args, context) => {
     `Files: ${review.summary.files.length}`,
     `Changes: +${review.summary.additions}/-${review.summary.deletions}`,
     '',
+    'Categories:',
+    formatCounts(review.summary.categories),
+    '',
     'Findings:',
     ...review.findings.map(
       (finding) => `- ${finding.severity}: ${finding.title} - ${finding.detail}`
     ),
+    '',
+    'Recommended checks:',
+    formatList(review.recommendedChecks),
     '',
     formatOperationPlan(operationPlan),
   ].join('\n');
@@ -660,6 +671,7 @@ const handleAutoValidate: DomainActionHandler = async (args, context) => {
     '',
     `File: ${validation.filePath}`,
     `Workflow: ${validation.workflow.name}`,
+    `Version: ${validation.workflow.version}`,
     `Steps: ${validation.workflow.steps.length}`,
     '',
     validation.warnings.length > 0
@@ -696,6 +708,7 @@ const handleAutoRun: DomainActionHandler = async (args, context) => {
     '',
     `Status: ${run.status}`,
     `Workflow: ${run.workflow.name}`,
+    `Version: ${run.workflow.version}`,
     '',
     formatOperationPlan(operationPlan),
     '',
@@ -717,6 +730,7 @@ const handleAutoPlan: DomainActionHandler = async (args, context) => {
     '',
     `File: ${plan.filePath}`,
     `Workflow: ${plan.workflow.name}`,
+    `Version: ${plan.workflow.version}`,
     '',
     ...plan.steps.map(
       (step) =>

@@ -413,7 +413,6 @@ Description:
   Validate a JSON or YAML workflow without running it.
 
 Options:
-  --sheet <name>     XLSX sheet name, defaults to the first sheet
   --json             Output machine-readable JSON`,
     plan: `ZaoWu Auto Plan
 
@@ -424,7 +423,6 @@ Description:
   Show the dry execution plan, variable substitution, blocked steps, and warnings.
 
 Options:
-  --sheet <name>     XLSX sheet name, defaults to the first sheet
   --json             Output machine-readable JSON`,
     run: `ZaoWu Auto Run
 
@@ -515,6 +513,7 @@ Description:
   Inspect rows, columns, and missing values.
 
 Options:
+  --sheet <name>     XLSX sheet name, defaults to the first sheet
   --json             Output machine-readable JSON`,
     analyze: `ZaoWu Data Analyze
 
@@ -525,6 +524,7 @@ Description:
   Analyze numeric columns in supported data files.
 
 Options:
+  --sheet <name>     XLSX sheet name, defaults to the first sheet
   --json             Output machine-readable JSON`,
     clean: `ZaoWu Data Clean
 

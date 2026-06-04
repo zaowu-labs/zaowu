@@ -15,6 +15,7 @@ export interface PluginSourceCommand {
 }
 
 export interface PluginSourceManifest {
+  schemaVersion?: number;
   id: string;
   name?: string;
   version?: string;
@@ -78,6 +79,7 @@ export const PLUGIN_DOMAIN: DomainDefinition = {
 };
 
 const PLUGIN_ID_PATTERN = /^[a-z0-9][a-z0-9._-]*$/;
+const SUPPORTED_PLUGIN_SCHEMA_VERSION = 1;
 
 const getPluginDir = (cwd: string): string => path.join(cwd, '.zaowu', 'plugins');
 
@@ -146,6 +148,19 @@ const validateSourceManifest = (value: unknown): PluginValidationResult['errors'
     errors.push('Manifest `id` must be a valid plugin id.');
   }
 
+  if (
+    manifest.schemaVersion !== undefined &&
+    manifest.schemaVersion !== SUPPORTED_PLUGIN_SCHEMA_VERSION
+  ) {
+    errors.push(
+      `Manifest \`schemaVersion\` must be ${SUPPORTED_PLUGIN_SCHEMA_VERSION} when provided.`
+    );
+  }
+
+  if (manifest.name !== undefined && typeof manifest.name !== 'string') {
+    errors.push('Manifest `name` must be a string when provided.');
+  }
+
   if (manifest.version !== undefined && typeof manifest.version !== 'string') {
     errors.push('Manifest `version` must be a string when provided.');
   }
@@ -154,6 +169,8 @@ const validateSourceManifest = (value: unknown): PluginValidationResult['errors'
     if (!Array.isArray(manifest.commands)) {
       errors.push('Manifest `commands` must be an array when provided.');
     } else {
+      const commandNames = new Set<string>();
+
       manifest.commands.forEach((command, index) => {
         if (!command || typeof command !== 'object' || Array.isArray(command)) {
           errors.push(`Command at index ${index} must be an object.`);
@@ -162,6 +179,14 @@ const validateSourceManifest = (value: unknown): PluginValidationResult['errors'
 
         if (typeof command.name !== 'string' || !PLUGIN_ID_PATTERN.test(command.name)) {
           errors.push(`Command at index ${index} has an invalid name.`);
+        } else if (commandNames.has(command.name)) {
+          errors.push(`Command \`${command.name}\` is duplicated.`);
+        } else {
+          commandNames.add(command.name);
+        }
+
+        if (command.summary !== undefined && typeof command.summary !== 'string') {
+          errors.push(`Command \`${command.name ?? index}\` summary must be a string.`);
         }
       });
     }

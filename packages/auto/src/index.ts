@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 import { createCapabilityLedger, stripUtf8Bom, type DomainDefinition } from '@zaowu/core';
 import { ZaoWuError } from '@zaowu/core';
 
@@ -9,9 +10,14 @@ export interface AutomationStep {
 }
 
 export interface AutomationWorkflow {
+  version: number;
   name: string;
   variables: Record<string, string>;
   steps: AutomationStep[];
+}
+
+interface ParsedAutomationWorkflow extends AutomationWorkflow {
+  versionWarning?: string;
 }
 
 export interface AutomationValidationResult {
@@ -73,8 +79,57 @@ export const AUTO_DOMAIN: DomainDefinition = {
   ],
 };
 
-const parseWorkflowJson = (content: string): AutomationWorkflow => {
+const SUPPORTED_WORKFLOW_VERSION = 1;
+
+const getWorkflowFormat = (filePath: string): 'json' | 'yaml' => {
+  const extension = path.extname(filePath).toLowerCase();
+
+  if (extension === '.json') {
+    return 'json';
+  }
+
+  if (extension === '.yml' || extension === '.yaml') {
+    return 'yaml';
+  }
+
+  throw new ZaoWuError({
+    code: 'WORKFLOW_FORMAT_UNSUPPORTED',
+    message: 'Workflow format is not supported yet.',
+    why: `ZaoWu can read JSON and YAML workflow files. It cannot parse \`${extension || 'unknown'}\` files as workflows.`,
+    fix: 'Use a workflow file ending in `.json`, `.yml`, or `.yaml`.',
+  });
+};
+
+const parseWorkflowVersion = (value: unknown): { version: number; versionWarning?: string } => {
+  if (value === undefined || value === null || value === '') {
+    return {
+      version: SUPPORTED_WORKFLOW_VERSION,
+    };
+  }
+
+  const normalizedValue = typeof value === 'string' ? value.trim() : value;
+  const version =
+    typeof normalizedValue === 'number'
+      ? normalizedValue
+      : typeof normalizedValue === 'string' && /^\d+$/.test(normalizedValue)
+        ? Number.parseInt(normalizedValue, 10)
+        : Number.NaN;
+
+  if (Number.isInteger(version) && version > 0) {
+    return {
+      version,
+    };
+  }
+
+  return {
+    version: SUPPORTED_WORKFLOW_VERSION,
+    versionWarning: `Workflow version \`${String(value)}\` is invalid; defaulting to ${SUPPORTED_WORKFLOW_VERSION}.`,
+  };
+};
+
+const parseWorkflowJson = (content: string): ParsedAutomationWorkflow => {
   const parsed = JSON.parse(content) as Partial<AutomationWorkflow>;
+  const version = parseWorkflowVersion(parsed.version);
   const variables =
     parsed.variables && typeof parsed.variables === 'object' && !Array.isArray(parsed.variables)
       ? Object.fromEntries(
@@ -83,14 +138,16 @@ const parseWorkflowJson = (content: string): AutomationWorkflow => {
       : {};
 
   return {
+    ...version,
     name: typeof parsed.name === 'string' && parsed.name ? parsed.name : 'workflow',
     variables,
     steps: Array.isArray(parsed.steps) ? parsed.steps : [],
   };
 };
 
-const parseWorkflowYaml = (content: string): AutomationWorkflow => {
+const parseWorkflowYaml = (content: string): ParsedAutomationWorkflow => {
   const lines = content.split(/\r?\n/);
+  let parsedVersion = parseWorkflowVersion(undefined);
   let name = 'workflow';
   let section: 'vars' | 'steps' | null = null;
   const variables: Record<string, string> = {};
@@ -101,6 +158,14 @@ const parseWorkflowYaml = (content: string): AutomationWorkflow => {
     const line = rawLine.trimEnd();
 
     if (!line.trim() || line.trim().startsWith('#')) {
+      continue;
+    }
+
+    const versionMatch = /^version:\s*(.+)$/.exec(line);
+
+    if (versionMatch && !rawLine.startsWith(' ')) {
+      parsedVersion = parseWorkflowVersion(versionMatch[1]);
+      section = null;
       continue;
     }
 
@@ -156,17 +221,19 @@ const parseWorkflowYaml = (content: string): AutomationWorkflow => {
   }
 
   return {
+    ...parsedVersion,
     name,
     variables,
     steps,
   };
 };
 
-const parseWorkflow = (content: string, filePath: string): AutomationWorkflow => {
+const parseWorkflow = (content: string, filePath: string): ParsedAutomationWorkflow => {
   const normalizedContent = stripUtf8Bom(content);
+  const format = getWorkflowFormat(filePath);
 
   try {
-    return filePath.endsWith('.json')
+    return format === 'json'
       ? parseWorkflowJson(normalizedContent)
       : parseWorkflowYaml(normalizedContent);
   } catch {
@@ -178,6 +245,13 @@ const parseWorkflow = (content: string, filePath: string): AutomationWorkflow =>
     });
   }
 };
+
+const stripWorkflowMetadata = (workflow: ParsedAutomationWorkflow): AutomationWorkflow => ({
+  version: workflow.version,
+  name: workflow.name,
+  variables: workflow.variables,
+  steps: workflow.steps,
+});
 
 const VARIABLE_PATTERN = /\{\{\s*([A-Za-z0-9_-]+)\s*\}\}/g;
 
@@ -196,8 +270,19 @@ export const validateWorkflowContent = (
   content: string,
   filePath = 'workflow.yml'
 ): AutomationValidationResult => {
-  const workflow = parseWorkflow(content, filePath);
+  const parsedWorkflow = parseWorkflow(content, filePath);
+  const workflow = stripWorkflowMetadata(parsedWorkflow);
   const warnings: string[] = [];
+
+  if (parsedWorkflow.versionWarning) {
+    warnings.push(parsedWorkflow.versionWarning);
+  }
+
+  if (workflow.version !== SUPPORTED_WORKFLOW_VERSION) {
+    warnings.push(
+      `Workflow version ${workflow.version} is not supported; this foundation version expects ${SUPPORTED_WORKFLOW_VERSION}.`
+    );
+  }
 
   if (workflow.steps.length === 0) {
     warnings.push('Workflow has no steps.');

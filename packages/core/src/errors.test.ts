@@ -16,11 +16,15 @@ const readSourceFiles = async (directory: string): Promise<string[]> => {
     const entryPath = path.join(directory, entry.name);
 
     if (entry.isDirectory()) {
+      if (['coverage', 'dist', 'node_modules'].includes(entry.name)) {
+        continue;
+      }
+
       files.push(...(await readSourceFiles(entryPath)));
       continue;
     }
 
-    if (entry.name.endsWith('.ts')) {
+    if (entry.name.endsWith('.ts') && !entry.name.endsWith('.d.ts')) {
       files.push(entryPath);
     }
   }

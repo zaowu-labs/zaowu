@@ -25,9 +25,12 @@ ZaoWu is in the first runnable foundation phase. The repository is focused on:
 - command contract tests
 - capability ledgers and operation plans for sensitive commands
 - a local echo AI provider plus preview-first non-streaming OpenAI adapter with
-  provider-level confirmation, timeout, and input-size guards
+  provider-level confirmation, timeout, and shared preview/input-size guards
+- CLI smoke and golden-output checks for first-use command experience
+- developer review/commit previews with change categories and recommended checks
 - overwrite-safe PDF, DOCX, CSV, TSV, and XLSX support with named worksheet
-  selection for XLSX
+  selection for XLSX and stable normalized column names
+- versioned automation workflows and local plugin manifest validation
 
 Later modules should build on this foundation instead of becoming separate scripts:
 
@@ -131,6 +134,7 @@ pinned pnpm version from `package.json`.
 corepack enable
 corepack pnpm install --frozen-lockfile
 corepack pnpm build
+corepack pnpm verify:smoke
 corepack pnpm test
 corepack pnpm typecheck
 corepack pnpm lint
@@ -145,6 +149,7 @@ Pull requests run the foundation checks on Ubuntu and Windows with Node.js 20.19
 ```bash
 corepack pnpm install --frozen-lockfile
 corepack pnpm build
+corepack pnpm verify:smoke
 corepack pnpm test
 corepack pnpm lint
 corepack pnpm format:check

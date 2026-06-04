@@ -48,6 +48,8 @@ export interface AIAskResponse {
     promptCharacters: number;
     filePath?: string;
     fileCharacters?: number;
+    combinedCharacters: number;
+    maxInputCharacters: number;
   };
   output: string;
 }
@@ -61,6 +63,14 @@ export interface AIProviderValidation {
 export interface AIProvider {
   descriptor: AIProviderDescriptor;
   ask(request: AIAskRequest): Promise<AIAskResponse>;
+}
+
+export interface AIAskPreview {
+  status: 'preview';
+  provider: AIProviderDescriptor;
+  model: string;
+  input: AIAskResponse['input'];
+  validation: AIProviderValidation;
 }
 
 export const AI_DOMAIN: DomainDefinition = {
@@ -97,10 +107,24 @@ const createProviderDescriptor = (
   configured: descriptor.requiredEnv.length === 0 || getConfigured(descriptor.requiredEnv, env),
 });
 
-const createInput = (
+const DEFAULT_PROVIDER_TIMEOUT_MS = 30_000;
+const DEFAULT_MAX_INPUT_CHARACTERS = 200_000;
+
+const createCombinedPrompt = (
   prompt: string,
   filePath: string | undefined,
   fileContent: string | undefined
+): string =>
+  [prompt, fileContent === undefined ? undefined : `Input file: ${filePath}\n${fileContent}`]
+    .filter((part): part is string => Boolean(part?.trim()))
+    .join('\n\n');
+
+const createInput = (
+  prompt: string,
+  filePath: string | undefined,
+  fileContent: string | undefined,
+  combinedPrompt: string,
+  maxInputCharacters: number
 ): AIAskResponse['input'] => {
   if (prompt && filePath) {
     return {
@@ -108,6 +132,8 @@ const createInput = (
       promptCharacters: prompt.length,
       filePath,
       fileCharacters: fileContent?.length ?? 0,
+      combinedCharacters: combinedPrompt.length,
+      maxInputCharacters,
     };
   }
 
@@ -117,12 +143,71 @@ const createInput = (
       promptCharacters: 0,
       filePath,
       fileCharacters: fileContent?.length ?? 0,
+      combinedCharacters: combinedPrompt.length,
+      maxInputCharacters,
     };
   }
 
   return {
     source: 'prompt',
     promptCharacters: prompt.length,
+    combinedCharacters: combinedPrompt.length,
+    maxInputCharacters,
+  };
+};
+
+const assertPromptInput = (prompt: string, filePath: string | undefined): void => {
+  if (!prompt && !filePath) {
+    throw new ZaoWuError({
+      code: 'AI_PROMPT_REQUIRED',
+      message: 'AI prompt is required.',
+      why: '`zw ai ask` needs a question, instruction, or readable `--file` input.',
+      fix: 'Run `zw ai ask "Explain this project"` or `zw ai ask --file README.md`.',
+    });
+  }
+};
+
+const assertInputSize = (combinedPrompt: string, maxInputCharacters: number): void => {
+  if (!combinedPrompt.trim()) {
+    throw new ZaoWuError({
+      code: 'AI_PROMPT_REQUIRED',
+      message: 'AI prompt is required.',
+      why: '`zw ai ask` needs a question, instruction, or readable `--file` input.',
+      fix: 'Run `zw ai ask "Explain this project"` or `zw ai ask --file README.md`.',
+    });
+  }
+
+  if (combinedPrompt.length > maxInputCharacters) {
+    throw new ZaoWuError({
+      code: 'AI_INPUT_TOO_LARGE',
+      message: 'AI input is too large.',
+      why: `The combined prompt is ${combinedPrompt.length} characters, above the limit of ${maxInputCharacters}.`,
+      fix: 'Use a smaller prompt or a smaller input file.',
+    });
+  }
+};
+
+const prepareAIInput = async (
+  request: AIAskRequest
+): Promise<{
+  prompt: string;
+  combinedPrompt: string;
+  input: AIAskResponse['input'];
+}> => {
+  const prompt = request.prompt.trim();
+  const maxInputCharacters = request.maxInputCharacters ?? DEFAULT_MAX_INPUT_CHARACTERS;
+
+  assertPromptInput(prompt, request.filePath);
+
+  const fileContent = request.filePath ? await readPromptFile(request.filePath) : undefined;
+  const combinedPrompt = createCombinedPrompt(prompt, request.filePath, fileContent);
+
+  assertInputSize(combinedPrompt, maxInputCharacters);
+
+  return {
+    prompt,
+    combinedPrompt,
+    input: createInput(prompt, request.filePath, fileContent, combinedPrompt, maxInputCharacters),
   };
 };
 
@@ -147,31 +232,15 @@ const ECHO_PROVIDER: AIProvider = {
     requiredEnv: [],
   }),
   async ask(request) {
-    const prompt = request.prompt.trim();
-    const fileContent = request.filePath ? await readPromptFile(request.filePath) : undefined;
-    const combinedPrompt = [
-      prompt,
-      fileContent === undefined ? undefined : `Input file: ${request.filePath}\n${fileContent}`,
-    ]
-      .filter((part): part is string => Boolean(part?.trim()))
-      .join('\n\n');
-
-    if (!combinedPrompt.trim()) {
-      throw new ZaoWuError({
-        code: 'AI_PROMPT_REQUIRED',
-        message: 'AI prompt is required.',
-        why: '`zw ai ask` needs a question, instruction, or readable `--file` input.',
-        fix: 'Run `zw ai ask "Explain this project"` or `zw ai ask --file README.md`.',
-      });
-    }
+    const prepared = await prepareAIInput(request);
 
     return {
       provider: this.descriptor,
       model: request.model ?? 'echo-local',
-      input: createInput(prompt, request.filePath, fileContent),
+      input: prepared.input,
       output:
         'This is the local echo provider. It does not call an external AI service.\n\n' +
-        `Prompt received:\n${combinedPrompt}`,
+        `Prompt received:\n${prepared.combinedPrompt}`,
     };
   },
 };
@@ -183,9 +252,6 @@ const OPENAI_PROVIDER_DESCRIPTOR: Omit<AIProviderDescriptor, 'configured'> = {
   requiredEnv: ['OPENAI_API_KEY'],
   defaultModel: 'gpt-4.1-mini',
 };
-
-const DEFAULT_PROVIDER_TIMEOUT_MS = 30_000;
-const DEFAULT_MAX_INPUT_CHARACTERS = 200_000;
 
 const getFetcher = (fetcher?: AIFetcher): AIFetcher => {
   if (fetcher) {
@@ -271,34 +337,7 @@ const OPENAI_PROVIDER: AIProvider = {
       });
     }
 
-    const prompt = request.prompt.trim();
-    const fileContent = request.filePath ? await readPromptFile(request.filePath) : undefined;
-    const combinedPrompt = [
-      prompt,
-      fileContent === undefined ? undefined : `Input file: ${request.filePath}\n${fileContent}`,
-    ]
-      .filter((part): part is string => Boolean(part?.trim()))
-      .join('\n\n');
-
-    if (!combinedPrompt.trim()) {
-      throw new ZaoWuError({
-        code: 'AI_PROMPT_REQUIRED',
-        message: 'AI prompt is required.',
-        why: '`zw ai ask` needs a question, instruction, or readable `--file` input.',
-        fix: 'Run `zw ai ask "Explain this project"` or `zw ai ask --file README.md`.',
-      });
-    }
-
-    const maxInputCharacters = request.maxInputCharacters ?? DEFAULT_MAX_INPUT_CHARACTERS;
-
-    if (combinedPrompt.length > maxInputCharacters) {
-      throw new ZaoWuError({
-        code: 'AI_INPUT_TOO_LARGE',
-        message: 'AI input is too large.',
-        why: `The combined prompt is ${combinedPrompt.length} characters, above the limit of ${maxInputCharacters}.`,
-        fix: 'Use a smaller prompt or a smaller input file.',
-      });
-    }
+    const prepared = await prepareAIInput(request);
 
     const model =
       request.model ??
@@ -321,7 +360,7 @@ const OPENAI_PROVIDER: AIProvider = {
         },
         body: JSON.stringify({
           model,
-          input: combinedPrompt,
+          input: prepared.combinedPrompt,
         }),
         signal: controller.signal,
       });
@@ -353,7 +392,7 @@ const OPENAI_PROVIDER: AIProvider = {
     return {
       provider: descriptor,
       model,
-      input: createInput(prompt, request.filePath, fileContent),
+      input: prepared.input,
       output,
     };
   },
@@ -418,17 +457,40 @@ export const validateAIProviderConfig = (
   };
 };
 
+const getPreviewModel = (
+  provider: AIProviderDescriptor,
+  request: AIAskRequest,
+  env: NodeJS.ProcessEnv
+): string => {
+  if (request.model) {
+    return request.model;
+  }
+
+  if (provider.id === OPENAI_PROVIDER_DESCRIPTOR.id && env.OPENAI_MODEL?.trim()) {
+    return env.OPENAI_MODEL.trim();
+  }
+
+  return provider.defaultModel ?? 'echo-local';
+};
+
+export const previewAIRequest = async (request: AIAskRequest): Promise<AIAskPreview> => {
+  const env = request.env ?? process.env;
+  const validation = validateAIProviderConfig(request.provider, env);
+  const prepared = await prepareAIInput(request);
+
+  return {
+    status: 'preview',
+    provider: validation.provider,
+    model: getPreviewModel(validation.provider, request, env),
+    input: prepared.input,
+    validation,
+  };
+};
+
 export const askAI = async (request: AIAskRequest): Promise<AIAskResponse> => {
   const prompt = request.prompt.trim();
 
-  if (!prompt && !request.filePath) {
-    throw new ZaoWuError({
-      code: 'AI_PROMPT_REQUIRED',
-      message: 'AI prompt is required.',
-      why: '`zw ai ask` needs a question, instruction, or readable `--file` input.',
-      fix: 'Run `zw ai ask "Explain this project"` or `zw ai ask --file README.md`.',
-    });
-  }
+  assertPromptInput(prompt, request.filePath);
 
   return await getAIProvider(request.provider).ask({
     ...request,

@@ -26,6 +26,7 @@ describe('auto domain', () => {
       status: 'ok',
       filePath: 'workflow.yml',
       workflow: {
+        version: 1,
         name: 'demo',
         variables: {},
         steps: [
@@ -50,6 +51,27 @@ describe('auto domain', () => {
     expect(
       validateWorkflowContent('name: demo\nsteps:\n  - name: build\n    run: pnpm build\n').warnings
     ).toEqual(['Step `build` uses shell execution, which this first version will not run.']);
+  });
+
+  it('warns about unsupported explicit workflow versions', () => {
+    expect(
+      validateWorkflowContent('version: 2\nname: demo\nsteps:\n  - name: hello\n    message: Hi\n')
+        .warnings
+    ).toEqual(['Workflow version 2 is not supported; this foundation version expects 1.']);
+  });
+
+  it('warns about invalid explicit workflow versions', () => {
+    expect(
+      validateWorkflowContent(
+        'version: later\nname: demo\nsteps:\n  - name: hello\n    message: Hi\n'
+      ).warnings
+    ).toEqual(['Workflow version `later` is invalid; defaulting to 1.']);
+  });
+
+  it('rejects unsupported workflow file extensions', () => {
+    expect(() => validateWorkflowContent('name: demo\nsteps: []\n', 'workflow.ps1')).toThrow(
+      'Workflow format is not supported yet.'
+    );
   });
 
   it('plans variable substitution and blocked shell steps', () => {

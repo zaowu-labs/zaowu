@@ -16,7 +16,7 @@ grows.
    `zw config migrate`.
 7. One AI boundary: model providers live behind `packages/ai`.
 8. One verification loop: build, test, lint, format, package dry-run, and
-   manual CLI checks run before a change is considered finished.
+   smoke/manual CLI checks run before a change is considered finished.
 
 ## Separation Rules
 
@@ -102,12 +102,16 @@ Run these before committing:
 ```bash
 corepack pnpm install --frozen-lockfile
 corepack pnpm build
+corepack pnpm verify:smoke
 corepack pnpm test
 corepack pnpm lint
 corepack pnpm format:check
 corepack pnpm pack:check
 git diff --check
 ```
+
+On Windows, `.\scripts\verify-local.ps1` runs this local foundation gate. On
+macOS or Linux, use `sh ./scripts/verify-local.sh`.
 
 For CLI behavior, also run direct commands through the workspace binary:
 

@@ -227,6 +227,25 @@ const serializeDelimitedLine = (values: readonly string[], delimiter: ',' | '\t'
     })
     .join(delimiter);
 
+const normalizeHeaders = (headers: readonly string[]): string[] => {
+  const used = new Set<string>();
+
+  return headers.map((header, index) => {
+    const base = header.trim() || `column_${index + 1}`;
+    let candidate = base;
+    let suffix = 2;
+
+    while (used.has(candidate)) {
+      candidate = `${base}_${suffix}`;
+      suffix += 1;
+    }
+
+    used.add(candidate);
+
+    return candidate;
+  });
+};
+
 export const loadDataTable = async (
   filePath: string,
   options: DataReadOptions = {}
@@ -260,7 +279,7 @@ export const loadDataTable = async (
           }) as unknown[][])
         : [];
       const normalizedRows = rows.map((row) => row.map((value) => String(value).trim()));
-      const headers = normalizedRows[0] ?? [];
+      const headers = normalizeHeaders(normalizedRows[0] ?? []);
       const dataRows = normalizedRows.slice(1).filter((row) => row.some((value) => value.trim()));
 
       return {
@@ -316,7 +335,7 @@ export const loadDataTable = async (
     filePath,
     format: source.format,
     delimiter: source.delimiter,
-    headers: parsedHeaders.values,
+    headers: normalizeHeaders(parsedHeaders.values),
     rows: parsedRows.map((row) => row.values),
     emptyLineCount,
     trimmedCellCount,

@@ -11,6 +11,9 @@ on:
 permissions:
   contents: read
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   verify:
     name: ${{ matrix.os }} / Node ${{ matrix.node-version }}
@@ -43,6 +46,9 @@ jobs:
 
       - name: Check package contents
         run: corepack pnpm pack:check
+
+      - name: Smoke test CLI
+        run: corepack pnpm verify:smoke
 
       - name: Test
         run: corepack pnpm test

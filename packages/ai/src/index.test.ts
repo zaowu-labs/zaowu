@@ -7,6 +7,7 @@ import {
   askAI,
   getAIProvider,
   listAIProviders,
+  previewAIRequest,
   validateAIProviderConfig,
 } from './index';
 
@@ -90,6 +91,58 @@ describe('AI provider registry', () => {
       },
       warnings: [],
     });
+  });
+
+  it('previews network AI input without sending a request', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-ai-'));
+    const filePath = path.join(root, 'note.md');
+
+    await writeFile(filePath, 'Local file input.\n', 'utf8');
+
+    try {
+      await expect(
+        previewAIRequest({
+          provider: 'openai',
+          prompt: 'Summarize',
+          filePath,
+          env: {
+            OPENAI_API_KEY: 'test-key',
+          },
+        })
+      ).resolves.toMatchObject({
+        status: 'preview',
+        provider: {
+          id: 'openai',
+          configured: true,
+        },
+        model: 'gpt-4.1-mini',
+        input: {
+          source: 'prompt+file',
+          promptCharacters: 9,
+          filePath,
+          fileCharacters: 18,
+          maxInputCharacters: 200000,
+        },
+        validation: {
+          status: 'ok',
+        },
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects oversized input during AI preview', async () => {
+    await expect(
+      previewAIRequest({
+        provider: 'openai',
+        prompt: 'Explain ZaoWu',
+        maxInputCharacters: 5,
+        env: {
+          OPENAI_API_KEY: 'test-key',
+        },
+      })
+    ).rejects.toThrow('AI input is too large.');
   });
 
   it('asks OpenAI through the Responses API with an environment key', async () => {
