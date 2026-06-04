@@ -41,7 +41,7 @@ The repository should grow through modular packages instead of unrelated scripts
 
 ```text
 packages/cli       Command parsing, command routing, process I/O
-packages/core      Shared errors, result types, and small common helpers
+packages/core      Shared errors, error codes, capabilities, domains, and helpers
 packages/config    Config discovery, loading, schema validation, path rules
 packages/ai        Provider abstraction and model-facing interfaces
 packages/dev       Development workflows such as review and commit help
@@ -96,6 +96,11 @@ core -> config
 When two feature packages need the same helper, move the helper to `core` only if
 it is truly generic. If the helper is domain-specific, keep it in the owning
 package and do not share it prematurely.
+
+The boundary guard test in `packages/core/src/boundaries.test.ts` prevents domain
+packages from importing each other directly. Cross-domain behavior should flow
+through `packages/cli` routing or a stable shared abstraction in `core`,
+`config`, or `ai`.
 
 ## CLI Responsibilities
 
@@ -153,6 +158,10 @@ AI commands must be transparent about:
 - what output is generated
 - whether any file or Git state will change
 
+The current OpenAI adapter uses a non-streaming text request through the
+Responses API. Feature packages should depend on the provider interface, not on
+OpenAI-specific request shapes.
+
 ## Config Boundary
 
 `packages/config` owns `zw.yml` discovery and validation.
@@ -163,6 +172,9 @@ numbers, recovery codes, or tokens.
 
 Secrets should come from environment variables or a later explicit secret
 provider design.
+
+`zw.yml` is versioned. `zw config migrate` owns future config rewrites and should
+preview before writing unless `--yes` is provided.
 
 ## Safety Boundary
 
@@ -177,6 +189,19 @@ Sensitive commands must support at least one of:
 
 Destructive actions should require confirmation by default.
 
+Domain packages declare a capability ledger in their `DomainDefinition`. Sensitive
+CLI handlers should also emit an operation plan that lists:
+
+- files read
+- files written
+- Git or shell execution
+- network targets
+- secrets used
+- confirmation requirements
+
+This gives users a predictable preflight view before ZaoWu reads, writes, sends,
+or executes anything sensitive.
+
 ## Command Addition Checklist
 
 Before adding a command:
@@ -188,11 +213,14 @@ Before adding a command:
 5. Wire the command through `packages/cli`.
 6. Add tests for happy path, invalid input, important errors, JSON output, and
    dry-run behavior when relevant.
-7. Update README or related docs.
-8. Run the full validation suite.
+7. Register or update the command contract in `packages/cli/src/command-contracts.ts`.
+8. Add or update stable error codes in `packages/core/src/error-codes.ts`.
+9. Update README or related docs.
+10. Run the full validation suite.
 
 ## Current Priority
 
-The project is in the foundation phase. Do not jump to cloud services, desktop
-apps, plugin marketplaces, browser automation, or long-running autonomous agents
-until the CLI, config, AI abstraction, and first development commands are stable.
+The project is in the foundation hardening phase. Do not jump to cloud services,
+desktop apps, plugin marketplaces, browser automation, or long-running autonomous
+agents until the CLI, config, safety model, AI abstraction, and first practical
+document/data workflows are stable.

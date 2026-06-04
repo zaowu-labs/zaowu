@@ -1,10 +1,11 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { stripUtf8Bom, type DomainDefinition } from '@zaowu/core';
+import { createCapabilityLedger, stripUtf8Bom, type DomainDefinition } from '@zaowu/core';
 import { ZaoWuError } from '@zaowu/core';
 
 export interface DataTable {
   filePath: string;
+  format: 'csv' | 'tsv' | 'xlsx';
   delimiter: ',' | '\t';
   headers: string[];
   rows: string[][];
@@ -70,6 +71,10 @@ export interface DataSampleResult {
 export const DATA_DOMAIN: DomainDefinition = {
   name: 'data',
   summary: 'Data workflows for inspection, analysis, and cleanup',
+  capabilities: createCapabilityLedger({
+    readsFiles: true,
+    writesFiles: true,
+  }),
   commands: [
     {
       name: 'inspect',
@@ -100,22 +105,37 @@ export const DATA_DOMAIN: DomainDefinition = {
   ],
 };
 
-const assertSupportedDataFile = (filePath: string): ',' | '\t' => {
+const assertSupportedDataFile = (
+  filePath: string
+): { format: DataTable['format']; delimiter: ',' | '\t' } => {
   const extension = path.extname(filePath).toLowerCase();
 
   if (extension === '.csv') {
-    return ',';
+    return {
+      format: 'csv',
+      delimiter: ',',
+    };
   }
 
   if (extension === '.tsv') {
-    return '\t';
+    return {
+      format: 'tsv',
+      delimiter: '\t',
+    };
+  }
+
+  if (extension === '.xlsx') {
+    return {
+      format: 'xlsx',
+      delimiter: ',',
+    };
   }
 
   throw new ZaoWuError({
     code: 'DATA_FORMAT_UNSUPPORTED',
     message: 'Data format is not supported yet.',
-    why: `This first version reads CSV and TSV files. It cannot parse \`${extension || 'unknown'}\` files yet.`,
-    fix: 'Export the data as `.csv` or `.tsv`, or add a parser inside `packages/data` before using this format.',
+    why: `ZaoWu can read CSV, TSV, and XLSX files. It cannot parse \`${extension || 'unknown'}\` files yet.`,
+    fix: 'Export the data as `.csv`, `.tsv`, or `.xlsx`, or add a parser inside `packages/data` before using this format.',
   });
 };
 
@@ -197,8 +217,45 @@ const serializeDelimitedLine = (values: readonly string[], delimiter: ',' | '\t'
     .join(delimiter);
 
 export const loadDataTable = async (filePath: string): Promise<DataTable> => {
-  const delimiter = assertSupportedDataFile(filePath);
+  const source = assertSupportedDataFile(filePath);
   let content: string;
+
+  if (source.format === 'xlsx') {
+    try {
+      const XLSX = await import('xlsx');
+      const workbook = XLSX.read(await readFile(filePath), {
+        type: 'buffer',
+      });
+      const firstSheetName = workbook.SheetNames[0];
+      const sheet = firstSheetName ? workbook.Sheets[firstSheetName] : undefined;
+      const rows = sheet
+        ? (XLSX.utils.sheet_to_json(sheet, {
+            header: 1,
+            defval: '',
+          }) as unknown[][])
+        : [];
+      const normalizedRows = rows.map((row) => row.map((value) => String(value).trim()));
+      const headers = normalizedRows[0] ?? [];
+      const dataRows = normalizedRows.slice(1).filter((row) => row.some((value) => value.trim()));
+
+      return {
+        filePath,
+        format: source.format,
+        delimiter: source.delimiter,
+        headers,
+        rows: dataRows,
+        emptyLineCount: normalizedRows.length - 1 - dataRows.length,
+        trimmedCellCount: 0,
+      };
+    } catch {
+      throw new ZaoWuError({
+        code: 'DATA_READ_FAILED',
+        message: 'Could not read data file.',
+        why: `ZaoWu tried to read \`${filePath}\` as an XLSX file, but the file was not readable.`,
+        fix: 'Check the path, file permissions, and workbook format, then run the command again.',
+      });
+    }
+  }
 
   try {
     content = stripUtf8Bom(await readFile(filePath, 'utf8'));
@@ -216,16 +273,19 @@ export const loadDataTable = async (filePath: string): Promise<DataTable> => {
   const lines = contentLines.filter((line) => line.trim());
   const emptyLineCount = contentLines.length - lines.length;
   const parsedHeaders = lines[0]
-    ? parseDelimitedLineDetailed(lines[0], delimiter)
+    ? parseDelimitedLineDetailed(lines[0], source.delimiter)
     : { values: [], trimmedCells: 0 };
-  const parsedRows = lines.slice(1).map((line) => parseDelimitedLineDetailed(line, delimiter));
+  const parsedRows = lines
+    .slice(1)
+    .map((line) => parseDelimitedLineDetailed(line, source.delimiter));
   const trimmedCellCount =
     parsedHeaders.trimmedCells +
     parsedRows.reduce((count, parsedLine) => count + parsedLine.trimmedCells, 0);
 
   return {
     filePath,
-    delimiter,
+    format: source.format,
+    delimiter: source.delimiter,
     headers: parsedHeaders.values,
     rows: parsedRows.map((row) => row.values),
     emptyLineCount,

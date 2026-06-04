@@ -155,7 +155,7 @@ describe('doc domain', () => {
   });
 
   it('rejects unsupported document formats', async () => {
-    await expect(summarizeDocument('report.pdf')).rejects.toThrow(
+    await expect(summarizeDocument('slides.pptx')).rejects.toThrow(
       'Document format is not supported yet.'
     );
   });

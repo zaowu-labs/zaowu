@@ -1,4 +1,4 @@
-import type { DomainDefinition } from '@zaowu/core';
+import { createCapabilityLedger, type DomainDefinition } from '@zaowu/core';
 import { ZaoWuError } from '@zaowu/core';
 
 export interface WebResponseLike {
@@ -36,6 +36,9 @@ export interface WebFetchResult {
 export const WEB_DOMAIN: DomainDefinition = {
   name: 'web',
   summary: 'Web workflows with explicit network access and target disclosure',
+  capabilities: createCapabilityLedger({
+    usesNetwork: true,
+  }),
   commands: [
     {
       name: 'inspect',

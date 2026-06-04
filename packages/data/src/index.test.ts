@@ -1,6 +1,7 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import * as XLSX from 'xlsx';
 import { describe, expect, it } from 'vitest';
 import {
   analyzeData,
@@ -169,7 +170,65 @@ describe('data domain', () => {
     }
   });
 
-  it('rejects unsupported spreadsheet formats for now', async () => {
-    await expect(inspectData('sales.xlsx')).rejects.toThrow('Data format is not supported yet.');
+  it('inspects XLSX workbooks from the first sheet', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-data-'));
+    const filePath = path.join(root, 'sales.xlsx');
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.aoa_to_sheet([
+      ['name', 'amount', 'active'],
+      ['A', 10, true],
+      ['B', 20, false],
+      ['', '', ''],
+    ]);
+
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Sales');
+    XLSX.writeFile(workbook, filePath);
+
+    try {
+      await expect(inspectData(filePath)).resolves.toMatchObject({
+        status: 'ok',
+        filePath,
+        rowCount: 2,
+        columnCount: 3,
+        columns: ['name', 'amount', 'active'],
+        missingByColumn: {
+          name: 0,
+          amount: 0,
+          active: 0,
+        },
+      });
+      await expect(inferDataSchema(filePath)).resolves.toMatchObject({
+        columns: [
+          {
+            column: 'name',
+            type: 'string',
+          },
+          {
+            column: 'amount',
+            type: 'number',
+          },
+          {
+            column: 'active',
+            type: 'boolean',
+          },
+        ],
+      });
+      await expect(sampleData(filePath, { rows: 1 })).resolves.toMatchObject({
+        rowCount: 1,
+        rows: [
+          {
+            name: 'A',
+            amount: '10',
+            active: 'true',
+          },
+        ],
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects unsupported data formats', async () => {
+    await expect(inspectData('sales.xls')).rejects.toThrow('Data format is not supported yet.');
   });
 });

@@ -31,7 +31,8 @@
     "lint": "eslint .",
     "format": "prettier --write \"**/*.{ts,tsx,json,md,yml,yaml}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,json,md,yml,yaml}\"",
-    "dev": "pnpm --recursive run dev"
+    "dev": "pnpm --recursive run dev",
+    "zw": "node packages/cli/dist/index.js"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",

@@ -118,7 +118,7 @@ Examples:
 ```bash
 zw dev commit
 zw dev review
-zw doc ask contract.pdf "What are the risks?"
+zw ai ask "What are the risks?" --file contract.pdf
 zw data analyze sales.xlsx
 zw auto run daily.yml
 ```

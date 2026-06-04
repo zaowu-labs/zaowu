@@ -2,7 +2,8 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_CONFIG_FILE_NAME, executeCli } from './run';
+import { COMMAND_CONTRACTS } from './command-contracts';
+import { DEFAULT_CONFIG_FILE_NAME, DOMAIN_DEFINITIONS, executeCli } from './run';
 
 describe('executeCli', () => {
   it('shows help when no command is provided', async () => {
@@ -80,7 +81,42 @@ describe('executeCli', () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain('ZaoWu Data Schema');
-    expect(result.stdout).toContain('zw data schema <file.csv|file.tsv>');
+    expect(result.stdout).toContain('zw data schema <file.csv|file.tsv|file.xlsx>');
+  });
+
+  it.each(COMMAND_CONTRACTS)('keeps command contract help stable: $id', async (contract) => {
+    const result = await executeCli(contract.helpArgs);
+
+    expect(result.exitCode).toBe(0);
+
+    for (const expectedText of contract.helpIncludes) {
+      expect(result.stdout).toContain(expectedText);
+    }
+  });
+
+  it.each(COMMAND_CONTRACTS.filter((contract) => contract.json))(
+    'keeps JSON help contract stable: $id',
+    async (contract) => {
+      const result = await executeCli([...contract.helpArgs, '--json']);
+      const payload = JSON.parse(result.stdout);
+
+      expect(result.exitCode).toBe(0);
+      expect(payload.status).toBe('ok');
+      expect(payload.help).toEqual(expect.any(String));
+    }
+  );
+
+  it('registers a command contract for every available action', () => {
+    const availableActions = DOMAIN_DEFINITIONS.flatMap((domain) =>
+      domain.commands
+        .filter((command) => command.status === 'available')
+        .map((command) => `${domain.name}.${command.name}`)
+    ).sort();
+    const contractActions = COMMAND_CONTRACTS.map((contract) => contract.id)
+      .filter((id) => id.includes('.') && id !== 'root.help')
+      .sort();
+
+    expect(contractActions).toEqual(availableActions);
   });
 
   it('runs available domain commands through handlers', async () => {
@@ -136,6 +172,34 @@ describe('executeCli', () => {
     });
   });
 
+  it('previews network AI providers by default', async () => {
+    const result = await executeCli([
+      'ai',
+      'ask',
+      'Explain',
+      'ZaoWu',
+      '--provider',
+      'openai',
+      '--json',
+    ]);
+
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      status: 'preview',
+      provider: {
+        id: 'openai',
+        network: true,
+      },
+      output: null,
+      operationPlan: {
+        risk: 'medium',
+        confirmationRequired: true,
+        network: ['openai'],
+        secrets: ['OPENAI_API_KEY'],
+      },
+    });
+  });
+
   it('lists AI providers and reads file input for AI ask', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
     const filePath = path.join(root, 'note.md');
@@ -180,9 +244,13 @@ describe('executeCli', () => {
       const set = await executeCli(['config', 'set', 'project.name', 'demo', '--json'], {
         cwd: root,
       });
+      const migrate = await executeCli(['config', 'migrate', '--json'], { cwd: root });
 
       expect(JSON.parse(validate.stdout)).toMatchObject({
         status: 'ok',
+        config: {
+          version: 1,
+        },
       });
       expect(JSON.parse(get.stdout)).toMatchObject({
         key: 'project.name',
@@ -194,6 +262,19 @@ describe('executeCli', () => {
         oldValue: 'zaowu-project',
         newValue: 'demo',
         wroteFile: false,
+        operationPlan: {
+          risk: 'medium',
+          confirmationRequired: true,
+          writes: [path.join(root, DEFAULT_CONFIG_FILE_NAME)],
+        },
+      });
+      expect(JSON.parse(migrate.stdout)).toMatchObject({
+        status: 'ok',
+        changed: false,
+        operationPlan: {
+          confirmationRequired: false,
+          writes: [],
+        },
       });
     } finally {
       await rm(root, { recursive: true, force: true });
@@ -373,10 +454,19 @@ describe('executeCli', () => {
       expect(JSON.parse(plugin.stdout)).toMatchObject({
         status: 'preview',
         wroteFile: false,
+        operationPlan: {
+          risk: 'medium',
+          confirmationRequired: true,
+        },
       });
       expect(JSON.parse(web.stdout)).toMatchObject({
         status: 'preview',
         url: 'https://example.com/',
+        operationPlan: {
+          risk: 'medium',
+          confirmationRequired: true,
+          network: ['https://example.com/'],
+        },
       });
     } finally {
       await rm(root, { recursive: true, force: true });
@@ -643,7 +733,7 @@ describe('executeCli', () => {
 
       expect(result.exitCode).toBe(0);
       await expect(readFile(path.join(root, DEFAULT_CONFIG_FILE_NAME), 'utf8')).resolves.toContain(
-        'project:'
+        'version: 1'
       );
 
       const doctor = await executeCli(['doctor'], {

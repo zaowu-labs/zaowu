@@ -1,4 +1,4 @@
-# ZaoWu / 造物
+﻿# ZaoWu / 造物
 
 ZaoWu is an open-source AI-powered toolkit for development, automation, documents, data, teaching, plugins, and workflows.
 
@@ -16,10 +16,16 @@ ZaoWu is in the first runnable foundation phase. The repository is focused on:
 - monorepo structure
 - a coherent `zw` CLI
 - standard user-facing errors
+- a stable error-code registry
+- versioned config with migration preview
 - `zw init`
 - `zw doctor`
 - safe first-version domain commands
 - command-specific help and JSON output
+- command contract tests
+- capability ledgers and operation plans for sensitive commands
+- a local echo AI provider plus preview-first non-streaming OpenAI adapter
+- first-pass PDF, DOCX, CSV, TSV, and XLSX support
 
 Later modules should build on this foundation instead of becoming separate scripts:
 
@@ -56,8 +62,8 @@ https://github.com/zaowu-labs/zaowu.git
 Show available commands and global options.
 
 ```bash
-pnpm --filter @zaowu/cli build
-node packages/cli/dist/index.js --help
+corepack pnpm build
+corepack pnpm --silent zw --help
 ```
 
 ### `zw init`
@@ -65,19 +71,19 @@ node packages/cli/dist/index.js --help
 Preview the default config file without writing it.
 
 ```bash
-node packages/cli/dist/index.js init
+corepack pnpm --silent zw init
 ```
 
 Create `zw.yml` only when explicitly confirmed:
 
 ```bash
-node packages/cli/dist/index.js init --yes
+corepack pnpm --silent zw init --yes
 ```
 
 Preview as JSON:
 
 ```bash
-node packages/cli/dist/index.js init --json
+corepack pnpm --silent zw init --json
 ```
 
 ### `zw doctor`
@@ -85,8 +91,8 @@ node packages/cli/dist/index.js init --json
 Check local environment health.
 
 ```bash
-node packages/cli/dist/index.js doctor
-node packages/cli/dist/index.js doctor --json
+corepack pnpm --silent zw doctor
+corepack pnpm --silent zw doctor --json
 ```
 
 The doctor command checks Node.js 20.19.0 or newer, Git, pnpm `>=10.34.1 <11`
@@ -97,19 +103,19 @@ or Corepack-provided pnpm, and the nearest ZaoWu config file.
 Top-level domains now have safe first-version commands:
 
 ```bash
-node packages/cli/dist/index.js ai providers
-node packages/cli/dist/index.js dev status
-node packages/cli/dist/index.js doc outline README.md
-node packages/cli/dist/index.js data schema sample.csv
-node packages/cli/dist/index.js auto plan workflow.yml
-node packages/cli/dist/index.js plugin validate readme-gen
+corepack pnpm --silent zw ai providers
+corepack pnpm --silent zw dev status
+corepack pnpm --silent zw doc outline README.md
+corepack pnpm --silent zw data schema sample.csv
+corepack pnpm --silent zw auto plan workflow.yml
+corepack pnpm --silent zw plugin validate readme-gen
 ```
 
 Use `--help` on any domain or action:
 
 ```bash
-node packages/cli/dist/index.js data --help
-node packages/cli/dist/index.js data schema --help
+corepack pnpm --silent zw data --help
+corepack pnpm --silent zw data schema --help
 ```
 
 See the full catalog in `docs/experience/COMMAND_CATALOG.md`.
@@ -146,7 +152,7 @@ corepack pnpm format:check
 
 ```text
 packages/cli      Minimal `zw` command-line interface
-packages/core     Shared error, domain, and core types
+packages/core     Shared errors, error codes, capabilities, domains, and core types
 packages/config   Config discovery and loading helpers
 packages/ai       AI provider abstraction scaffold
 packages/dev      Developer workflow scaffold
@@ -166,6 +172,8 @@ docs/GETTING_STARTED.md  Local setup, common commands, and common errors
 docs/ARCHITECTURE.md  Package boundaries, dependency direction, and command rules
 docs/ROADMAP.md       Preferred phase order for growing ZaoWu
 docs/CONTRIBUTING.md  Development workflow, safety rules, and validation
+docs/ERROR_CODES.md   Stable user-facing error code registry
+docs/FOUNDATION.md    Foundation invariants and future workflow rules
 docs/experience/COMMAND_CATALOG.md  First-version command behavior and limits
 ```
 

@@ -18,7 +18,9 @@
     "dev": "tsc -b --watch"
   },
   "dependencies": {
-    "@zaowu/core": "workspace:*"
+    "@zaowu/core": "workspace:*",
+    "mammoth": "^1.12.0",
+    "pdf-parse": "^2.4.5"
   },
   "keywords": [
     "zaowu",

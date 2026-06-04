@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { stripUtf8Bom, type DomainDefinition } from '@zaowu/core';
+import { createCapabilityLedger, stripUtf8Bom, type DomainDefinition } from '@zaowu/core';
 import { ZaoWuError } from '@zaowu/core';
 
 export interface AutomationStep {
@@ -49,6 +49,10 @@ export interface AutomationPlanResult {
 export const AUTO_DOMAIN: DomainDefinition = {
   name: 'auto',
   summary: 'Automation workflows with validation, dry-run, and confirmation',
+  capabilities: createCapabilityLedger({
+    readsFiles: true,
+    executesShell: true,
+  }),
   commands: [
     {
       name: 'validate',

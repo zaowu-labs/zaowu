@@ -1,4 +1,4 @@
-# Contributing to ZaoWu
+﻿# Contributing to ZaoWu
 
 ZaoWu should grow as one coherent CLI product. This guide defines the workflow
 for adding or changing commands.
@@ -38,9 +38,11 @@ Use this process for every important command:
 3. Create or update a spec under `docs/experience/`.
 4. Implement behavior in the owning package.
 5. Wire the command through `packages/cli`.
-6. Add focused tests.
-7. Update README or related docs.
-8. Run validation.
+6. Register or update the command contract if the command is user-facing.
+7. Add or update stable error codes for new expected failures.
+8. Add focused tests.
+9. Update README or related docs.
+10. Run validation.
 
 Command shape:
 
@@ -74,6 +76,10 @@ packages/auto  Automation workflows
 Shared behavior belongs in `packages/core`, `packages/config`, or `packages/ai`
 only when it is genuinely shared and stable.
 
+Domain packages should not import each other directly. If two domains need a
+shared concept, promote only the stable generic part to `packages/core`; keep the
+rest in the owning domain.
+
 ## Safety Rules
 
 Sensitive actions include:
@@ -91,6 +97,10 @@ Sensitive actions must support preview, confirmation, or `--dry-run`.
 Destructive actions should require confirmation by default.
 
 Do not silently overwrite user files.
+
+Sensitive JSON output should include an `operationPlan` when practical. The plan
+should make reads, writes, execution, network requests, secrets, risk, and
+confirmation requirements visible before the command performs sensitive work.
 
 ## Output Rules
 
@@ -134,8 +144,8 @@ corepack pnpm format:check
 For CLI changes, also run manual checks, for example:
 
 ```bash
-node packages/cli/dist/index.js doctor
-node packages/cli/dist/index.js doctor --json
+corepack pnpm --silent zw doctor
+corepack pnpm --silent zw doctor --json
 ```
 
 ## Pull Requests

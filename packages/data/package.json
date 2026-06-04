@@ -18,7 +18,8 @@
     "dev": "tsc -b --watch"
   },
   "dependencies": {
-    "@zaowu/core": "workspace:*"
+    "@zaowu/core": "workspace:*",
+    "xlsx": "^0.18.5"
   },
   "keywords": [
     "zaowu",

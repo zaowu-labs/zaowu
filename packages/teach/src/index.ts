@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import type { DomainDefinition } from '@zaowu/core';
+import { createCapabilityLedger, type DomainDefinition } from '@zaowu/core';
 import { ZaoWuError } from '@zaowu/core';
 
 export interface TeachPlanResult {
@@ -17,6 +17,9 @@ export interface TeachQuizResult {
 export const TEACH_DOMAIN: DomainDefinition = {
   name: 'teach',
   summary: 'Teaching workflows for lesson planning and practice materials',
+  capabilities: createCapabilityLedger({
+    readsFiles: true,
+  }),
   commands: [
     {
       name: 'plan',

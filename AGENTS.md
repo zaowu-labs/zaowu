@@ -358,15 +358,23 @@ Already established:
 8. safe MVP commands across config, ai, dev, doc, data, auto, plugin, teach, and web
 9. action-level help for runnable commands
 10. config validate/get/set
-11. local AI provider listing and file input
-12. dev status/review/commit previews
-13. doc outline/search and data schema/sample
-14. automation planning and plugin manifest validation
+11. config versioning and migration preview
+12. stable error-code registry
+13. command contract tests
+14. package boundary guard for domain packages
+15. capability ledgers and operation plans for sensitive commands
+16. local AI provider listing and file input
+17. non-streaming OpenAI provider adapter
+18. PDF and DOCX text extraction
+19. XLSX first-sheet data support
+20. dev status/review/commit previews
+21. doc outline/search and data schema/sample
+22. automation planning and plugin manifest validation
 
 Priority order:
 
 1. keep command experience specs current
-2. add real AI provider adapters behind `packages/ai`
+2. harden real AI provider adapters behind `packages/ai`
 3. expand document and data format support with focused dependencies
 4. improve `zw dev commit` and `zw dev review`
 5. harden workflow execution rules before shell execution
