@@ -44,6 +44,9 @@ jobs:
       - name: Check schemas and examples
         run: corepack pnpm verify:schemas
 
+      - name: Check rich fixtures
+        run: corepack pnpm verify:fixtures
+
       - name: Check package contents
         run: corepack pnpm pack:check
 

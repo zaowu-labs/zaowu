@@ -174,7 +174,8 @@ corepack pnpm verify
 ```
 
 This gate also checks `examples/` against runtime parsers, validates the schema
-files, and installs the packed CLI into a temporary project before running `zw`.
+files, generates temporary PDF/DOCX/XLSX fixtures for CLI checks, and installs
+the packed CLI into a temporary project before running `zw`.
 
 Windows:
 
