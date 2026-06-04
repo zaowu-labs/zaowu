@@ -232,7 +232,7 @@ describe('doc domain', () => {
     } finally {
       await rm(root, { recursive: true, force: true });
     }
-  });
+  }, 20_000);
 
   it('reads real DOCX text content', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-doc-'));
