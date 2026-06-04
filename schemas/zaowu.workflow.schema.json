@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.zaowu.dev/zaowu.workflow.schema.json",
+  "title": "ZaoWu Automation Workflow",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["name", "steps"],
+  "properties": {
+    "version": {
+      "type": ["integer", "string"],
+      "description": "Workflow schema version. Missing values default to 1 in the foundation parser."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "vars": {
+      "type": "object",
+      "additionalProperties": {
+        "type": ["string", "number", "boolean"]
+      },
+      "description": "YAML-friendly variable map. JSON workflows may also use variables."
+    },
+    "variables": {
+      "type": "object",
+      "additionalProperties": {
+        "type": ["string", "number", "boolean"]
+      },
+      "description": "JSON-friendly variable map."
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name"],
+        "oneOf": [
+          {
+            "required": ["message"]
+          },
+          {
+            "required": ["run"]
+          }
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "message": {
+            "type": "string"
+          },
+          "run": {
+            "type": "string",
+            "description": "Shell steps are parsed and planned, but blocked in this foundation release."
+          }
+        }
+      }
+    }
+  }
+}
