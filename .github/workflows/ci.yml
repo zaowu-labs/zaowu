@@ -41,8 +41,14 @@ jobs:
       - name: Build
         run: corepack pnpm build
 
+      - name: Check schemas and examples
+        run: corepack pnpm verify:schemas
+
       - name: Check package contents
         run: corepack pnpm pack:check
+
+      - name: Smoke test packed CLI install
+        run: corepack pnpm verify:pack-install
 
       - name: Smoke test CLI
         run: corepack pnpm verify:smoke
