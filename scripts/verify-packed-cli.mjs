@@ -83,6 +83,7 @@ try {
       {
         name: 'zaowu-packed-cli-smoke',
         private: true,
+        packageManager: 'pnpm@10.34.1',
         dependencies,
         pnpm: {
           overrides: dependencies,
