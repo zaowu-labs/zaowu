@@ -108,12 +108,12 @@ Work with CSV, TSV, or XLSX data. XLSX reads the first worksheet by default and
 supports `--sheet <name>` when a workbook has multiple sheets:
 
 ```bash
-corepack pnpm --silent zw data inspect sample.csv
+corepack pnpm --silent zw data inspect examples/data/sales.csv
 corepack pnpm --silent zw data inspect workbook.xlsx --sheet Q1
-corepack pnpm --silent zw data schema sample.csv
-corepack pnpm --silent zw data sample sample.csv --rows 3
-corepack pnpm --silent zw data clean sample.csv --output clean.csv
-corepack pnpm --silent zw data clean sample.csv --output clean.csv --yes
+corepack pnpm --silent zw data schema examples/data/sales.csv
+corepack pnpm --silent zw data sample examples/data/sales.csv --rows 3
+corepack pnpm --silent zw data clean examples/data/sales.csv --output clean.csv
+corepack pnpm --silent zw data clean examples/data/sales.csv --output clean.csv --yes
 ```
 
 Blank and duplicate headers are normalized to stable names such as `column_3`
@@ -122,9 +122,9 @@ and `name_2` before schema or sample JSON is produced.
 Validate and preview automation workflows:
 
 ```bash
-corepack pnpm --silent zw auto validate workflow.yml
-corepack pnpm --silent zw auto plan workflow.yml
-corepack pnpm --silent zw auto run workflow.yml
+corepack pnpm --silent zw auto validate examples/workflows/message.yml
+corepack pnpm --silent zw auto plan examples/workflows/message.yml
+corepack pnpm --silent zw auto run examples/workflows/message.yml
 ```
 
 Workflows default to `version: 1`; unsupported explicit versions produce a
@@ -133,6 +133,7 @@ warning and remain visible in validation and plan output.
 Manage local plugin manifests:
 
 ```bash
+corepack pnpm --silent zw plugin validate examples/plugins/hello
 corepack pnpm --silent zw plugin validate readme-gen
 corepack pnpm --silent zw plugin install readme-gen
 corepack pnpm --silent zw plugin install readme-gen --yes
@@ -171,6 +172,9 @@ Run these before committing:
 corepack pnpm install --frozen-lockfile
 corepack pnpm verify
 ```
+
+This gate also checks `examples/` against runtime parsers, validates the schema
+files, and installs the packed CLI into a temporary project before running `zw`.
 
 Windows:
 

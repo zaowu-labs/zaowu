@@ -1,6 +1,6 @@
 /* global console */
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -8,6 +8,7 @@ import path from 'node:path';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const cliEntry = path.join(root, 'packages', 'cli', 'dist', 'index.js');
 const scratch = mkdtempSync(path.join(tmpdir(), 'zaowu-smoke-'));
+const examples = path.join(root, 'examples');
 
 const run = (args, options = {}) => {
   const output = execFileSync('node', [cliEntry, ...args], {
@@ -44,8 +45,7 @@ try {
   assert(['ok', 'warning'].includes(doctor.status), 'doctor should return a known status');
   assert(doctor.operationPlan?.schemaVersion === 1, 'doctor should expose operation plan');
 
-  const notePath = path.join(scratch, 'note.md');
-  writeFileSync(notePath, '# Smoke\n\nZaoWu local smoke test.\n', 'utf8');
+  const notePath = path.join(examples, 'docs', 'report.md');
 
   const aiPreview = run(
     ['ai', 'ask', 'Summarize', '--file', notePath, '--provider', 'openai', '--json'],
@@ -56,21 +56,21 @@ try {
   assert(aiPreview.input?.fileCharacters > 0, 'AI preview should read file input metadata');
 
   const docSummary = run(['doc', 'summary', notePath, '--json'], { json: true });
-  assert(docSummary.title === 'Smoke', 'doc summary should read markdown title');
+  assert(docSummary.title === 'Smoke Report', 'doc summary should read markdown title');
 
-  const dataPath = path.join(scratch, 'data.csv');
-  writeFileSync(dataPath, 'name,amount\nalpha,1\nbeta,2\n', 'utf8');
+  const dataPath = path.join(examples, 'data', 'sales.csv');
   const dataSchema = run(['data', 'schema', dataPath, '--json'], { json: true });
   assert(dataSchema.columns?.[1]?.type === 'number', 'data schema should infer numbers');
 
-  const workflowPath = path.join(scratch, 'workflow.yml');
-  writeFileSync(
-    workflowPath,
-    'name: smoke\nvars:\n  target: ZaoWu\nsteps:\n  - name: hello\n    message: Hello {{target}}\n',
-    'utf8'
-  );
+  const workflowPath = path.join(examples, 'workflows', 'message.yml');
   const autoPlan = run(['auto', 'plan', workflowPath, '--json'], { json: true });
   assert(autoPlan.steps?.[0]?.blocked === false, 'auto plan should mark message step ready');
+
+  const pluginManifestPath = path.join(examples, 'plugins', 'hello');
+  const pluginValidation = run(['plugin', 'validate', pluginManifestPath, '--json'], {
+    json: true,
+  });
+  assert(pluginValidation.status === 'ok', 'example plugin manifest should validate');
 
   const pluginPreview = run(['plugin', 'install', 'smoke-plugin', '--json'], { json: true });
   assert(pluginPreview.status === 'preview', 'plugin install should preview by default');

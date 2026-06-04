@@ -28,6 +28,8 @@ Scope:
 - config versioning and migration preview
 - command contract tests for root/domain/action help
 - CLI smoke and golden-output checks for first-use experience
+- schema/example checks for user-authored config, workflow, and plugin inputs
+- packed CLI install smoke for release-facing command availability
 - package boundary guard for domain packages
 - capability ledgers and operation plans for sensitive commands
 - local AI provider listing and explicit file input
@@ -40,6 +42,7 @@ Scope:
   support with stable normalized headers
 - automation planning with variable checks and workflow version warnings
 - local plugin manifest validation with schema version and command checks
+- user-facing examples and JSON Schemas kept outside runtime packages
 
 Exit criteria:
 
@@ -53,6 +56,8 @@ Exit criteria:
   are covered by automated tests.
 - Package contents are checked with `pack --dry-run` before release-facing
   changes are considered ready.
+- Packed CLI installation is smoke-tested in a temporary project before
+  release-facing changes are considered ready.
 - The built CLI smoke path covers init, doctor, AI preview, data, document,
   automation, plugin, and web preview commands.
 
@@ -180,9 +185,9 @@ Goal: run explicit workflows safely.
 Preferred examples:
 
 ```bash
-zw auto validate workflow.yml
-zw auto run workflow.yml --dry-run
-zw auto run workflow.yml --yes
+zw auto validate examples/workflows/message.yml
+zw auto run examples/workflows/message.yml --dry-run
+zw auto run examples/workflows/message.yml --yes
 ```
 
 Scope:

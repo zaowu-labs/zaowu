@@ -41,8 +41,9 @@ Use this process for every important command:
 6. Register or update the command contract if the command is user-facing.
 7. Add or update stable error codes for new expected failures.
 8. Add focused tests.
-9. Update README or related docs.
-10. Run validation.
+9. Update examples or schemas when user-authored input contracts change.
+10. Update README or related docs.
+11. Run validation.
 
 Command shape:
 
@@ -79,6 +80,17 @@ only when it is genuinely shared and stable.
 Domain packages should not import each other directly. If two domains need a
 shared concept, promote only the stable generic part to `packages/core`; keep the
 rest in the owning domain.
+
+User-authored input samples and schemas have their own directories:
+
+```text
+examples/  Small real inputs used by smoke and schema checks
+schemas/   JSON Schemas for config, workflow, and plugin files
+```
+
+Do not put runtime code in `examples/` or `schemas/`. If a command changes an
+input shape, update the owning package, examples, schemas, docs, and tests in
+the same PR.
 
 ## Safety Rules
 
@@ -138,6 +150,9 @@ Run the full suite before finishing:
 corepack pnpm install --frozen-lockfile
 corepack pnpm verify
 ```
+
+The verify gate includes build, schema/example consistency, CLI smoke, package
+tests, lint, formatting, package dry-run, and a packed CLI install smoke.
 
 On Windows, `.\scripts\verify-local.ps1` runs the same local gate. On macOS or
 Linux, use `sh ./scripts/verify-local.sh`.

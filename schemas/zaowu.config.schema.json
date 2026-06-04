@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.zaowu.dev/zaowu.config.schema.json",
+  "title": "ZaoWu Config",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "project", "ai", "defaults", "paths"],
+  "properties": {
+    "version": {
+      "const": 1,
+      "description": "Config schema version supported by this foundation release."
+    },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "ai": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider"],
+      "properties": {
+        "provider": {
+          "type": ["string", "null"],
+          "minLength": 1
+        }
+      }
+    },
+    "defaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["output"],
+      "properties": {
+        "output": {
+          "enum": ["human", "json"]
+        }
+      }
+    },
+    "paths": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["workspace", "cache"],
+      "properties": {
+        "workspace": {
+          "type": "string",
+          "minLength": 1
+        },
+        "cache": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

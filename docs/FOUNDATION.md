@@ -15,8 +15,11 @@ grows.
 6. One config lifecycle: `zw.yml` is versioned and future rewrites go through
    `zw config migrate`.
 7. One AI boundary: model providers live behind `packages/ai`.
-8. One verification loop: build, test, lint, format, package dry-run, and
-   smoke/manual CLI checks run before a change is considered finished.
+8. One verification loop: build, schema/example checks, tests, lint, format,
+   package dry-run, packed-install smoke, and manual CLI checks run before a
+   change is considered finished.
+9. One user-input contract surface: examples live under `examples/`, schemas
+   live under `schemas/`, and runtime behavior lives in the owning package.
 
 ## Separation Rules
 
@@ -33,6 +36,20 @@ packages/teach    teaching behavior only
 packages/ai       provider behavior only
 packages/config   config behavior only
 ```
+
+User-facing examples and schemas are not implementation packages:
+
+```text
+examples/config     checked config inputs
+examples/docs       checked document inputs
+examples/data       checked data inputs
+examples/workflows  checked automation workflow inputs
+examples/plugins    checked plugin manifest inputs
+schemas             JSON Schemas for supported user-authored files
+```
+
+Keep these directories aligned with the owning package behavior. Do not move
+runtime code into `examples/` or `schemas/`.
 
 Shared code is allowed only when it is stable and generic:
 

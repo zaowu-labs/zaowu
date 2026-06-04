@@ -26,11 +26,13 @@ ZaoWu is in the first runnable foundation phase. The repository is focused on:
 - capability ledgers and operation plans for sensitive commands
 - a local echo AI provider plus preview-first non-streaming OpenAI adapter with
   provider-level confirmation, timeout, and shared preview/input-size guards
-- CLI smoke and golden-output checks for first-use command experience
+- CLI smoke, packed-install smoke, schema/example checks, and golden-output
+  checks for first-use command experience
 - developer review/commit previews with change categories and recommended checks
 - overwrite-safe PDF, DOCX, CSV, TSV, and XLSX support with named worksheet
   selection for XLSX and stable normalized column names
 - versioned automation workflows and local plugin manifest validation
+- user-facing examples and JSON Schemas for config, workflow, and plugin inputs
 
 Later modules should build on this foundation instead of becoming separate scripts:
 
@@ -111,9 +113,9 @@ Top-level domains now have safe first-version commands:
 corepack pnpm --silent zw ai providers
 corepack pnpm --silent zw dev status
 corepack pnpm --silent zw doc outline README.md
-corepack pnpm --silent zw data schema sample.csv
-corepack pnpm --silent zw auto plan workflow.yml
-corepack pnpm --silent zw plugin validate readme-gen
+corepack pnpm --silent zw data schema examples/data/sales.csv
+corepack pnpm --silent zw auto plan examples/workflows/message.yml
+corepack pnpm --silent zw plugin validate examples/plugins/hello
 ```
 
 Use `--help` on any domain or action:
@@ -135,6 +137,11 @@ corepack enable
 corepack pnpm install --frozen-lockfile
 corepack pnpm verify
 ```
+
+`corepack pnpm verify` builds the workspace, checks schemas and examples, runs
+CLI smoke tests, tests packages, lints, checks formatting, verifies package
+contents, and installs the packed CLI into a temporary project before running
+`zw`.
 
 Do not run dependency installation, commits, pushes, or destructive actions unless the user explicitly asks for them.
 
@@ -163,6 +170,8 @@ packages/auto     Automation workflow scaffold
 packages/web      Web workflow scaffold
 packages/teach    Teaching workflow scaffold
 packages/plugin   Plugin workflow scaffold
+examples          User-facing inputs covered by smoke checks
+schemas           JSON Schemas for supported user-authored files
 docs/experience   Product and command experience specs
 ```
 
@@ -176,6 +185,8 @@ docs/CONTRIBUTING.md  Development workflow, safety rules, and validation
 docs/ERROR_CODES.md   Stable user-facing error code registry
 docs/FOUNDATION.md    Foundation invariants and future workflow rules
 docs/experience/COMMAND_CATALOG.md  First-version command behavior and limits
+examples/README.md    Checked examples for config, docs, data, workflows, plugins
+schemas/README.md     Schema map for user-authored ZaoWu files
 ```
 
 ## Experience Rules

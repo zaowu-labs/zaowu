@@ -50,6 +50,8 @@ Supported keys:
 - `paths.workspace`
 - `paths.cache`
 
+The public config shape is documented in `schemas/zaowu.config.schema.json`.
+
 Common failures:
 
 - Missing config: run `zw init`, then `zw init --yes`.
@@ -159,11 +161,11 @@ Current format support:
 
 ## `zw auto`
 
-| Command            | Description                             | Example                         |
-| ------------------ | --------------------------------------- | ------------------------------- |
-| `zw auto validate` | Validate a simple workflow              | `zw auto validate workflow.yml` |
-| `zw auto plan`     | Show variable substitution and blockers | `zw auto plan workflow.yml`     |
-| `zw auto run`      | Dry-run or run supported message steps  | `zw auto run workflow.yml`      |
+| Command            | Description                             | Example                                           |
+| ------------------ | --------------------------------------- | ------------------------------------------------- |
+| `zw auto validate` | Validate a simple workflow              | `zw auto validate examples/workflows/message.yml` |
+| `zw auto plan`     | Show variable substitution and blockers | `zw auto plan examples/workflows/message.yml`     |
+| `zw auto run`      | Dry-run or run supported message steps  | `zw auto run examples/workflows/message.yml`      |
 
 Workflow support:
 
@@ -173,6 +175,7 @@ Workflow support:
 - `vars` can be referenced as `{{name}}`.
 - `message` steps can run when confirmed.
 - `run` shell steps are detected, planned, and blocked.
+- The public workflow shape is documented in `schemas/zaowu.workflow.schema.json`.
 
 Safety:
 
@@ -184,12 +187,12 @@ Safety:
 
 ## `zw plugin`
 
-| Command              | Description                               | Example                                   |
-| -------------------- | ----------------------------------------- | ----------------------------------------- |
-| `zw plugin list`     | List local plugin manifests               | `zw plugin list`                          |
-| `zw plugin install`  | Preview or write a local plugin manifest  | `zw plugin install readme-gen`            |
-| `zw plugin remove`   | Preview or remove a local plugin manifest | `zw plugin remove readme-gen`             |
-| `zw plugin validate` | Validate a plugin id or local manifest    | `zw plugin validate ./plugins/readme-gen` |
+| Command              | Description                               | Example                                     |
+| -------------------- | ----------------------------------------- | ------------------------------------------- |
+| `zw plugin list`     | List local plugin manifests               | `zw plugin list`                            |
+| `zw plugin install`  | Preview or write a local plugin manifest  | `zw plugin install readme-gen`              |
+| `zw plugin remove`   | Preview or remove a local plugin manifest | `zw plugin remove readme-gen`               |
+| `zw plugin validate` | Validate a plugin id or local manifest    | `zw plugin validate examples/plugins/hello` |
 
 Manifest support:
 
@@ -197,6 +200,7 @@ Manifest support:
 - Local manifests may declare `schemaVersion: 1`.
 - Duplicate command names, unsupported schema versions, non-string manifest
   names, and non-string command summaries are validation errors.
+- The public manifest shape is documented in `schemas/zaowu.plugin.schema.json`.
 - Install/remove writes only under `.zaowu/plugins`.
 - There is no public marketplace in this foundation version.
 

@@ -1,0 +1,7 @@
+version: 1
+name: message-workflow
+vars:
+  target: ZaoWu
+steps:
+  - name: hello
+    message: Hello {{target}}
