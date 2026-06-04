@@ -107,6 +107,7 @@ describe('AI provider registry', () => {
         provider: 'openai',
         prompt: 'Explain ZaoWu',
         model: 'test-model',
+        allowNetwork: true,
         env: {
           OPENAI_API_KEY: 'test-key',
         },
@@ -144,6 +145,7 @@ describe('AI provider registry', () => {
             Authorization: 'Bearer test-key',
             'Content-Type': 'application/json',
           },
+          signal: expect.any(AbortSignal),
           body: JSON.stringify({
             model: 'test-model',
             input: 'Explain ZaoWu',
@@ -158,9 +160,39 @@ describe('AI provider registry', () => {
       askAI({
         provider: 'openai',
         prompt: 'Explain ZaoWu',
+        allowNetwork: true,
         env: {},
       })
     ).rejects.toThrow('AI provider configuration is missing.');
+  });
+
+  it('requires explicit confirmation for network AI providers', async () => {
+    await expect(
+      askAI({
+        provider: 'openai',
+        prompt: 'Explain ZaoWu',
+        env: {
+          OPENAI_API_KEY: 'test-key',
+        },
+      })
+    ).rejects.toThrow('Network AI request requires confirmation.');
+  });
+
+  it('rejects overly large OpenAI inputs before sending a request', async () => {
+    await expect(
+      askAI({
+        provider: 'openai',
+        prompt: 'Explain ZaoWu',
+        allowNetwork: true,
+        maxInputCharacters: 5,
+        env: {
+          OPENAI_API_KEY: 'test-key',
+        },
+        fetcher: async () => {
+          throw new Error('fetcher should not be called');
+        },
+      })
+    ).rejects.toThrow('AI input is too large.');
   });
 
   it('maps OpenAI HTTP errors to actionable errors', async () => {
@@ -168,6 +200,7 @@ describe('AI provider registry', () => {
       askAI({
         provider: 'openai',
         prompt: 'Explain ZaoWu',
+        allowNetwork: true,
         env: {
           OPENAI_API_KEY: 'test-key',
         },

@@ -113,6 +113,26 @@ describe('data domain', () => {
     }
   });
 
+  it('refuses to overwrite data inputs or existing outputs', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-data-'));
+    const inputPath = path.join(root, 'sales.csv');
+    const outputPath = path.join(root, 'clean.csv');
+
+    await writeFile(inputPath, 'name,amount\nA,10\n', 'utf8');
+    await writeFile(outputPath, 'existing', 'utf8');
+
+    try {
+      await expect(cleanData(inputPath, { outputPath: inputPath, yes: true })).rejects.toThrow(
+        'Data output path conflicts with input path.'
+      );
+      await expect(cleanData(inputPath, { outputPath, yes: true })).rejects.toThrow(
+        'Data output file already exists.'
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('infers CSV schema', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-data-'));
     const filePath = path.join(root, 'sales.csv');
@@ -223,6 +243,53 @@ describe('data domain', () => {
           },
         ],
       });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('reads a named XLSX sheet when requested', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-data-'));
+    const filePath = path.join(root, 'sales.xlsx');
+    const workbook = XLSX.utils.book_new();
+
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.aoa_to_sheet([
+        ['name', 'amount'],
+        ['ignored', 0],
+      ]),
+      'Summary'
+    );
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.aoa_to_sheet([
+        ['name', 'amount'],
+        ['A', 10],
+        ['B', 20],
+      ]),
+      'Details'
+    );
+    XLSX.writeFile(workbook, filePath);
+
+    try {
+      await expect(inspectData(filePath, { sheet: 'Details' })).resolves.toMatchObject({
+        sheetName: 'Details',
+        rowCount: 2,
+        columns: ['name', 'amount'],
+      });
+      await expect(sampleData(filePath, { sheet: 'Details', rows: 1 })).resolves.toMatchObject({
+        sheetName: 'Details',
+        rows: [
+          {
+            name: 'A',
+            amount: '10',
+          },
+        ],
+      });
+      await expect(inspectData(filePath, { sheet: 'Missing' })).rejects.toThrow(
+        'XLSX sheet was not found.'
+      );
     } finally {
       await rm(root, { recursive: true, force: true });
     }

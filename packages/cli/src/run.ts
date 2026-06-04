@@ -4,8 +4,15 @@ import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { AI_DOMAIN } from '@zaowu/ai';
 import { AUTO_DOMAIN } from '@zaowu/auto';
-import { CONFIG_DOMAIN, findConfigFile } from '@zaowu/config';
-import { findDomainCommand, isZaoWuError, ZaoWuError, type DomainDefinition } from '@zaowu/core';
+import { CONFIG_DOMAIN, findConfigFile, getDefaultConfigContent } from '@zaowu/config';
+import {
+  createOperationPlan,
+  findDomainCommand,
+  isZaoWuError,
+  ZaoWuError,
+  type DomainDefinition,
+  type OperationPlan,
+} from '@zaowu/core';
 import { DATA_DOMAIN } from '@zaowu/data';
 import { DEV_DOMAIN } from '@zaowu/dev';
 import { DOC_DOMAIN } from '@zaowu/doc';
@@ -20,22 +27,6 @@ import { getCliVersion } from './version.js';
 
 export const ZAOWU_CLI_VERSION = getCliVersion();
 export const DEFAULT_CONFIG_FILE_NAME = 'zw.yml';
-
-const DEFAULT_CONFIG_CONTENT = `version: 1
-
-project:
-  name: zaowu-project
-
-ai:
-  provider: echo
-
-defaults:
-  output: human
-
-paths:
-  workspace: .
-  cache: .zaowu/cache
-`;
 
 type CheckStatus = 'ok' | 'warning' | 'missing';
 type OverallStatus = 'ok' | 'warning';
@@ -52,6 +43,7 @@ interface DoctorResult {
   status: OverallStatus;
   checks: DoctorCheck[];
   nextSteps: string[];
+  operationPlan: OperationPlan;
 }
 
 const MINIMUM_NODE_VERSION = '20.19.0';
@@ -275,6 +267,12 @@ const buildDoctorResult = async (options: CliExecutionOptions = {}): Promise<Doc
     status: checks.some((check) => check.status !== 'ok') ? 'warning' : 'ok',
     checks,
     nextSteps,
+    operationPlan: createOperationPlan({
+      risk: 'low',
+      reads: ['nearest ZaoWu config path'],
+      executes: ['git --version', 'pnpm --version', 'corepack pnpm --version'],
+      notes: ['Doctor runs fixed local diagnostics and does not write files.'],
+    }),
   };
 };
 
@@ -378,7 +376,7 @@ Global options:
   --yes              Apply a safe confirmed action`;
 };
 
-const ACTION_HELP: Record<string, Record<string, string>> = {
+export const ACTION_HELP: Record<string, Record<string, string>> = {
   ai: {
     ask: `ZaoWu AI Ask
 
@@ -415,6 +413,7 @@ Description:
   Validate a JSON or YAML workflow without running it.
 
 Options:
+  --sheet <name>     XLSX sheet name, defaults to the first sheet
   --json             Output machine-readable JSON`,
     plan: `ZaoWu Auto Plan
 
@@ -425,6 +424,7 @@ Description:
   Show the dry execution plan, variable substitution, blocked steps, and warnings.
 
 Options:
+  --sheet <name>     XLSX sheet name, defaults to the first sheet
   --json             Output machine-readable JSON`,
     run: `ZaoWu Auto Run
 
@@ -536,6 +536,7 @@ Description:
 
 Options:
   --output <path>    Output file path
+  --sheet <name>     XLSX sheet name, defaults to the first sheet
   --dry-run          Force preview mode
   --yes              Write the cleaned output file
   --json             Output machine-readable JSON`,
@@ -548,6 +549,7 @@ Description:
   Infer a lightweight schema for each column.
 
 Options:
+  --sheet <name>     XLSX sheet name, defaults to the first sheet
   --json             Output machine-readable JSON`,
     sample: `ZaoWu Data Sample
 
@@ -559,6 +561,7 @@ Description:
 
 Options:
   --rows <count>     Number of rows to return, defaults to 5
+  --sheet <name>     XLSX sheet name, defaults to the first sheet
   --json             Output machine-readable JSON`,
   },
   dev: {
@@ -795,15 +798,31 @@ Examples:
   zw doctor
   zw doctor --json`;
 
-const formatInitPreview = (configPath: string): string => `ZaoWu Init
+const formatInlineOperationPlan = (plan: OperationPlan): string =>
+  [
+    'Operation plan:',
+    `Risk: ${plan.risk}`,
+    `Confirmation required: ${plan.confirmationRequired ? 'yes' : 'no'}`,
+    `Writes: ${plan.writes.length > 0 ? plan.writes.join(', ') : 'none'}`,
+    `Deletes: ${plan.deletes.length > 0 ? plan.deletes.join(', ') : 'none'}`,
+  ].join('\n');
+
+const formatInitPreview = (
+  configPath: string,
+  content: string,
+  operationPlan: OperationPlan
+): string => `ZaoWu Init
 
 No files were written.
 
 Would create:
   ${path.basename(configPath)}
 
+${formatInlineOperationPlan(operationPlan)}
+
 Preview:
-${DEFAULT_CONFIG_CONTENT.trimEnd()
+${content
+  .trimEnd()
   .split('\n')
   .map((line) => (line ? `  ${line}` : ''))
   .join('\n')}
@@ -820,6 +839,13 @@ const handleInit = async (
   const dryRun = hasFlag(args, '--dry-run');
   const yes = hasFlag(args, '--yes');
   const configPath = path.join(cwd, DEFAULT_CONFIG_FILE_NAME);
+  const content = getDefaultConfigContent(configPath);
+  const operationPlan = createOperationPlan({
+    risk: 'medium',
+    confirmationRequired: !yes || dryRun,
+    writes: [configPath],
+    notes: ['Init creates a config file only when --yes is provided and --dry-run is absent.'],
+  });
 
   if (existsSync(configPath)) {
     throw new ZaoWuError({
@@ -835,14 +861,18 @@ const handleInit = async (
       status: 'ok',
       dryRun: true,
       wouldCreate: configPath,
-      content: DEFAULT_CONFIG_CONTENT,
+      content,
+      operationPlan,
     };
 
-    return createResult(0, json ? JSON.stringify(payload) : formatInitPreview(configPath));
+    return createResult(
+      0,
+      json ? JSON.stringify(payload) : formatInitPreview(configPath, content, operationPlan)
+    );
   }
 
   try {
-    await writeFile(configPath, DEFAULT_CONFIG_CONTENT, { encoding: 'utf8', flag: 'wx' });
+    await writeFile(configPath, content, { encoding: 'utf8', flag: 'wx' });
   } catch {
     throw new ZaoWuError({
       code: 'CONFIG_WRITE_FAILED',
@@ -857,6 +887,10 @@ const handleInit = async (
   const payload = {
     status: 'ok',
     created: configPath,
+    operationPlan: {
+      ...operationPlan,
+      confirmationRequired: false,
+    },
   };
 
   return createResult(

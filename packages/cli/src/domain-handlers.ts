@@ -97,6 +97,9 @@ const formatOperationPlan = (plan: OperationPlan): string =>
     'Write:',
     formatList(plan.writes),
     '',
+    'Delete:',
+    formatList(plan.deletes),
+    '',
     'Execute:',
     formatList(plan.executes),
     '',
@@ -307,6 +310,7 @@ const handleAiAsk: DomainActionHandler = async (args, context) => {
     filePath,
     provider: requestedProvider,
     model: requestedModel,
+    allowNetwork: context.yes,
   });
   const payload = {
     status: 'ok',
@@ -387,6 +391,12 @@ const handleDevReview: DomainActionHandler = async (_args, context) => {
       ? 'worktree'
       : 'auto';
   const review = reviewDevChanges(context.commandRunner, { cwd: context.cwd, mode });
+  const operationPlan = createOperationPlan({
+    risk: 'low',
+    reads: [mode === 'worktree' ? 'working-tree git diff' : 'staged git diff'],
+    executes: ['git diff'],
+    notes: ['No Git state is modified.'],
+  });
   const human = [
     'ZaoWu Dev Review',
     '',
@@ -398,13 +408,21 @@ const handleDevReview: DomainActionHandler = async (_args, context) => {
     ...review.findings.map(
       (finding) => `- ${finding.severity}: ${finding.title} - ${finding.detail}`
     ),
+    '',
+    formatOperationPlan(operationPlan),
   ].join('\n');
 
-  return result(context, review, human);
+  return result(context, withOperationPlan(review, operationPlan), human);
 };
 
 const handleDevStatus: DomainActionHandler = async (_args, context) => {
   const status = getDevStatus(context.commandRunner, { cwd: context.cwd });
+  const operationPlan = createOperationPlan({
+    risk: 'low',
+    reads: ['git status'],
+    executes: ['git status --short --branch'],
+    notes: ['No Git state is modified.'],
+  });
   const human = [
     'ZaoWu Dev Status',
     '',
@@ -419,9 +437,11 @@ const handleDevStatus: DomainActionHandler = async (_args, context) => {
     '',
     `Untracked: ${status.untracked.length}`,
     ...status.untracked.map((file) => `- ${file}`),
+    '',
+    formatOperationPlan(operationPlan),
   ].join('\n');
 
-  return result(context, status, human);
+  return result(context, withOperationPlan(status, operationPlan), human);
 };
 
 const handleDocSummary: DomainActionHandler = async (args, context) => {
@@ -530,7 +550,9 @@ const handleDocConvert: DomainActionHandler = async (args, context) => {
 
 const handleDataInspect: DomainActionHandler = async (args, context) => {
   const target = requireTarget(args, 'zw data inspect');
-  const inspected = await inspectData(target);
+  const inspected = await inspectData(target, {
+    sheet: getValue(context.parsed, '--sheet'),
+  });
   const human = [
     'ZaoWu Data Inspect',
     '',
@@ -546,7 +568,9 @@ const handleDataInspect: DomainActionHandler = async (args, context) => {
 
 const handleDataAnalyze: DomainActionHandler = async (args, context) => {
   const target = requireTarget(args, 'zw data analyze');
-  const analysis = await analyzeData(target);
+  const analysis = await analyzeData(target, {
+    sheet: getValue(context.parsed, '--sheet'),
+  });
   const human = [
     'ZaoWu Data Analyze',
     '',
@@ -566,6 +590,7 @@ const handleDataClean: DomainActionHandler = async (args, context) => {
   const target = requireTarget(args, 'zw data clean');
   const cleaned = await cleanData(target, {
     outputPath: getValue(context.parsed, '--output'),
+    sheet: getValue(context.parsed, '--sheet'),
     yes: context.yes,
   });
   const operationPlan = createOperationPlan({
@@ -593,7 +618,9 @@ const handleDataClean: DomainActionHandler = async (args, context) => {
 
 const handleDataSchema: DomainActionHandler = async (args, context) => {
   const target = requireTarget(args, 'zw data schema');
-  const schema = await inferDataSchema(target);
+  const schema = await inferDataSchema(target, {
+    sheet: getValue(context.parsed, '--sheet'),
+  });
   const human = [
     'ZaoWu Data Schema',
     '',
@@ -611,6 +638,7 @@ const handleDataSample: DomainActionHandler = async (args, context) => {
   const target = requireTarget(args, 'zw data sample');
   const sampled = await sampleData(target, {
     rows: parsePositiveInteger(getValue(context.parsed, '--rows'), 5),
+    sheet: getValue(context.parsed, '--sheet'),
   });
   const human = [
     'ZaoWu Data Sample',
@@ -644,15 +672,23 @@ const handleAutoValidate: DomainActionHandler = async (args, context) => {
 
 const handleAutoRun: DomainActionHandler = async (args, context) => {
   const target = requireTarget(args, 'zw auto run');
+  const plan = await planWorkflowFile(target);
   const run = await runWorkflowFile(target, { yes: context.yes });
+  const readyMessageSteps = plan.steps
+    .filter((step) => step.action === 'message' && !step.blocked)
+    .map((step) => step.name);
+  const blockedSteps = plan.steps
+    .filter((step) => step.blocked)
+    .map((step) => `${step.name}: ${step.reason ?? 'blocked'}`);
   const operationPlan = createOperationPlan({
     risk: 'medium',
     confirmationRequired: !context.yes,
     reads: [run.filePath],
-    executes: run.executed,
     notes: [
       'Workflow runs preview by default.',
-      'Shell steps are blocked in this foundation version.',
+      `Ready message steps: ${readyMessageSteps.length > 0 ? readyMessageSteps.join(', ') : 'none'}.`,
+      `Blocked steps: ${blockedSteps.length > 0 ? blockedSteps.join('; ') : 'none'}.`,
+      'Shell steps are not executed in this foundation version.',
     ],
   });
   const human = [
@@ -747,7 +783,7 @@ const handlePluginRemove: DomainActionHandler = async (args, context) => {
   const operationPlan = createOperationPlan({
     risk: 'medium',
     confirmationRequired: !context.yes,
-    writes: [`${removed.pluginDir}/${removed.plugin.id}.json`],
+    deletes: [`${removed.pluginDir}/${removed.plugin.id}.json`],
     notes: ['Plugin removal deletes a local manifest only when --yes is provided.'],
   });
   const human = [

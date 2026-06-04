@@ -11,6 +11,7 @@ const FLAGS_WITH_VALUES = new Set([
   '--output',
   '--provider',
   '--rows',
+  '--sheet',
   '--source',
 ]);
 

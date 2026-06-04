@@ -2,8 +2,9 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { getValue, parseArgs } from './args';
 import { COMMAND_CONTRACTS } from './command-contracts';
-import { DEFAULT_CONFIG_FILE_NAME, DOMAIN_DEFINITIONS, executeCli } from './run';
+import { ACTION_HELP, DEFAULT_CONFIG_FILE_NAME, DOMAIN_DEFINITIONS, executeCli } from './run';
 
 describe('executeCli', () => {
   it('shows help when no command is provided', async () => {
@@ -30,6 +31,22 @@ describe('executeCli', () => {
       status: 'ok',
       version: '0.0.1',
     });
+  });
+
+  it('parses value options after positional targets', () => {
+    const parsed = parseArgs([
+      'data',
+      'sample',
+      'workbook.xlsx',
+      '--sheet',
+      'Details',
+      '--rows',
+      '1',
+    ]);
+
+    expect(parsed.positionals).toEqual(['data', 'sample', 'workbook.xlsx']);
+    expect(getValue(parsed, '--sheet')).toBe('Details');
+    expect(getValue(parsed, '--rows')).toBe('1');
   });
 
   it('shows command-specific init help', async () => {
@@ -117,6 +134,21 @@ describe('executeCli', () => {
       .sort();
 
     expect(contractActions).toEqual(availableActions);
+  });
+
+  it('keeps dedicated help text for every available action', () => {
+    for (const domain of DOMAIN_DEFINITIONS) {
+      for (const command of domain.commands.filter(
+        (candidate) => candidate.status === 'available'
+      )) {
+        const help = ACTION_HELP[domain.name]?.[command.name];
+
+        expect(help, `${domain.name}.${command.name} is missing dedicated help`).toEqual(
+          expect.any(String)
+        );
+        expect(help).not.toContain('[target] [options]');
+      }
+    }
   });
 
   it('runs available domain commands through handlers', async () => {
@@ -292,13 +324,18 @@ describe('executeCli', () => {
       },
     });
 
-    expect(JSON.parse(result.stdout)).toEqual({
+    expect(JSON.parse(result.stdout)).toMatchObject({
       status: 'ok',
       branch: 'main',
       clean: false,
       staged: ['packages/dev/src/index.ts'],
       unstaged: [],
       untracked: ['README.md'],
+      operationPlan: {
+        schemaVersion: 1,
+        risk: 'low',
+        executes: ['git status --short --branch'],
+      },
     });
   });
 
@@ -559,7 +596,7 @@ describe('executeCli', () => {
       });
 
       expect(result.exitCode).toBe(0);
-      expect(JSON.parse(result.stdout)).toEqual({
+      expect(JSON.parse(result.stdout)).toMatchObject({
         status: 'ok',
         checks: [
           {
@@ -584,6 +621,11 @@ describe('executeCli', () => {
           },
         ],
         nextSteps: [],
+        operationPlan: {
+          schemaVersion: 1,
+          risk: 'low',
+          executes: ['git --version', 'pnpm --version', 'corepack pnpm --version'],
+        },
       });
     } finally {
       await rm(root, { recursive: true, force: true });
@@ -717,6 +759,12 @@ describe('executeCli', () => {
       expect(payload.status).toBe('ok');
       expect(payload.dryRun).toBe(true);
       expect(payload.wouldCreate).toBe(path.join(root, DEFAULT_CONFIG_FILE_NAME));
+      expect(payload.operationPlan).toMatchObject({
+        schemaVersion: 1,
+        risk: 'medium',
+        confirmationRequired: true,
+        writes: [path.join(root, DEFAULT_CONFIG_FILE_NAME)],
+      });
       await expect(readFile(path.join(root, DEFAULT_CONFIG_FILE_NAME), 'utf8')).rejects.toThrow();
     } finally {
       await rm(root, { recursive: true, force: true });

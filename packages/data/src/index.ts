@@ -1,4 +1,5 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { access, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createCapabilityLedger, stripUtf8Bom, type DomainDefinition } from '@zaowu/core';
 import { ZaoWuError } from '@zaowu/core';
@@ -6,6 +7,7 @@ import { ZaoWuError } from '@zaowu/core';
 export interface DataTable {
   filePath: string;
   format: 'csv' | 'tsv' | 'xlsx';
+  sheetName?: string;
   delimiter: ',' | '\t';
   headers: string[];
   rows: string[][];
@@ -16,6 +18,7 @@ export interface DataTable {
 export interface DataInspectResult {
   status: 'ok';
   filePath: string;
+  sheetName?: string;
   rowCount: number;
   columnCount: number;
   columns: string[];
@@ -33,12 +36,14 @@ export interface NumericColumnAnalysis {
 export interface DataAnalyzeResult {
   status: 'ok';
   filePath: string;
+  sheetName?: string;
   numericColumns: NumericColumnAnalysis[];
 }
 
 export interface DataCleanResult {
   status: 'ok' | 'preview';
   inputPath: string;
+  sheetName?: string;
   outputPath?: string;
   content: string;
   wroteFile: boolean;
@@ -58,14 +63,20 @@ export interface DataColumnSchema {
 export interface DataSchemaResult {
   status: 'ok';
   filePath: string;
+  sheetName?: string;
   columns: DataColumnSchema[];
 }
 
 export interface DataSampleResult {
   status: 'ok';
   filePath: string;
+  sheetName?: string;
   rowCount: number;
   rows: Record<string, string>[];
+}
+
+export interface DataReadOptions {
+  sheet?: string;
 }
 
 export const DATA_DOMAIN: DomainDefinition = {
@@ -216,7 +227,10 @@ const serializeDelimitedLine = (values: readonly string[], delimiter: ',' | '\t'
     })
     .join(delimiter);
 
-export const loadDataTable = async (filePath: string): Promise<DataTable> => {
+export const loadDataTable = async (
+  filePath: string,
+  options: DataReadOptions = {}
+): Promise<DataTable> => {
   const source = assertSupportedDataFile(filePath);
   let content: string;
 
@@ -227,7 +241,18 @@ export const loadDataTable = async (filePath: string): Promise<DataTable> => {
         type: 'buffer',
       });
       const firstSheetName = workbook.SheetNames[0];
-      const sheet = firstSheetName ? workbook.Sheets[firstSheetName] : undefined;
+      const sheetName = options.sheet?.trim() || firstSheetName;
+
+      if (options.sheet && !workbook.Sheets[sheetName]) {
+        throw new ZaoWuError({
+          code: 'DATA_SHEET_NOT_FOUND',
+          message: 'XLSX sheet was not found.',
+          why: `ZaoWu could not find a sheet named \`${options.sheet}\` in \`${filePath}\`.`,
+          fix: `Use one of: ${workbook.SheetNames.join(', ') || 'no sheets available'}.`,
+        });
+      }
+
+      const sheet = sheetName ? workbook.Sheets[sheetName] : undefined;
       const rows = sheet
         ? (XLSX.utils.sheet_to_json(sheet, {
             header: 1,
@@ -241,13 +266,18 @@ export const loadDataTable = async (filePath: string): Promise<DataTable> => {
       return {
         filePath,
         format: source.format,
+        sheetName,
         delimiter: source.delimiter,
         headers,
         rows: dataRows,
         emptyLineCount: normalizedRows.length - 1 - dataRows.length,
         trimmedCellCount: 0,
       };
-    } catch {
+    } catch (error) {
+      if (error instanceof ZaoWuError) {
+        throw error;
+      }
+
       throw new ZaoWuError({
         code: 'DATA_READ_FAILED',
         message: 'Could not read data file.',
@@ -293,6 +323,35 @@ export const loadDataTable = async (filePath: string): Promise<DataTable> => {
   };
 };
 
+const pathExists = async (filePath: string): Promise<boolean> => {
+  try {
+    await access(filePath, constants.F_OK);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const assertSafeOutputPath = async (inputPath: string, outputPath: string): Promise<void> => {
+  if (path.resolve(inputPath) === path.resolve(outputPath)) {
+    throw new ZaoWuError({
+      code: 'DATA_OUTPUT_CONFLICT',
+      message: 'Data output path conflicts with input path.',
+      why: '`zw data clean` refuses to overwrite the input dataset.',
+      fix: 'Choose a different `--output` path.',
+    });
+  }
+
+  if (await pathExists(outputPath)) {
+    throw new ZaoWuError({
+      code: 'DATA_OUTPUT_CONFLICT',
+      message: 'Data output file already exists.',
+      why: `ZaoWu will not silently overwrite \`${outputPath}\`.`,
+      fix: 'Choose a new `--output` path, or remove the existing file yourself first.',
+    });
+  }
+};
+
 const getMissingByColumn = (table: DataTable): Record<string, number> => {
   const missingByColumn: Record<string, number> = {};
 
@@ -303,12 +362,16 @@ const getMissingByColumn = (table: DataTable): Record<string, number> => {
   return missingByColumn;
 };
 
-export const inspectData = async (filePath: string): Promise<DataInspectResult> => {
-  const table = await loadDataTable(filePath);
+export const inspectData = async (
+  filePath: string,
+  options: DataReadOptions = {}
+): Promise<DataInspectResult> => {
+  const table = await loadDataTable(filePath, options);
 
   return {
     status: 'ok',
     filePath,
+    sheetName: table.sheetName,
     rowCount: table.rows.length,
     columnCount: table.headers.length,
     columns: table.headers,
@@ -316,8 +379,11 @@ export const inspectData = async (filePath: string): Promise<DataInspectResult> 
   };
 };
 
-export const analyzeData = async (filePath: string): Promise<DataAnalyzeResult> => {
-  const table = await loadDataTable(filePath);
+export const analyzeData = async (
+  filePath: string,
+  options: DataReadOptions = {}
+): Promise<DataAnalyzeResult> => {
+  const table = await loadDataTable(filePath, options);
   const numericColumns: NumericColumnAnalysis[] = [];
 
   for (const [index, header] of table.headers.entries()) {
@@ -343,15 +409,16 @@ export const analyzeData = async (filePath: string): Promise<DataAnalyzeResult> 
   return {
     status: 'ok',
     filePath,
+    sheetName: table.sheetName,
     numericColumns,
   };
 };
 
 export const cleanData = async (
   inputPath: string,
-  options: { outputPath?: string; yes?: boolean } = {}
+  options: { outputPath?: string; yes?: boolean; sheet?: string } = {}
 ): Promise<DataCleanResult> => {
-  const table = await loadDataTable(inputPath);
+  const table = await loadDataTable(inputPath, options);
   const lines = [
     serializeDelimitedLine(table.headers, table.delimiter),
     ...table.rows.map((row) => serializeDelimitedLine(row, table.delimiter)),
@@ -359,12 +426,28 @@ export const cleanData = async (
   const content = `${lines.join('\n')}\n`;
 
   if (options.outputPath && options.yes) {
-    await writeFile(options.outputPath, content, 'utf8');
+    await assertSafeOutputPath(inputPath, options.outputPath);
+
+    try {
+      await writeFile(options.outputPath, content, { encoding: 'utf8', flag: 'wx' });
+    } catch (error) {
+      if (error instanceof ZaoWuError) {
+        throw error;
+      }
+
+      throw new ZaoWuError({
+        code: 'DATA_WRITE_FAILED',
+        message: 'Could not write cleaned data.',
+        why: `ZaoWu tried to write \`${options.outputPath}\`, but the file system rejected the write.`,
+        fix: 'Check the output directory and permissions, then run the command again.',
+      });
+    }
   }
 
   return {
     status: options.outputPath && !options.yes ? 'preview' : 'ok',
     inputPath,
+    sheetName: table.sheetName,
     outputPath: options.outputPath,
     content,
     wroteFile: Boolean(options.outputPath && options.yes),
@@ -401,12 +484,16 @@ const getColumnType = (values: readonly string[]): DataColumnSchema['type'] => {
   return 'string';
 };
 
-export const inferDataSchema = async (filePath: string): Promise<DataSchemaResult> => {
-  const table = await loadDataTable(filePath);
+export const inferDataSchema = async (
+  filePath: string,
+  options: DataReadOptions = {}
+): Promise<DataSchemaResult> => {
+  const table = await loadDataTable(filePath, options);
 
   return {
     status: 'ok',
     filePath,
+    sheetName: table.sheetName,
     columns: table.headers.map((header, index) => {
       const values = table.rows.map((row) => row[index] ?? '');
 
@@ -423,9 +510,9 @@ export const inferDataSchema = async (filePath: string): Promise<DataSchemaResul
 
 export const sampleData = async (
   filePath: string,
-  options: { rows?: number } = {}
+  options: { rows?: number; sheet?: string } = {}
 ): Promise<DataSampleResult> => {
-  const table = await loadDataTable(filePath);
+  const table = await loadDataTable(filePath, options);
   const requestedRows = options.rows ?? 5;
   const rowCount =
     Number.isFinite(requestedRows) && requestedRows > 0 ? Math.floor(requestedRows) : 5;
@@ -438,6 +525,7 @@ export const sampleData = async (
   return {
     status: 'ok',
     filePath,
+    sheetName: table.sheetName,
     rowCount: rows.length,
     rows,
   };

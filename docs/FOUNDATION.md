@@ -15,8 +15,8 @@ grows.
 6. One config lifecycle: `zw.yml` is versioned and future rewrites go through
    `zw config migrate`.
 7. One AI boundary: model providers live behind `packages/ai`.
-8. One verification loop: build, test, lint, format, and manual CLI checks run
-   before a change is considered finished.
+8. One verification loop: build, test, lint, format, package dry-run, and
+   manual CLI checks run before a change is considered finished.
 
 ## Separation Rules
 
@@ -67,9 +67,11 @@ Sensitive commands should expose an operation plan in JSON output and human
 output when practical. A plan should include:
 
 - risk: `low`, `medium`, or `high`
+- schema version
 - confirmation requirement
 - reads
 - writes
+- deletes
 - execution
 - network targets
 - secrets
@@ -103,6 +105,7 @@ corepack pnpm build
 corepack pnpm test
 corepack pnpm lint
 corepack pnpm format:check
+corepack pnpm pack:check
 git diff --check
 ```
 

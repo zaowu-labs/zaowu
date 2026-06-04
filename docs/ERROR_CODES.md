@@ -5,14 +5,16 @@ the stable user-facing error codes by area.
 
 ## AI
 
-| Code                           | Meaning                                         |
-| ------------------------------ | ----------------------------------------------- |
-| `AI_INPUT_FILE_READ_FAILED`    | The file passed to `zw ai ask --file` failed.   |
-| `AI_PROMPT_REQUIRED`           | No prompt or readable file input was provided.  |
-| `AI_PROVIDER_CONFIG_MISSING`   | Required provider environment config is absent. |
-| `AI_PROVIDER_NOT_FOUND`        | The requested AI provider is not registered.    |
-| `AI_PROVIDER_REQUEST_FAILED`   | A provider network request failed.              |
-| `AI_PROVIDER_RESPONSE_INVALID` | A provider response could not be parsed.        |
+| Code                               | Meaning                                               |
+| ---------------------------------- | ----------------------------------------------------- |
+| `AI_INPUT_FILE_READ_FAILED`        | The file passed to `zw ai ask --file` failed.         |
+| `AI_INPUT_TOO_LARGE`               | The combined prompt and file input is too large.      |
+| `AI_NETWORK_CONFIRMATION_REQUIRED` | A network provider call was not explicitly confirmed. |
+| `AI_PROMPT_REQUIRED`               | No prompt or readable file input was provided.        |
+| `AI_PROVIDER_CONFIG_MISSING`       | Required provider environment config is absent.       |
+| `AI_PROVIDER_NOT_FOUND`            | The requested AI provider is not registered.          |
+| `AI_PROVIDER_REQUEST_FAILED`       | A provider network request failed.                    |
+| `AI_PROVIDER_RESPONSE_INVALID`     | A provider response could not be parsed.              |
 
 ## CLI
 
@@ -41,18 +43,23 @@ the stable user-facing error codes by area.
 
 ## Data
 
-| Code                      | Meaning                                    |
-| ------------------------- | ------------------------------------------ |
-| `DATA_FORMAT_UNSUPPORTED` | The data file extension is unsupported.    |
-| `DATA_READ_FAILED`        | The supported data file could not be read. |
+| Code                      | Meaning                                                       |
+| ------------------------- | ------------------------------------------------------------- |
+| `DATA_FORMAT_UNSUPPORTED` | The data file extension is unsupported.                       |
+| `DATA_OUTPUT_CONFLICT`    | A data output path would overwrite input or an existing file. |
+| `DATA_READ_FAILED`        | The supported data file could not be read.                    |
+| `DATA_SHEET_NOT_FOUND`    | The requested XLSX sheet does not exist.                      |
+| `DATA_WRITE_FAILED`       | Cleaned data could not be written.                            |
 
 ## Documents
 
-| Code                               | Meaning                                    |
-| ---------------------------------- | ------------------------------------------ |
-| `DOCUMENT_FORMAT_UNSUPPORTED`      | The document extension is unsupported.     |
-| `DOCUMENT_READ_FAILED`             | The supported document could not be read.  |
-| `DOCUMENT_SEARCH_KEYWORD_REQUIRED` | `zw doc search` received an empty keyword. |
+| Code                               | Meaning                                                           |
+| ---------------------------------- | ----------------------------------------------------------------- |
+| `DOCUMENT_FORMAT_UNSUPPORTED`      | The document extension is unsupported.                            |
+| `DOCUMENT_OUTPUT_CONFLICT`         | A document output path would overwrite input or an existing file. |
+| `DOCUMENT_READ_FAILED`             | The supported document could not be read.                         |
+| `DOCUMENT_SEARCH_KEYWORD_REQUIRED` | `zw doc search` received an empty keyword.                        |
+| `DOCUMENT_WRITE_FAILED`            | A converted document could not be written.                        |
 
 ## Developer Workflows
 
@@ -64,11 +71,14 @@ the stable user-facing error codes by area.
 
 ## Plugins
 
-| Code                        | Meaning                                  |
-| --------------------------- | ---------------------------------------- |
-| `PLUGIN_ID_INVALID`         | A plugin id failed validation.           |
-| `PLUGIN_SOURCE_ID_MISMATCH` | Source manifest id differs from target.  |
-| `PLUGIN_SOURCE_INVALID`     | A plugin source path or manifest failed. |
+| Code                        | Meaning                                       |
+| --------------------------- | --------------------------------------------- |
+| `PLUGIN_ALREADY_INSTALLED`  | A plugin manifest already exists.             |
+| `PLUGIN_ID_INVALID`         | A plugin id failed validation.                |
+| `PLUGIN_NOT_INSTALLED`      | A confirmed plugin removal target is missing. |
+| `PLUGIN_SOURCE_ID_MISMATCH` | Source manifest id differs from target.       |
+| `PLUGIN_SOURCE_INVALID`     | A plugin source path or manifest failed.      |
+| `PLUGIN_WRITE_FAILED`       | A plugin manifest could not be written.       |
 
 ## Teaching, Web, And Automation
 

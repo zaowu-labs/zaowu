@@ -77,6 +77,8 @@ corepack pnpm --silent zw ai ask "Explain ZaoWu" --provider openai --yes
 ```
 
 Do not put API keys or tokens in `zw.yml`.
+Network providers preview by default, require `--yes`, and are additionally
+guarded inside `packages/ai` so internal callers cannot bypass confirmation.
 
 Review Git state without modifying it:
 
@@ -96,10 +98,12 @@ corepack pnpm --silent zw doc outline README.md
 corepack pnpm --silent zw doc search README.md install
 ```
 
-Work with CSV, TSV, or XLSX data. XLSX reads the first worksheet:
+Work with CSV, TSV, or XLSX data. XLSX reads the first worksheet by default and
+supports `--sheet <name>` when a workbook has multiple sheets:
 
 ```bash
 corepack pnpm --silent zw data inspect sample.csv
+corepack pnpm --silent zw data inspect workbook.xlsx --sheet Q1
 corepack pnpm --silent zw data schema sample.csv
 corepack pnpm --silent zw data sample sample.csv --rows 3
 corepack pnpm --silent zw data clean sample.csv --output clean.csv
@@ -126,14 +130,19 @@ corepack pnpm --silent zw plugin list
 ## Safety Defaults
 
 - File writes preview by default.
+- Confirmed document and data writes refuse to overwrite inputs or existing
+  outputs.
 - Network requests preview by default.
 - Network AI requests preview by default and require `--yes`.
 - Plugin install/remove previews by default.
+- Confirmed plugin install refuses existing manifests, and confirmed plugin
+  remove refuses missing manifests.
 - Automation shell steps are detected but not executed.
 - Git commands do not commit, push, reset, or checkout.
 - Config rejects secret-like keys such as `token`, `password`, and `apiKey`.
-- Sensitive JSON outputs include an `operationPlan` that lists reads, writes,
-  network requests, secrets, execution, and confirmation requirements.
+- Sensitive JSON outputs include a schema-versioned `operationPlan` that lists
+  reads, writes, deletes, network requests, secrets, execution, and confirmation
+  requirements.
 
 Use `--json` for machine-readable output and `--help` on any command for
 command-specific usage.
@@ -148,6 +157,7 @@ corepack pnpm build
 corepack pnpm test
 corepack pnpm lint
 corepack pnpm format:check
+corepack pnpm pack:check
 ```
 
 ## Common Errors
@@ -172,7 +182,8 @@ corepack pnpm --silent zw dev commit
 
 `Data format is not supported yet.`
 
-Use `.csv`, `.tsv`, or `.xlsx`. XLSX currently reads the first worksheet.
+Use `.csv`, `.tsv`, or `.xlsx`. XLSX reads the first worksheet by default; pass
+`--sheet <name>` when you need a specific worksheet.
 
 `Document format is not supported yet.`
 

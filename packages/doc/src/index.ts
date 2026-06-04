@@ -1,4 +1,5 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { access, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createCapabilityLedger, stripUtf8Bom, type DomainDefinition } from '@zaowu/core';
 import { ZaoWuError } from '@zaowu/core';
@@ -103,6 +104,123 @@ const SUPPORTED_TEXT_EXTENSIONS = new Set([
   '.docx',
 ]);
 
+type PdfRuntimeGlobal = typeof globalThis & {
+  DOMMatrix?: new (init?: unknown) => unknown;
+  ImageData?: new (
+    dataOrWidth: Uint8ClampedArray | number,
+    width?: number,
+    height?: number
+  ) => unknown;
+  Path2D?: new (path?: unknown) => unknown;
+};
+
+type PdfParseModule = typeof import('pdf-parse');
+
+let pdfParseModulePromise: Promise<PdfParseModule> | undefined;
+
+const ensurePdfTextRuntime = (): void => {
+  const runtime = globalThis as PdfRuntimeGlobal;
+
+  runtime.DOMMatrix ??= class ZaoWuDOMMatrix {
+    a = 1;
+    b = 0;
+    c = 0;
+    d = 1;
+    e = 0;
+    f = 0;
+
+    constructor(init?: unknown) {
+      if (Array.isArray(init) && init.length >= 6) {
+        [this.a, this.b, this.c, this.d, this.e, this.f] = init.map(Number).slice(0, 6);
+      }
+    }
+
+    multiplySelf(): this {
+      return this;
+    }
+
+    preMultiplySelf(): this {
+      return this;
+    }
+
+    translateSelf(): this {
+      return this;
+    }
+
+    scaleSelf(): this {
+      return this;
+    }
+
+    rotateSelf(): this {
+      return this;
+    }
+
+    invertSelf(): this {
+      return this;
+    }
+
+    transformPoint(point: { x?: number; y?: number; z?: number; w?: number } = {}): {
+      x: number;
+      y: number;
+      z: number;
+      w: number;
+    } {
+      return {
+        x: point.x ?? 0,
+        y: point.y ?? 0,
+        z: point.z ?? 0,
+        w: point.w ?? 1,
+      };
+    }
+  };
+
+  runtime.ImageData ??= class ZaoWuImageData {
+    data: Uint8ClampedArray;
+    width: number;
+    height: number;
+
+    constructor(dataOrWidth: Uint8ClampedArray | number, width = 0, height = 0) {
+      this.width = typeof dataOrWidth === 'number' ? dataOrWidth : width;
+      this.height = height;
+      this.data =
+        dataOrWidth instanceof Uint8ClampedArray
+          ? dataOrWidth
+          : new Uint8ClampedArray(dataOrWidth * width * 4);
+    }
+  };
+
+  runtime.Path2D ??= class ZaoWuPath2D {};
+};
+
+const importPdfParse = async (): Promise<PdfParseModule> => {
+  ensurePdfTextRuntime();
+
+  if (!pdfParseModulePromise) {
+    const originalWarn = console.warn;
+
+    console.warn = (...values: unknown[]): void => {
+      const message = values.map(String).join(' ');
+
+      if (message.includes('Cannot load "@napi-rs/canvas" package')) {
+        return;
+      }
+
+      originalWarn(...values);
+    };
+
+    pdfParseModulePromise = import('pdf-parse')
+      .catch((error: unknown) => {
+        pdfParseModulePromise = undefined;
+        throw error;
+      })
+      .finally(() => {
+        console.warn = originalWarn;
+      });
+  }
+
+  return pdfParseModulePromise;
+};
+
 const assertSupportedDocument = (filePath: string): void => {
   const extension = path.extname(filePath).toLowerCase();
 
@@ -122,7 +240,7 @@ const readTextDocument = async (filePath: string): Promise<string> => {
 
   try {
     if (extension === '.pdf') {
-      const { PDFParse } = await import('pdf-parse');
+      const { PDFParse } = await importPdfParse();
       const parser = new PDFParse({
         data: new Uint8Array(await readFile(filePath)),
       });
@@ -152,6 +270,35 @@ const readTextDocument = async (filePath: string): Promise<string> => {
       message: 'Could not read document.',
       why: `ZaoWu tried to read \`${filePath}\`, but the file was not readable.`,
       fix: 'Check the path and file permissions, then run the command again.',
+    });
+  }
+};
+
+const pathExists = async (filePath: string): Promise<boolean> => {
+  try {
+    await access(filePath, constants.F_OK);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const assertSafeOutputPath = async (inputPath: string, outputPath: string): Promise<void> => {
+  if (path.resolve(inputPath) === path.resolve(outputPath)) {
+    throw new ZaoWuError({
+      code: 'DOCUMENT_OUTPUT_CONFLICT',
+      message: 'Document output path conflicts with input path.',
+      why: '`zw doc convert` refuses to overwrite the input document.',
+      fix: 'Choose a different `--output` path.',
+    });
+  }
+
+  if (await pathExists(outputPath)) {
+    throw new ZaoWuError({
+      code: 'DOCUMENT_OUTPUT_CONFLICT',
+      message: 'Document output file already exists.',
+      why: `ZaoWu will not silently overwrite \`${outputPath}\`.`,
+      fix: 'Choose a new `--output` path, or remove the existing file yourself first.',
     });
   }
 };
@@ -305,7 +452,22 @@ export const convertDocument = async (
       : content;
 
   if (options.outputPath && options.yes) {
-    await writeFile(options.outputPath, converted, 'utf8');
+    await assertSafeOutputPath(inputPath, options.outputPath);
+
+    try {
+      await writeFile(options.outputPath, converted, { encoding: 'utf8', flag: 'wx' });
+    } catch (error) {
+      if (error instanceof ZaoWuError) {
+        throw error;
+      }
+
+      throw new ZaoWuError({
+        code: 'DOCUMENT_WRITE_FAILED',
+        message: 'Could not write converted document.',
+        why: `ZaoWu tried to write \`${options.outputPath}\`, but the file system rejected the write.`,
+        fix: 'Check the output directory and permissions, then run the command again.',
+      });
+    }
   }
 
   return {

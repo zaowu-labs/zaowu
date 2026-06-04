@@ -8,15 +8,7 @@ import {
   type DomainDefinition,
 } from '@zaowu/core';
 
-export const CONFIG_FILE_NAMES = [
-  'zw.yml',
-  'zw.yaml',
-  'zaowu.config.json',
-  'zaowu.config.js',
-  'zaowu.config.mjs',
-  'zaowu.config.cjs',
-  '.zaowurc',
-] as const;
+export const CONFIG_FILE_NAMES = ['zw.yml', 'zw.yaml', 'zaowu.config.json', '.zaowurc'] as const;
 
 export interface FindConfigFileOptions {
   cwd?: string;
@@ -151,7 +143,7 @@ const DEFAULT_CONFIG: ZaoWuConfig = {
     name: 'zaowu-project',
   },
   ai: {
-    provider: null,
+    provider: 'echo',
   },
   defaults: {
     output: 'human',
@@ -161,6 +153,22 @@ const DEFAULT_CONFIG: ZaoWuConfig = {
     cache: '.zaowu/cache',
   },
 };
+
+export const createDefaultConfig = (): ZaoWuConfig => ({
+  version: DEFAULT_CONFIG.version,
+  project: {
+    ...DEFAULT_CONFIG.project,
+  },
+  ai: {
+    ...DEFAULT_CONFIG.ai,
+  },
+  defaults: {
+    ...DEFAULT_CONFIG.defaults,
+  },
+  paths: {
+    ...DEFAULT_CONFIG.paths,
+  },
+});
 
 const isReadableFile = async (filePath: string): Promise<boolean> => {
   try {
@@ -468,7 +476,7 @@ const withConfigValue = (
   return next;
 };
 
-const serializeConfig = (config: ZaoWuConfig, filePath: string): string => {
+export const serializeConfig = (config: ZaoWuConfig, filePath: string): string => {
   const extension = path.extname(filePath).toLowerCase();
 
   if (extension === '.json' || path.basename(filePath) === '.zaowurc') {
@@ -493,6 +501,9 @@ const serializeConfig = (config: ZaoWuConfig, filePath: string): string => {
     '',
   ].join('\n');
 };
+
+export const getDefaultConfigContent = (filePath = 'zw.yml'): string =>
+  serializeConfig(createDefaultConfig(), filePath);
 
 const getValidationWarnings = (config: ZaoWuConfig): string[] => {
   const warnings: string[] = [];

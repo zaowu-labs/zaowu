@@ -99,8 +99,9 @@ Destructive actions should require confirmation by default.
 Do not silently overwrite user files.
 
 Sensitive JSON output should include an `operationPlan` when practical. The plan
-should make reads, writes, execution, network requests, secrets, risk, and
-confirmation requirements visible before the command performs sensitive work.
+should make schema version, reads, writes, deletes, execution, network requests,
+secrets, risk, and confirmation requirements visible before the command performs
+sensitive work.
 
 ## Output Rules
 
@@ -139,6 +140,7 @@ corepack pnpm build
 corepack pnpm test
 corepack pnpm lint
 corepack pnpm format:check
+corepack pnpm pack:check
 ```
 
 For CLI changes, also run manual checks, for example:

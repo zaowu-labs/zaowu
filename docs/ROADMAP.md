@@ -30,10 +30,12 @@ Scope:
 - package boundary guard for domain packages
 - capability ledgers and operation plans for sensitive commands
 - local AI provider listing and explicit file input
-- non-streaming OpenAI provider adapter behind `packages/ai`
+- non-streaming OpenAI provider adapter behind `packages/ai` with explicit
+  network confirmation, timeout, and input-size guardrails
 - developer status/review/commit previews
 - document outline/search, frontmatter extraction, PDF, and DOCX text extraction
-- data schema/sample, clean metadata, and XLSX first-sheet support
+- data schema/sample, clean metadata, and XLSX first-sheet or named-sheet
+  support
 - automation planning with variable checks
 - local plugin manifest validation
 
@@ -47,6 +49,8 @@ Exit criteria:
 - New users can follow `docs/GETTING_STARTED.md` from install to validation.
 - Error codes, command help, package boundaries, and sensitive operation plans
   are covered by automated tests.
+- Package contents are checked with `pack --dry-run` before release-facing
+  changes are considered ready.
 
 ## Phase 2: Config System
 
@@ -154,7 +158,7 @@ zw data clean input.csv
 
 Scope:
 
-- CSV, TSV, and first-sheet XLSX validation
+- CSV, TSV, and XLSX validation with explicit worksheet selection
 - basic profiling
 - readable summaries
 - JSON output for automation
@@ -224,6 +228,7 @@ corepack pnpm build
 corepack pnpm test
 corepack pnpm lint
 corepack pnpm format:check
+corepack pnpm pack:check
 ```
 
 Any command behavior change should also include manual CLI verification.

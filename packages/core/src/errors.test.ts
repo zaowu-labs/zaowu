@@ -85,4 +85,16 @@ Run \`git add .\` and try again.`);
       [...ZAOWU_ERROR_CODES].filter((code) => usedCodes.has(code)).sort()
     );
   });
+
+  it('keeps error code documentation synchronized with the registry', async () => {
+    const documentation = await readFile(
+      path.join(rootDirectory, 'docs', 'ERROR_CODES.md'),
+      'utf8'
+    );
+    const documentedCodes = [
+      ...new Set([...documentation.matchAll(/\|\s+`([A-Z0-9_]+)`/g)].map((match) => match[1])),
+    ].sort();
+
+    expect(documentedCodes).toEqual([...ZAOWU_ERROR_CODES].sort());
+  });
 });

@@ -65,6 +65,24 @@ describe('plugin domain', () => {
     }
   });
 
+  it('refuses to overwrite an installed plugin manifest', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-plugin-'));
+
+    try {
+      await installPlugin('readme-gen', {
+        cwd: root,
+        yes: true,
+        installedAt: '2026-06-03T00:00:00.000Z',
+      });
+
+      await expect(installPlugin('readme-gen', { cwd: root, yes: true })).rejects.toThrow(
+        'Plugin is already installed.'
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('previews plugin removal without deleting by default', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-plugin-'));
 
@@ -73,6 +91,29 @@ describe('plugin domain', () => {
         status: 'preview',
         removedFile: false,
       });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('removes an installed plugin and rejects confirmed removal of missing plugins', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-plugin-'));
+    const pluginPath = path.join(root, '.zaowu', 'plugins', 'readme-gen.json');
+
+    try {
+      await installPlugin('readme-gen', {
+        cwd: root,
+        yes: true,
+        installedAt: '2026-06-03T00:00:00.000Z',
+      });
+      await expect(removePlugin('readme-gen', { cwd: root, yes: true })).resolves.toMatchObject({
+        status: 'ok',
+        removedFile: true,
+      });
+      await expect(readFile(pluginPath, 'utf8')).rejects.toThrow();
+      await expect(removePlugin('readme-gen', { cwd: root, yes: true })).rejects.toThrow(
+        'Plugin is not installed.'
+      );
     } finally {
       await rm(root, { recursive: true, force: true });
     }
