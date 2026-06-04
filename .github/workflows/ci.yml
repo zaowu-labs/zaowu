@@ -21,7 +21,7 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          - windows-latest
+          - windows-2025-vs2026
         node-version:
           - 20.19.0
           - 24.x
