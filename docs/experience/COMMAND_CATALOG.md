@@ -75,6 +75,8 @@ First-version behavior:
   in the CLI layer.
 - Provider requests have a timeout and a bounded combined prompt/file-input
   length.
+- Preview mode reads any `--file` input and reports prompt, file, combined, and
+  maximum input character counts without sending a network request.
 
 Common failures:
 
@@ -95,6 +97,10 @@ Safety:
 - No Git state is modified.
 - `zw dev commit` reads staged changes only.
 - `zw dev review --staged` and `zw dev review --worktree` keep sources explicit.
+- Review and commit previews include change categories and recommended checks so
+  users know whether build, test, lint, format, or frozen install is relevant.
+- Worktree review lists untracked files by name; stage them when full Git diff
+  context is required.
 
 Common failures:
 
@@ -148,6 +154,8 @@ Current format support:
 - XLSX support reads the first worksheet by default. Use `--sheet <name>` on
   inspect, analyze, clean, schema, or sample to select a worksheet by name.
 - XLSX values are normalized to strings for this foundation version.
+- Blank headers become `column_<index>`, and duplicate headers gain numeric
+  suffixes before JSON sample or schema output is generated.
 
 ## `zw auto`
 
@@ -159,7 +167,9 @@ Current format support:
 
 Workflow support:
 
-- JSON or simple YAML.
+- JSON or simple YAML files ending in `.json`, `.yml`, or `.yaml`.
+- Workflows default to `version: 1`; unsupported explicit versions are reported
+  as warnings.
 - `vars` can be referenced as `{{name}}`.
 - `message` steps can run when confirmed.
 - `run` shell steps are detected, planned, and blocked.
@@ -184,6 +194,9 @@ Safety:
 Manifest support:
 
 - Local source directories can contain `zaowu.plugin.json` or `plugin.json`.
+- Local manifests may declare `schemaVersion: 1`.
+- Duplicate command names, unsupported schema versions, non-string manifest
+  names, and non-string command summaries are validation errors.
 - Install/remove writes only under `.zaowu/plugins`.
 - There is no public marketplace in this foundation version.
 
@@ -224,6 +237,11 @@ Safety:
 The CLI keeps a command contract registry in `packages/cli/src/command-contracts.ts`.
 Every registered command must keep action help available in both human and JSON
 forms.
+
+The smoke check in `scripts/verify-cli-smoke.mjs` exercises the built CLI across
+init, doctor, AI preview, data, document, automation, plugin, and web preview
+paths. `scripts/verify-local.ps1` and `scripts/verify-local.sh` run the local
+foundation gate before pushing.
 
 Domain packages also declare capability ledgers. The boundary guard test checks
 source imports and package manifests so feature packages do not import each other

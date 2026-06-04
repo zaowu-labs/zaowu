@@ -82,10 +82,11 @@ the stable user-facing error codes by area.
 
 ## Teaching, Web, And Automation
 
-| Code                    | Meaning                                  |
-| ----------------------- | ---------------------------------------- |
-| `TEACH_INPUT_REQUIRED`  | A teaching topic or input is required.   |
-| `WEB_FETCH_UNAVAILABLE` | The runtime cannot perform web requests. |
-| `WEB_URL_INVALID`       | The target URL is invalid.               |
-| `WORKFLOW_PARSE_FAILED` | A workflow file could not be parsed.     |
-| `WORKFLOW_READ_FAILED`  | A workflow file could not be read.       |
+| Code                          | Meaning                                     |
+| ----------------------------- | ------------------------------------------- |
+| `TEACH_INPUT_REQUIRED`        | A teaching topic or input is required.      |
+| `WEB_FETCH_UNAVAILABLE`       | The runtime cannot perform web requests.    |
+| `WEB_URL_INVALID`             | The target URL is invalid.                  |
+| `WORKFLOW_FORMAT_UNSUPPORTED` | The workflow file extension is unsupported. |
+| `WORKFLOW_PARSE_FAILED`       | A workflow file could not be parsed.        |
+| `WORKFLOW_READ_FAILED`        | A workflow file could not be read.          |

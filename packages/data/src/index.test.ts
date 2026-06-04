@@ -190,6 +190,51 @@ describe('data domain', () => {
     }
   });
 
+  it('normalizes blank and duplicate headers before sampling rows', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-data-'));
+    const filePath = path.join(root, 'messy.csv');
+
+    await writeFile(filePath, 'name,name,,name\nA,B,C,D\n', 'utf8');
+
+    try {
+      await expect(inspectData(filePath)).resolves.toMatchObject({
+        columns: ['name', 'name_2', 'column_3', 'name_3'],
+      });
+      await expect(sampleData(filePath, { rows: 1 })).resolves.toMatchObject({
+        rows: [
+          {
+            name: 'A',
+            name_2: 'B',
+            column_3: 'C',
+            name_3: 'D',
+          },
+        ],
+      });
+      await expect(inferDataSchema(filePath)).resolves.toMatchObject({
+        columns: [
+          {
+            column: 'name',
+            index: 0,
+          },
+          {
+            column: 'name_2',
+            index: 1,
+          },
+          {
+            column: 'column_3',
+            index: 2,
+          },
+          {
+            column: 'name_3',
+            index: 3,
+          },
+        ],
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('inspects XLSX workbooks from the first sheet', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-data-'));
     const filePath = path.join(root, 'sales.xlsx');

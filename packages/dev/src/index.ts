@@ -7,10 +7,23 @@ export type DevCommandRunner = (
   options?: { cwd?: string }
 ) => string;
 
+export type DevChangeCategory =
+  | 'source'
+  | 'test'
+  | 'docs'
+  | 'dependency'
+  | 'workflow'
+  | 'config'
+  | 'other';
+
+export type DevChangeCategories = Record<DevChangeCategory, number>;
+
 export interface GitChangeSummary {
   files: string[];
+  untrackedFiles: string[];
   additions: number;
   deletions: number;
+  categories: DevChangeCategories;
 }
 
 export interface DevCommitResult {
@@ -18,6 +31,7 @@ export interface DevCommitResult {
   source: 'staged';
   summary: GitChangeSummary;
   message: string;
+  recommendedChecks: string[];
 }
 
 export interface DevStatusResult {
@@ -40,6 +54,7 @@ export interface DevReviewResult {
   source: 'staged' | 'working-tree';
   summary: GitChangeSummary;
   findings: DevReviewFinding[];
+  recommendedChecks: string[];
 }
 
 export type DevReviewMode = 'auto' | 'staged' | 'worktree';
@@ -83,9 +98,69 @@ const runGit = (commandRunner: DevCommandRunner, args: readonly string[], cwd?: 
   }
 };
 
-const parseNumstat = (output: string, files: readonly string[]): GitChangeSummary => {
+const createEmptyCategories = (): DevChangeCategories => ({
+  source: 0,
+  test: 0,
+  docs: 0,
+  dependency: 0,
+  workflow: 0,
+  config: 0,
+  other: 0,
+});
+
+const getFileCategory = (filePath: string): DevChangeCategory => {
+  const file = filePath.replaceAll('\\', '/');
+
+  if (file.includes('.test.') || file.includes('.spec.')) {
+    return 'test';
+  }
+
+  if (file === 'package.json' || file === 'pnpm-lock.yaml' || file.endsWith('/package.json')) {
+    return 'dependency';
+  }
+
+  if (file.startsWith('.github/workflows/') || file.startsWith('scripts/')) {
+    return 'workflow';
+  }
+
+  if (file.startsWith('docs/') || file.endsWith('.md')) {
+    return 'docs';
+  }
+
+  if (file.startsWith('packages/') && (file.includes('/src/') || file.endsWith('/src/index.ts'))) {
+    return 'source';
+  }
+
+  if (
+    file === 'tsconfig.json' ||
+    file === 'eslint.config.js' ||
+    file === '.prettierrc' ||
+    file.startsWith('.changeset/')
+  ) {
+    return 'config';
+  }
+
+  return 'other';
+};
+
+const summarizeCategories = (files: readonly string[]): DevChangeCategories => {
+  const categories = createEmptyCategories();
+
+  for (const file of files) {
+    categories[getFileCategory(file)] += 1;
+  }
+
+  return categories;
+};
+
+const parseNumstat = (
+  output: string,
+  files: readonly string[],
+  untrackedFiles: readonly string[] = []
+): GitChangeSummary => {
   let additions = 0;
   let deletions = 0;
+  const allFiles = [...new Set([...files, ...untrackedFiles])];
 
   for (const line of output.split(/\r?\n/)) {
     if (!line.trim()) {
@@ -98,9 +173,11 @@ const parseNumstat = (output: string, files: readonly string[]): GitChangeSummar
   }
 
   return {
-    files: [...files],
+    files: allFiles,
+    untrackedFiles: [...untrackedFiles],
     additions,
     deletions,
+    categories: summarizeCategories(allFiles),
   };
 };
 
@@ -125,8 +202,10 @@ const getSummary = (
   if (files.length === 0) {
     return {
       files: [],
+      untrackedFiles: [],
       additions: 0,
       deletions: 0,
+      categories: createEmptyCategories(),
     };
   }
 
@@ -142,7 +221,11 @@ const getStagedSummary = (commandRunner: DevCommandRunner, cwd?: string): GitCha
   );
 
 const getWorkingTreeSummary = (commandRunner: DevCommandRunner, cwd?: string): GitChangeSummary =>
-  getSummary(commandRunner, ['diff', '--name-only'], ['diff', '--numstat'], cwd);
+  parseNumstat(
+    runGit(commandRunner, ['diff', '--numstat'], cwd),
+    getChangedFiles(commandRunner, ['diff', '--name-only'], cwd),
+    getChangedFiles(commandRunner, ['ls-files', '--others', '--exclude-standard'], cwd)
+  );
 
 const inferCommitType = (files: readonly string[]): string => {
   if (files.every((file) => file.startsWith('docs/') || file.endsWith('.md'))) {
@@ -180,6 +263,45 @@ const inferScope = (files: readonly string[]): string => {
   return 'project';
 };
 
+const getRecommendedChecks = (summary: GitChangeSummary): string[] => {
+  const checks: string[] = [];
+  const addCheck = (check: string): void => {
+    if (!checks.includes(check)) {
+      checks.push(check);
+    }
+  };
+
+  if (summary.categories.dependency > 0) {
+    addCheck('corepack pnpm install --frozen-lockfile');
+  }
+
+  if (
+    summary.categories.source > 0 ||
+    summary.categories.test > 0 ||
+    summary.categories.dependency > 0 ||
+    summary.categories.workflow > 0 ||
+    summary.categories.config > 0
+  ) {
+    addCheck('corepack pnpm build');
+    addCheck('corepack pnpm test');
+  }
+
+  if (
+    summary.categories.docs > 0 ||
+    summary.categories.workflow > 0 ||
+    summary.categories.config > 0
+  ) {
+    addCheck('corepack pnpm lint');
+    addCheck('corepack pnpm format:check');
+  }
+
+  if (checks.length === 0) {
+    addCheck('corepack pnpm test');
+  }
+
+  return checks;
+};
+
 export const previewDevCommit = (
   commandRunner: DevCommandRunner,
   options: { cwd?: string } = {}
@@ -203,6 +325,7 @@ export const previewDevCommit = (
     source: 'staged',
     summary,
     message: `${type}: update ${scope}`,
+    recommendedChecks: getRecommendedChecks(summary),
   };
 };
 
@@ -295,6 +418,14 @@ export const reviewDevChanges = (
     },
   ];
 
+  if (summary.untrackedFiles.length > 0) {
+    findings.push({
+      severity: 'warning',
+      title: 'Untracked files detected',
+      detail: `${summary.untrackedFiles.length} untracked file(s) are listed by name only; stage them to include full diff context.`,
+    });
+  }
+
   if (
     summary.files.some((file) => file.startsWith('packages/') && file.includes('/src/')) &&
     !summary.files.some((file) => file.includes('.test.') || file.includes('.spec.'))
@@ -321,5 +452,6 @@ export const reviewDevChanges = (
     source,
     summary,
     findings,
+    recommendedChecks: getRecommendedChecks(summary),
   };
 };

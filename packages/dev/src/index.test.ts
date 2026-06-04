@@ -34,10 +34,21 @@ describe('dev domain', () => {
       status: 'ok',
       source: 'staged',
       message: 'test: update dev',
+      recommendedChecks: ['corepack pnpm build', 'corepack pnpm test'],
       summary: {
         files: ['packages/dev/src/index.ts', 'packages/dev/src/index.test.ts'],
+        untrackedFiles: [],
         additions: 15,
         deletions: 2,
+        categories: {
+          source: 1,
+          test: 1,
+          docs: 0,
+          dependency: 0,
+          workflow: 0,
+          config: 0,
+          other: 0,
+        },
       },
     });
   });
@@ -56,6 +67,10 @@ describe('dev domain', () => {
         return '3\t1\tpackages/dev/src/index.ts';
       }
 
+      if (args.join(' ') === 'ls-files --others --exclude-standard') {
+        return '';
+      }
+
       if (args.join(' ') === 'diff --cached --numstat') {
         return '';
       }
@@ -68,6 +83,7 @@ describe('dev domain', () => {
       source: 'working-tree',
       summary: {
         files: ['packages/dev/src/index.ts'],
+        untrackedFiles: [],
         additions: 3,
         deletions: 1,
       },
@@ -80,6 +96,61 @@ describe('dev domain', () => {
           severity: 'warning',
           title: 'Tests not detected',
         },
+      ],
+      recommendedChecks: ['corepack pnpm build', 'corepack pnpm test'],
+    });
+  });
+
+  it('includes untracked files in working-tree review', () => {
+    const runner: DevCommandRunner = (_command, args) => {
+      if (args.join(' ') === 'diff --cached --name-only') {
+        return '';
+      }
+
+      if (args.join(' ') === 'diff --cached --numstat') {
+        return '';
+      }
+
+      if (args.join(' ') === 'diff --name-only') {
+        return '';
+      }
+
+      if (args.join(' ') === 'diff --numstat') {
+        return '';
+      }
+
+      if (args.join(' ') === 'ls-files --others --exclude-standard') {
+        return 'scripts/verify-local.sh';
+      }
+
+      throw new Error('unexpected git command');
+    };
+
+    expect(reviewDevChanges(runner)).toMatchObject({
+      status: 'ok',
+      source: 'working-tree',
+      summary: {
+        files: ['scripts/verify-local.sh'],
+        untrackedFiles: ['scripts/verify-local.sh'],
+        categories: {
+          workflow: 1,
+        },
+      },
+      findings: [
+        {
+          severity: 'info',
+          title: 'Change size',
+        },
+        {
+          severity: 'warning',
+          title: 'Untracked files detected',
+        },
+      ],
+      recommendedChecks: [
+        'corepack pnpm build',
+        'corepack pnpm test',
+        'corepack pnpm lint',
+        'corepack pnpm format:check',
       ],
     });
   });

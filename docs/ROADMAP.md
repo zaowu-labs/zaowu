@@ -27,17 +27,19 @@ Scope:
 - config validate/get/set with preview-first writes
 - config versioning and migration preview
 - command contract tests for root/domain/action help
+- CLI smoke and golden-output checks for first-use experience
 - package boundary guard for domain packages
 - capability ledgers and operation plans for sensitive commands
 - local AI provider listing and explicit file input
 - non-streaming OpenAI provider adapter behind `packages/ai` with explicit
-  network confirmation, timeout, and input-size guardrails
-- developer status/review/commit previews
+  network confirmation, shared preview, timeout, and input-size guardrails
+- developer status/review/commit previews with change categories and
+  recommended checks
 - document outline/search, frontmatter extraction, PDF, and DOCX text extraction
 - data schema/sample, clean metadata, and XLSX first-sheet or named-sheet
-  support
-- automation planning with variable checks
-- local plugin manifest validation
+  support with stable normalized headers
+- automation planning with variable checks and workflow version warnings
+- local plugin manifest validation with schema version and command checks
 
 Exit criteria:
 
@@ -51,6 +53,8 @@ Exit criteria:
   are covered by automated tests.
 - Package contents are checked with `pack --dry-run` before release-facing
   changes are considered ready.
+- The built CLI smoke path covers init, doctor, AI preview, data, document,
+  automation, plugin, and web preview commands.
 
 ## Phase 2: Config System
 
@@ -225,6 +229,7 @@ Every phase should keep these checks healthy:
 ```bash
 corepack pnpm install --frozen-lockfile
 corepack pnpm build
+corepack pnpm verify:smoke
 corepack pnpm test
 corepack pnpm lint
 corepack pnpm format:check

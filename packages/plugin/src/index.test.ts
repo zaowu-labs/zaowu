@@ -125,6 +125,7 @@ describe('plugin domain', () => {
     await writeFile(
       path.join(root, 'zaowu.plugin.json'),
       JSON.stringify({
+        schemaVersion: 1,
         id: 'readme-gen',
         version: '0.1.0',
         commands: [
@@ -158,6 +159,44 @@ describe('plugin domain', () => {
       await expect(validatePluginSource(root)).resolves.toMatchObject({
         status: 'warning',
         errors: ['Manifest `id` must be a valid plugin id.'],
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('reports unsupported plugin schema versions and duplicate commands', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-plugin-'));
+
+    await writeFile(
+      path.join(root, 'zaowu.plugin.json'),
+      JSON.stringify({
+        schemaVersion: 2,
+        id: 'local-tool',
+        name: 123,
+        commands: [
+          {
+            name: 'generate',
+            summary: 'Generate output',
+          },
+          {
+            name: 'generate',
+            summary: 123,
+          },
+        ],
+      }),
+      'utf8'
+    );
+
+    try {
+      await expect(validatePluginSource(root)).resolves.toMatchObject({
+        status: 'warning',
+        errors: [
+          'Manifest `schemaVersion` must be 1 when provided.',
+          'Manifest `name` must be a string when provided.',
+          'Command `generate` is duplicated.',
+          'Command `generate` summary must be a string.',
+        ],
       });
     } finally {
       await rm(root, { recursive: true, force: true });
