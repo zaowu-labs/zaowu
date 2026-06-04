@@ -138,10 +138,10 @@ corepack pnpm install --frozen-lockfile
 corepack pnpm verify
 ```
 
-`corepack pnpm verify` builds the workspace, checks schemas and examples, runs
-CLI smoke tests, tests packages, lints, checks formatting, verifies package
-contents, and installs the packed CLI into a temporary project before running
-`zw`.
+`corepack pnpm verify` builds the workspace, compiles schemas with Ajv, checks
+examples, generates rich PDF/DOCX/XLSX fixtures for CLI checks, runs CLI smoke
+tests, tests packages, lints, checks formatting, verifies package contents, and
+installs the packed CLI into a temporary project before running `zw`.
 
 Do not run dependency installation, commits, pushes, or destructive actions unless the user explicitly asks for them.
 

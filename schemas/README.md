@@ -12,3 +12,6 @@ validators.
 
 Runtime validation still lives in the owning packages. Keep schemas, examples,
 docs, and package validators aligned whenever command contracts change.
+
+`corepack pnpm verify:schemas` compiles these schemas with Ajv and checks both
+valid and invalid examples against the runtime parsers.

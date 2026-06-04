@@ -29,6 +29,7 @@ Scope:
 - command contract tests for root/domain/action help
 - CLI smoke and golden-output checks for first-use experience
 - schema/example checks for user-authored config, workflow, and plugin inputs
+- generated rich fixture checks for PDF, DOCX, and XLSX command paths
 - packed CLI install smoke for release-facing command availability
 - package boundary guard for domain packages
 - capability ledgers and operation plans for sensitive commands

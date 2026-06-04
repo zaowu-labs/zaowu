@@ -208,6 +208,40 @@ describe('AI provider registry', () => {
     ]);
   });
 
+  it('extracts nested OpenAI text output', async () => {
+    await expect(
+      askAI({
+        provider: 'openai',
+        prompt: 'Explain ZaoWu',
+        allowNetwork: true,
+        env: {
+          OPENAI_API_KEY: 'test-key',
+        },
+        fetcher: async () => ({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          async json() {
+            return {
+              output: [
+                {
+                  content: [
+                    {
+                      type: 'output_text',
+                      text: 'Nested output works.',
+                    },
+                  ],
+                },
+              ],
+            };
+          },
+        }),
+      })
+    ).resolves.toMatchObject({
+      output: 'Nested output works.',
+    });
+  });
+
   it('rejects OpenAI requests without an environment key', async () => {
     await expect(
       askAI({
@@ -267,6 +301,53 @@ describe('AI provider registry', () => {
         }),
       })
     ).rejects.toThrow('AI provider request failed.');
+  });
+
+  it('maps OpenAI transport failures to actionable errors', async () => {
+    await expect(
+      askAI({
+        provider: 'openai',
+        prompt: 'Explain ZaoWu',
+        allowNetwork: true,
+        env: {
+          OPENAI_API_KEY: 'test-key',
+        },
+        fetcher: async () => {
+          throw new Error('network unavailable');
+        },
+      })
+    ).rejects.toThrow('AI provider request failed.');
+  });
+
+  it('rejects OpenAI responses without text output', async () => {
+    await expect(
+      askAI({
+        provider: 'openai',
+        prompt: 'Explain ZaoWu',
+        allowNetwork: true,
+        env: {
+          OPENAI_API_KEY: 'test-key',
+        },
+        fetcher: async () => ({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          async json() {
+            return {
+              output: [
+                {
+                  content: [
+                    {
+                      type: 'refusal',
+                    },
+                  ],
+                },
+              ],
+            };
+          },
+        }),
+      })
+    ).rejects.toThrow('AI provider response is invalid.');
   });
 
   it('rejects unknown providers', () => {

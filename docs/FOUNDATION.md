@@ -15,9 +15,9 @@ grows.
 6. One config lifecycle: `zw.yml` is versioned and future rewrites go through
    `zw config migrate`.
 7. One AI boundary: model providers live behind `packages/ai`.
-8. One verification loop: build, schema/example checks, tests, lint, format,
-   package dry-run, packed-install smoke, and manual CLI checks run before a
-   change is considered finished.
+8. One verification loop: build, schema/example checks, rich fixture checks,
+   tests, lint, format, package dry-run, packed-install smoke, and manual CLI
+   checks run before a change is considered finished.
 9. One user-input contract surface: examples live under `examples/`, schemas
    live under `schemas/`, and runtime behavior lives in the owning package.
 
