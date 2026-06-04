@@ -407,7 +407,7 @@ Options:
     validate: `ZaoWu Auto Validate
 
 Usage:
-  zw auto validate <workflow.yml> [options]
+  zw auto validate <workflow.json|workflow.yml|workflow.yaml> [options]
 
 Description:
   Validate a JSON or YAML workflow without running it.
@@ -417,7 +417,7 @@ Options:
     plan: `ZaoWu Auto Plan
 
 Usage:
-  zw auto plan <workflow.yml> [options]
+  zw auto plan <workflow.json|workflow.yml|workflow.yaml> [options]
 
 Description:
   Show the dry execution plan, variable substitution, blocked steps, and warnings.
@@ -427,7 +427,7 @@ Options:
     run: `ZaoWu Auto Run
 
 Usage:
-  zw auto run <workflow.yml> [--yes] [options]
+  zw auto run <workflow.json|workflow.yml|workflow.yaml> [--yes] [options]
 
 Description:
   Preview a workflow by default. Confirmed runs execute supported message steps only.

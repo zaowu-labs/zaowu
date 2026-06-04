@@ -136,12 +136,7 @@ Run the full suite before finishing:
 
 ```bash
 corepack pnpm install --frozen-lockfile
-corepack pnpm build
-corepack pnpm verify:smoke
-corepack pnpm test
-corepack pnpm lint
-corepack pnpm format:check
-corepack pnpm pack:check
+corepack pnpm verify
 ```
 
 On Windows, `.\scripts\verify-local.ps1` runs the same local gate. On macOS or

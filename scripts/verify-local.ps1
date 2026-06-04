@@ -18,12 +18,7 @@ function Invoke-Checked {
 Push-Location (Resolve-Path (Join-Path $PSScriptRoot ".."))
 try {
   Invoke-Checked corepack pnpm install --frozen-lockfile
-  Invoke-Checked corepack pnpm build
-  Invoke-Checked corepack pnpm verify:smoke
-  Invoke-Checked corepack pnpm test
-  Invoke-Checked corepack pnpm lint
-  Invoke-Checked corepack pnpm format:check
-  Invoke-Checked corepack pnpm pack:check
+  Invoke-Checked corepack pnpm verify
   Invoke-Checked git diff --check
 } finally {
   Pop-Location

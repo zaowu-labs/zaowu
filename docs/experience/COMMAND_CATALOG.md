@@ -238,10 +238,12 @@ The CLI keeps a command contract registry in `packages/cli/src/command-contracts
 Every registered command must keep action help available in both human and JSON
 forms.
 
-The smoke check in `scripts/verify-cli-smoke.mjs` exercises the built CLI across
-init, doctor, AI preview, data, document, automation, plugin, and web preview
-paths. `scripts/verify-local.ps1` and `scripts/verify-local.sh` run the local
-foundation gate before pushing.
+The `corepack pnpm verify` script runs build, CLI smoke, tests, lint, format
+check, and package dry-run. The smoke check in `scripts/verify-cli-smoke.mjs`
+exercises the built CLI across init, doctor, AI preview, data, document,
+automation, plugin, and web preview paths. `scripts/verify-local.ps1` and
+`scripts/verify-local.sh` add frozen install and `git diff --check` before
+pushing.
 
 Domain packages also declare capability ledgers. The boundary guard test checks
 source imports and package manifests so feature packages do not import each other

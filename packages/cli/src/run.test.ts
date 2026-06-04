@@ -101,6 +101,14 @@ describe('executeCli', () => {
     expect(result.stdout).toContain('zw data schema <file.csv|file.tsv|file.xlsx>');
   });
 
+  it('keeps automation help aligned with supported workflow formats', async () => {
+    const result = await executeCli(['auto', 'validate', '--help']);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain('zw auto validate <workflow.json|workflow.yml|workflow.yaml>');
+    expect(result.stdout).not.toContain('--sheet');
+  });
+
   it.each(COMMAND_CONTRACTS)('keeps command contract help stable: $id', async (contract) => {
     const result = await executeCli(contract.helpArgs);
 
