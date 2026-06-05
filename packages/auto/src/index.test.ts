@@ -51,6 +51,7 @@ describe('auto domain', () => {
       sandbox: {
         schemaVersion: 1,
         root: 'workflow-directory',
+        workflowDirectory: process.cwd(),
         shellCommands: 'blocked',
         fileWrites: 'blocked',
         network: 'blocked',
@@ -209,6 +210,7 @@ describe('auto domain', () => {
         status: 'preview',
         sandbox: {
           schemaVersion: 1,
+          workflowDirectory: root,
           shellCommands: 'blocked',
         },
         executed: [],

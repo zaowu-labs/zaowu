@@ -25,6 +25,7 @@ export interface AutomationExecutionPolicy extends AutomationWorkflowPermissions
 export interface AutomationExecutionSandbox {
   schemaVersion: 1;
   root: 'workflow-directory';
+  workflowDirectory: string;
   shellCommands: 'blocked';
   fileWrites: 'blocked';
   network: 'blocked';
@@ -121,7 +122,7 @@ const DEFAULT_WORKFLOW_PERMISSIONS: AutomationWorkflowPermissions = {
   fileWrites: 'blocked',
   network: 'blocked',
 };
-const DEFAULT_EXECUTION_SANDBOX: AutomationExecutionSandbox = {
+const DEFAULT_EXECUTION_SANDBOX: Omit<AutomationExecutionSandbox, 'workflowDirectory'> = {
   schemaVersion: 1,
   root: 'workflow-directory',
   shellCommands: 'blocked',
@@ -137,7 +138,12 @@ const createExecutionPolicy = (
   ...permissions,
 });
 
-const createExecutionSandbox = (): AutomationExecutionSandbox => ({ ...DEFAULT_EXECUTION_SANDBOX });
+const resolveWorkflowDirectory = (filePath: string): string => path.resolve(path.dirname(filePath));
+
+const createExecutionSandbox = (filePath: string): AutomationExecutionSandbox => ({
+  ...DEFAULT_EXECUTION_SANDBOX,
+  workflowDirectory: resolveWorkflowDirectory(filePath),
+});
 
 const getWorkflowFormat = (filePath: string): 'json' | 'yaml' => {
   const extension = path.extname(filePath).toLowerCase();
@@ -461,7 +467,7 @@ export const validateWorkflowContent = (
     filePath,
     workflow,
     policy: createExecutionPolicy(workflow.permissions),
-    sandbox: createExecutionSandbox(),
+    sandbox: createExecutionSandbox(filePath),
     warnings,
   };
 };

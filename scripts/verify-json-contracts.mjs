@@ -61,6 +61,38 @@ const assertValid = (name, value) => {
   );
 };
 
+const assertJsonEqual = (left, right, message) => {
+  assert(JSON.stringify(left) === JSON.stringify(right), message);
+};
+
+const assertSchemaFragmentsStayAligned = () => {
+  assertJsonEqual(
+    schemas.autoPlan.properties.policy,
+    schemas.autoRun.properties.policy,
+    'auto plan and auto run policy schema fragments must stay aligned.'
+  );
+  assertJsonEqual(
+    schemas.autoPlan.properties.policy,
+    schemas.autoValidate.properties.policy,
+    'auto plan and auto validate policy schema fragments must stay aligned.'
+  );
+  assertJsonEqual(
+    schemas.autoPlan.properties.sandbox,
+    schemas.autoRun.properties.sandbox,
+    'auto plan and auto run sandbox schema fragments must stay aligned.'
+  );
+  assertJsonEqual(
+    schemas.autoPlan.properties.sandbox,
+    schemas.autoValidate.properties.sandbox,
+    'auto plan and auto validate sandbox schema fragments must stay aligned.'
+  );
+  assertJsonEqual(
+    schemas.autoRun.$defs.operationPlan,
+    schemas.devReview.$defs.operationPlan,
+    'command operationPlan schema fragments must stay aligned.'
+  );
+};
+
 const runProcess = (command, args, options = {}) => {
   const result = spawnSync(command, args, {
     cwd: options.cwd ?? root,
@@ -172,6 +204,8 @@ const core = await importBuiltPackage('core');
 const auto = await importBuiltPackage('auto');
 const dev = await importBuiltPackage('dev');
 
+assertSchemaFragmentsStayAligned();
+
 const schemaErrorCodes = schemas.error.properties.error.properties.code.enum;
 assert(
   JSON.stringify([...schemaErrorCodes].sort()) === JSON.stringify([...core.ZAOWU_ERROR_CODES].sort()),
@@ -190,6 +224,10 @@ assert(plan.schemaVersion === 1, 'auto plan result schemaVersion must be 1.');
 assert(plan.policy?.schemaVersion === 1, 'auto plan policy schemaVersion must be 1.');
 assert(plan.policy?.shell === 'blocked', 'auto plan policy must expose shell mode.');
 assert(plan.sandbox?.schemaVersion === 1, 'auto plan sandbox schemaVersion must be 1.');
+assert(
+  path.isAbsolute(plan.sandbox?.workflowDirectory ?? ''),
+  'auto plan sandbox must expose an absolute workflowDirectory.'
+);
 assert(plan.sandbox?.shellCommands === 'blocked', 'auto sandbox must block shell commands.');
 assert(
   !Object.hasOwn(plan.workflow.permissions, 'schemaVersion'),

@@ -85,13 +85,23 @@
     "sandbox": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["schemaVersion", "root", "shellCommands", "fileWrites", "network"],
+      "required": [
+        "schemaVersion",
+        "root",
+        "workflowDirectory",
+        "shellCommands",
+        "fileWrites",
+        "network"
+      ],
       "properties": {
         "schemaVersion": {
           "const": 1
         },
         "root": {
           "const": "workflow-directory"
+        },
+        "workflowDirectory": {
+          "type": "string"
         },
         "shellCommands": {
           "const": "blocked"

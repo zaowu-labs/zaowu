@@ -13,3 +13,7 @@ Safety:
 - Secrets must come from environment variables, not config files.
 - Provider HTTP failures are classified so retryable and credential-related
   problems get different fixes.
+- Provider failure summaries use HTTP status metadata only; response bodies are
+  not exposed in user-facing fixes.
+- Retryable provider failures can carry retry-delay metadata when providers send
+  `Retry-After`.

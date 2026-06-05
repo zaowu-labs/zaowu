@@ -569,6 +569,7 @@ describe('executeCli', () => {
         sandbox: {
           schemaVersion: 1,
           root: 'workflow-directory',
+          workflowDirectory: root,
           shellCommands: 'blocked',
         },
         steps: [
