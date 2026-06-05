@@ -111,5 +111,6 @@ The full gate runs:
 corepack pnpm verify:json-contracts
 ```
 
-This imports the built package outputs and validates the versioned `dev review`,
-`auto validate`, `auto plan`, and `auto run` contracts against their schemas.
+This imports the built package outputs and executes the real built CLI for the
+versioned `dev review`, `auto validate`, `auto plan`, and `auto run` contracts.
+Both layers must validate against the same schemas.

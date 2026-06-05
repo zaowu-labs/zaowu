@@ -127,7 +127,8 @@ When `--json` is used:
 - include stable keys
 - include status fields where possible
 - update `docs/JSON_CONTRACTS.md`, command-output schemas, and
-  `corepack pnpm verify:json-contracts` when a versioned JSON contract changes
+  `corepack pnpm verify:json-contracts` when a versioned JSON contract changes;
+  the gate should cover both owning-package output and real CLI `--json` output
 
 Expected errors should be actionable and should not show raw stack traces by
 default.

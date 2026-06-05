@@ -1,5 +1,7 @@
-/* global console */
-import { readFile } from 'node:fs/promises';
+/* global console, process */
+import { spawnSync } from 'node:child_process';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import Ajv2020 from 'ajv/dist/2020.js';
@@ -15,6 +17,7 @@ const assert = (condition, message) => {
 const importBuiltPackage = async (packageName) =>
   import(pathToFileURL(path.join(root, 'packages', packageName, 'dist', 'index.js')).href);
 const readJson = async (...parts) => JSON.parse(await readFile(path.join(root, ...parts), 'utf8'));
+const cliEntry = path.join(root, 'packages', 'cli', 'dist', 'index.js');
 
 const ajv = new Ajv2020({
   allErrors: true,
@@ -54,6 +57,68 @@ const assertValid = (name, value) => {
     validator(value),
     `${name} JSON contract errors: ${ajv.errorsText(validator.errors, { separator: '; ' })}`
   );
+};
+
+const runProcess = (command, args, options = {}) => {
+  const result = spawnSync(command, args, {
+    cwd: options.cwd ?? root,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+
+  if (result.error) {
+    throw new Error(`${command} ${args.join(' ')} could not start: ${result.error.message}`);
+  }
+
+  assert(
+    result.status === 0,
+    `${command} ${args.join(' ')} failed with exit ${result.status}: ${result.stderr || result.stdout}`
+  );
+
+  return result;
+};
+
+const runCliJson = (args, options = {}) => {
+  const result = runProcess(process.execPath, [cliEntry, ...args, '--json'], options);
+  const stderr = result.stderr.trim();
+
+  assert(stderr.length === 0, `zw ${args.join(' ')} --json should not write stderr: ${stderr}`);
+
+  try {
+    return JSON.parse(result.stdout);
+  } catch (error) {
+    throw new Error(`zw ${args.join(' ')} --json did not return valid JSON: ${error.message}`);
+  }
+};
+
+const runGit = (cwd, args) => {
+  runProcess('git', args, { cwd });
+};
+
+const createDevReviewCliFixture = async () => {
+  const fixtureRoot = await mkdtemp(path.join(tmpdir(), 'zaowu-dev-review-contract-'));
+  const sourceDir = path.join(fixtureRoot, 'packages', 'dev', 'src');
+  const sourceFile = path.join(sourceDir, 'index.ts');
+
+  try {
+    runGit(fixtureRoot, ['init', '--quiet']);
+    await mkdir(sourceDir, { recursive: true });
+    await writeFile(
+      sourceFile,
+      [
+        'import { execFileSync } from "node:child_process";',
+        '',
+        'execFileSync("git", ["status"]);',
+        '',
+      ].join('\n')
+    );
+    runGit(fixtureRoot, ['add', 'packages/dev/src/index.ts']);
+
+    return fixtureRoot;
+  } catch (error) {
+    await rm(fixtureRoot, { force: true, recursive: true });
+    throw error;
+  }
 };
 
 const auto = await importBuiltPackage('auto');
@@ -116,5 +181,33 @@ assert(
   'dev review must expose deterministic shell-execution risk findings.'
 );
 assertValid('devReview', review);
+
+const cliWorkflowPath = 'examples/workflows/message.yml';
+const cliValidation = runCliJson(['auto', 'validate', cliWorkflowPath]);
+const cliPlan = runCliJson(['auto', 'plan', cliWorkflowPath]);
+const cliRun = runCliJson(['auto', 'run', cliWorkflowPath]);
+
+assertValid('autoValidate', cliValidation);
+assertValid('autoPlan', cliPlan);
+assertValid('autoRun', cliRun);
+assert(cliRun.status === 'preview', 'CLI auto run should preview by default.');
+
+const devReviewCliFixture = await createDevReviewCliFixture();
+
+try {
+  const cliReview = runCliJson(['dev', 'review', '--staged'], { cwd: devReviewCliFixture });
+
+  assertValid('devReview', cliReview);
+  assert(
+    cliReview.summary.files.includes('packages/dev/src/index.ts'),
+    'CLI dev review should expose staged fixture files.'
+  );
+  assert(
+    cliReview.findings.some((finding) => finding.title === 'Shell execution added'),
+    'CLI dev review should expose deterministic shell-execution findings.'
+  );
+} finally {
+  await rm(devReviewCliFixture, { force: true, recursive: true });
+}
 
 console.log('ZaoWu JSON contracts: ok');

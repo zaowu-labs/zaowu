@@ -81,6 +81,80 @@
       "items": {
         "type": "string"
       }
+    },
+    "operationPlan": {
+      "$ref": "#/$defs/operationPlan"
+    }
+  },
+  "$defs": {
+    "operationPlan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "risk",
+        "confirmationRequired",
+        "reads",
+        "writes",
+        "deletes",
+        "executes",
+        "network",
+        "secrets",
+        "notes"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "risk": {
+          "enum": ["low", "medium", "high"]
+        },
+        "confirmationRequired": {
+          "type": "boolean"
+        },
+        "reads": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "writes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "deletes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "executes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "network": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "secrets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
     }
   }
 }

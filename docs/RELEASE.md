@@ -49,9 +49,9 @@ The JSON contract check is:
 corepack pnpm verify:json-contracts
 ```
 
-It verifies the built `zw dev review`, `zw auto validate`, `zw auto plan`, and
-`zw auto run` machine-readable contracts documented in
-`docs/JSON_CONTRACTS.md`.
+It verifies the built package results and real built CLI output for
+`zw dev review`, `zw auto validate`, `zw auto plan`, and `zw auto run` against
+the machine-readable contracts documented in `docs/JSON_CONTRACTS.md`.
 
 ## Not Yet Ready
 
