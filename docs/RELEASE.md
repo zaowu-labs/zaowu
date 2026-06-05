@@ -51,7 +51,9 @@ corepack pnpm verify:json-contracts
 
 It verifies the built package results and real built CLI output for
 `zw dev review`, `zw auto validate`, `zw auto plan`, and `zw auto run` against
-the machine-readable contracts documented in `docs/JSON_CONTRACTS.md`.
+the machine-readable contracts documented in `docs/JSON_CONTRACTS.md`. It also
+validates representative expected-error JSON and checks the error schema code
+enum against the core error registry.
 
 ## Not Yet Ready
 

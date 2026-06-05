@@ -29,6 +29,7 @@ const schemas = {
   autoPlan: await readJson('schemas', 'zaowu.command.auto-plan.schema.json'),
   autoRun: await readJson('schemas', 'zaowu.command.auto-run.schema.json'),
   devReview: await readJson('schemas', 'zaowu.command.dev-review.schema.json'),
+  error: await readJson('schemas', 'zaowu.command.error.schema.json'),
 };
 
 for (const [name, schema] of Object.entries(schemas)) {
@@ -48,6 +49,7 @@ const validators = {
   autoPlan: ajv.compile(schemas.autoPlan),
   autoRun: ajv.compile(schemas.autoRun),
   devReview: ajv.compile(schemas.devReview),
+  error: ajv.compile(schemas.error),
 };
 
 const assertValid = (name, value) => {
@@ -78,6 +80,20 @@ const runProcess = (command, args, options = {}) => {
   return result;
 };
 
+const runProcessRaw = (command, args, options = {}) => {
+  const result = spawnSync(command, args, {
+    cwd: options.cwd ?? root,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+
+  if (result.error) {
+    throw new Error(`${command} ${args.join(' ')} could not start: ${result.error.message}`);
+  }
+
+  return result;
+};
+
 const runCliJson = (args, options = {}) => {
   const result = runProcess(process.execPath, [cliEntry, ...args, '--json'], options);
   const stderr = result.stderr.trim();
@@ -89,6 +105,37 @@ const runCliJson = (args, options = {}) => {
   } catch (error) {
     throw new Error(`zw ${args.join(' ')} --json did not return valid JSON: ${error.message}`);
   }
+};
+
+const runCliErrorJson = (args, expectedCode, options = {}) => {
+  const result = runProcessRaw(process.execPath, [cliEntry, ...args, '--json'], options);
+
+  assert(
+    typeof result.status === 'number' && result.status !== 0,
+    `zw ${args.join(' ')} --json should fail for the expected error contract.`
+  );
+  assert(
+    result.stdout.trim().length === 0,
+    `zw ${args.join(' ')} --json should not write stdout on expected errors: ${result.stdout}`
+  );
+
+  let parsed;
+
+  try {
+    parsed = JSON.parse(result.stderr);
+  } catch (error) {
+    throw new Error(
+      `zw ${args.join(' ')} --json did not return valid error JSON on stderr: ${error.message}`
+    );
+  }
+
+  assertValid('error', parsed);
+  assert(
+    parsed.error.code === expectedCode,
+    `zw ${args.join(' ')} --json should fail with ${expectedCode}, got ${parsed.error.code}.`
+  );
+
+  return parsed;
 };
 
 const runGit = (cwd, args) => {
@@ -121,8 +168,15 @@ const createDevReviewCliFixture = async () => {
   }
 };
 
+const core = await importBuiltPackage('core');
 const auto = await importBuiltPackage('auto');
 const dev = await importBuiltPackage('dev');
+
+const schemaErrorCodes = schemas.error.properties.error.properties.code.enum;
+assert(
+  JSON.stringify([...schemaErrorCodes].sort()) === JSON.stringify([...core.ZAOWU_ERROR_CODES].sort()),
+  'Command error schema code enum must match the core error code registry.'
+);
 
 const workflowContent =
   'name: contract\nvars:\n  target: ZaoWu\nsteps:\n  - name: hello\n    message: Hello {{target}}\n';
@@ -209,5 +263,9 @@ try {
 } finally {
   await rm(devReviewCliFixture, { force: true, recursive: true });
 }
+
+runCliErrorJson(['auto', 'plan'], 'TARGET_REQUIRED');
+runCliErrorJson(['unknown-command'], 'UNKNOWN_COMMAND');
+runCliErrorJson(['web', 'inspect', 'not-a-url'], 'WEB_URL_INVALID');
 
 console.log('ZaoWu JSON contracts: ok');

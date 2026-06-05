@@ -3,6 +3,10 @@
 The source of truth is `packages/core/src/error-codes.ts`. This document explains
 the stable user-facing error codes by area.
 
+Expected JSON errors are validated by
+`schemas/zaowu.command.error.schema.json`; its code enum must match the source
+registry.
+
 ## AI
 
 | Code                               | Meaning                                               |
