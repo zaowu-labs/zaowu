@@ -36,6 +36,8 @@ ZaoWu is in the first runnable foundation phase. The repository is focused on:
 - versioned automation workflows with explicit execution policy planning,
   blocked execution sandbox reporting, and local plugin manifest validation
 - user-facing examples and JSON Schemas for config, workflow, and plugin inputs
+- command-output schemas for the first versioned JSON contracts
+- release policy and changelog preflight checks before any publish work
 
 Later modules should build on this foundation instead of becoming separate scripts:
 
@@ -190,6 +192,8 @@ docs/ERROR_CODES.md   Stable user-facing error code registry
 docs/FOUNDATION.md    Foundation invariants and future workflow rules
 docs/JSON_CONTRACTS.md Versioned machine-readable command output contracts
 docs/RELEASE.md       Release-readiness gate and publish boundaries
+docs/RELEASE_POLICY.md Versioning, changelog, tag, and publish preflight rules
+CHANGELOG.md          Unreleased and release notes
 docs/experience/COMMAND_CATALOG.md  First-version command behavior and limits
 examples/README.md    Checked examples for config, docs, data, workflows, plugins
 schemas/README.md     Schema map for user-authored ZaoWu files

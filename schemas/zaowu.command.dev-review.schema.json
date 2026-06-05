@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.zaowu.dev/zaowu.command.dev-review.schema.json",
+  "title": "ZaoWu Dev Review Result",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schemaVersion",
+    "status",
+    "source",
+    "summary",
+    "diffHunks",
+    "findings",
+    "recommendedChecks"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "status": {
+      "const": "ok"
+    },
+    "source": {
+      "enum": ["staged", "working-tree"]
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["files", "untrackedFiles", "additions", "deletions", "categories"],
+      "properties": {
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "untrackedFiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "additions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "deletions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "categories": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["source", "test", "docs", "dependency", "workflow", "config", "other"],
+          "properties": {
+            "source": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "test": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "docs": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "dependency": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "workflow": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "config": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "other": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    },
+    "diffHunks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["filePath", "header", "addedLines", "removedLines"],
+        "properties": {
+          "filePath": {
+            "type": "string"
+          },
+          "header": {
+            "type": "string"
+          },
+          "addedLines": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "removedLines": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["severity", "title", "detail"],
+        "properties": {
+          "severity": {
+            "enum": ["info", "warning"]
+          },
+          "title": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "filePath": {
+            "type": "string"
+          },
+          "hunkHeader": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "recommendedChecks": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

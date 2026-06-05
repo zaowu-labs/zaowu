@@ -23,6 +23,7 @@ The gate includes:
 - release metadata checks
 - package dry-run
 - packed CLI install smoke
+- release policy and changelog presence
 
 The release metadata check is:
 
@@ -39,6 +40,8 @@ It verifies:
   keywords stay aligned
 - workspace package dependencies use `workspace:*`
 - only `@zaowu/cli` exposes the `zw` binary
+- `docs/RELEASE_POLICY.md` includes the release policy sections
+- `CHANGELOG.md` includes an `Unreleased` section
 
 The JSON contract check is:
 
@@ -46,18 +49,20 @@ The JSON contract check is:
 corepack pnpm verify:json-contracts
 ```
 
-It verifies the built `zw dev review` and `zw auto plan` machine-readable
-contracts documented in `docs/JSON_CONTRACTS.md`.
+It verifies the built `zw dev review`, `zw auto validate`, `zw auto plan`, and
+`zw auto run` machine-readable contracts documented in
+`docs/JSON_CONTRACTS.md`.
 
 ## Not Yet Ready
 
 Do not publish packages until these are intentionally designed:
 
-- versioning and changelog policy
-- release branch/tag policy
-- npm provenance and publish permissions
+- release workflow provenance and npm publish permissions
 - public support policy
 - backward compatibility policy beyond the current versioned JSON contracts
+
+Versioning, changelog, branch, tag, and local preflight rules are defined in
+`docs/RELEASE_POLICY.md`.
 
 ## Manual Preflight
 

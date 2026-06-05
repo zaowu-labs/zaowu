@@ -77,6 +77,8 @@ First-version behavior:
   in the CLI layer.
 - Provider requests have a timeout and a bounded combined prompt/file-input
   length.
+- Provider HTTP errors are classified so authentication, rate-limit,
+  bad-request, and provider-side failures get clearer fixes.
 - Preview mode reads any `--file` input and reports prompt, file, combined, and
   maximum input character counts without sending a network request.
 
@@ -182,6 +184,8 @@ Workflow support:
 - `message` steps can run when confirmed.
 - `run` shell steps are detected, planned, and blocked.
 - The public workflow shape is documented in `schemas/zaowu.workflow.schema.json`.
+- Shell execution must not be enabled until
+  `docs/experience/ZW_AUTO_EXECUTION.md` acceptance criteria are met.
 
 Safety:
 

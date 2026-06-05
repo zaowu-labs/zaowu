@@ -60,6 +60,23 @@ export interface AIProviderValidation {
   warnings: string[];
 }
 
+export type AIProviderFailureKind =
+  | 'auth'
+  | 'rate-limit'
+  | 'bad-request'
+  | 'server'
+  | 'transport'
+  | 'timeout'
+  | 'invalid-response'
+  | 'unknown';
+
+export interface AIProviderFailure {
+  kind: AIProviderFailureKind;
+  retryable: boolean;
+  why: string;
+  fix: string;
+}
+
 export interface AIProvider {
   descriptor: AIProviderDescriptor;
   ask(request: AIAskRequest): Promise<AIAskResponse>;
@@ -253,6 +270,55 @@ const OPENAI_PROVIDER_DESCRIPTOR: Omit<AIProviderDescriptor, 'configured'> = {
   defaultModel: 'gpt-4.1-mini',
 };
 
+export const classifyAIProviderHttpFailure = (
+  providerName: string,
+  status: number,
+  statusText: string
+): AIProviderFailure => {
+  if (status === 401 || status === 403) {
+    return {
+      kind: 'auth',
+      retryable: false,
+      why: `${providerName} returned HTTP ${status} ${statusText}; credentials or model access are not accepted.`,
+      fix: 'Check the provider API key, model access, and environment variables before retrying.',
+    };
+  }
+
+  if (status === 429) {
+    return {
+      kind: 'rate-limit',
+      retryable: true,
+      why: `${providerName} returned HTTP 429 ${statusText}; the request was rate-limited.`,
+      fix: 'Retry later or reduce request frequency/input size.',
+    };
+  }
+
+  if (status >= 500) {
+    return {
+      kind: 'server',
+      retryable: true,
+      why: `${providerName} returned HTTP ${status} ${statusText}; the provider did not complete the request.`,
+      fix: 'Check provider status and retry later.',
+    };
+  }
+
+  if (status >= 400) {
+    return {
+      kind: 'bad-request',
+      retryable: false,
+      why: `${providerName} returned HTTP ${status} ${statusText}; the request was rejected.`,
+      fix: 'Check the model, input size, and provider request settings before retrying.',
+    };
+  }
+
+  return {
+    kind: 'unknown',
+    retryable: false,
+    why: `${providerName} returned HTTP ${status} ${statusText}.`,
+    fix: 'Check provider status, credentials, model settings, and network access.',
+  };
+};
+
 const getFetcher = (fetcher?: AIFetcher): AIFetcher => {
   if (fetcher) {
     return fetcher;
@@ -378,11 +444,17 @@ const OPENAI_PROVIDER: AIProvider = {
     }
 
     if (!response.ok) {
+      const failure = classifyAIProviderHttpFailure(
+        OPENAI_PROVIDER_DESCRIPTOR.name,
+        response.status,
+        response.statusText
+      );
+
       throw new ZaoWuError({
         code: 'AI_PROVIDER_REQUEST_FAILED',
         message: 'AI provider request failed.',
-        why: `OpenAI returned HTTP ${response.status} ${response.statusText}.`,
-        fix: 'Check `OPENAI_API_KEY`, `OPENAI_MODEL`, network access, and provider status.',
+        why: failure.why,
+        fix: failure.fix,
       });
     }
 

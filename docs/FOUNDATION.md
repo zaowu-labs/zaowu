@@ -63,6 +63,9 @@ packages/ai       provider interfaces
 When a new feature seems to cross domains, split it into domain-owned pieces and
 wire them from `packages/cli`. Do not hide cross-domain coupling inside a helper.
 
+Automation shell execution is specifically blocked until
+`docs/experience/ZW_AUTO_EXECUTION.md` is implemented, tested, and documented.
+
 ## Capability Ledger
 
 Every domain declares what it can do:
@@ -100,7 +103,7 @@ see what will happen.
 
 Machine-readable command results that are stable enough for automation should be
 documented in `docs/JSON_CONTRACTS.md` and covered by
-`corepack pnpm verify:json-contracts`.
+command-output schemas plus `corepack pnpm verify:json-contracts`.
 
 ## Adding Future Work
 

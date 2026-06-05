@@ -89,6 +89,7 @@ count. It does not include raw diff text by default.
 The first foundation version flags:
 
 - missing tests when source files changed without test files
+- package-level source changes without matching package tests
 - dependency metadata changes
 - package manifest and lockfile consistency risks
 - large diff hunks
@@ -96,6 +97,11 @@ The first foundation version flags:
 - newly added file mutation
 - newly added network access
 - focused test markers such as `it.only`
+
+Shell, file mutation, and network scanning applies only to call-like additions
+in source, script, workflow, and behavior-bearing configuration files.
+Documentation text and schema URLs can describe those risks without producing
+false positives.
 
 These heuristics are intentionally local and deterministic. AI review can build
 on this later, but should not replace this transparent baseline.

@@ -10,9 +10,20 @@ validators.
 - `zaowu.workflow.schema.json` - `zw auto validate|plan|run` workflow files,
   including preview-first `permissions`
 - `zaowu.plugin.schema.json` - local plugin manifests such as `zaowu.plugin.json`
+- `zaowu.command.dev-review.schema.json` - versioned `zw dev review --json`
+  result shape
+- `zaowu.command.auto-validate.schema.json` - versioned
+  `zw auto validate --json` result shape
+- `zaowu.command.auto-plan.schema.json` - versioned `zw auto plan --json`
+  result shape
+- `zaowu.command.auto-run.schema.json` - versioned `zw auto run --json`
+  result shape
 
 Runtime validation still lives in the owning packages. Keep schemas, examples,
 docs, and package validators aligned whenever command contracts change.
 
-`corepack pnpm verify:schemas` compiles these schemas with Ajv and checks both
-valid and invalid examples against the runtime parsers.
+`corepack pnpm verify:schemas` compiles user-authored file schemas with Ajv and
+checks both valid and invalid examples against the runtime parsers.
+
+`corepack pnpm verify:json-contracts` validates built command outputs against
+command-output schemas.
