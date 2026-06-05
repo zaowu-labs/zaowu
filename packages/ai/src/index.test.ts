@@ -8,6 +8,7 @@ import {
   classifyAIProviderHttpFailure,
   getAIProvider,
   listAIProviders,
+  parseRetryAfterHeaderMs,
   previewAIRequest,
   validateAIProviderConfig,
 } from './index';
@@ -300,13 +301,18 @@ describe('AI provider registry', () => {
     expect(classifyAIProviderHttpFailure('OpenAI', 401, 'Unauthorized')).toEqual({
       kind: 'auth',
       retryable: false,
-      why: 'OpenAI returned HTTP 401 Unauthorized; credentials or model access are not accepted.',
+      safeSummary: 'OpenAI returned HTTP 401 Unauthorized.',
+      why: 'OpenAI returned HTTP 401 Unauthorized. Credentials or model access are not accepted.',
       fix: 'Check the provider API key, model access, and environment variables before retrying.',
     });
-    expect(classifyAIProviderHttpFailure('OpenAI', 429, 'Too Many Requests')).toMatchObject({
-      kind: 'rate-limit',
-      retryable: true,
-    });
+    expect(classifyAIProviderHttpFailure('OpenAI', 429, 'Too Many Requests', 120000)).toMatchObject(
+      {
+        kind: 'rate-limit',
+        retryable: true,
+        retryAfterMs: 120000,
+        fix: 'Retry later or reduce request frequency/input size. Wait at least 120000ms before retrying.',
+      }
+    );
     expect(classifyAIProviderHttpFailure('OpenAI', 500, 'Server Error')).toMatchObject({
       kind: 'server',
       retryable: true,
@@ -315,6 +321,14 @@ describe('AI provider registry', () => {
       kind: 'bad-request',
       retryable: false,
     });
+  });
+
+  it('parses Retry-After values and keeps provider summaries safe', () => {
+    expect(parseRetryAfterHeaderMs('2.5')).toBe(2500);
+    expect(parseRetryAfterHeaderMs('invalid')).toBeUndefined();
+    expect(
+      classifyAIProviderHttpFailure('OpenAI', 500, `Server Error\n${'x'.repeat(120)}`).safeSummary
+    ).toBe(`OpenAI returned HTTP 500 Server Error ${'x'.repeat(67)}...`);
   });
 
   it('maps OpenAI transport failures to actionable errors', async () => {

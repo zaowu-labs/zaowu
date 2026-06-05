@@ -181,6 +181,8 @@ Workflow support:
   `prompt`; this is a planning policy, not execution permission in this phase.
 - JSON output separates the parsed workflow permissions from the runtime
   `policy` and blocked execution `sandbox`.
+- The `sandbox` reports the resolved workflow directory so users can audit the
+  path boundary before any future execution support exists.
 - `message` steps can run when confirmed.
 - `run` shell steps are detected, planned, and blocked.
 - The public workflow shape is documented in `schemas/zaowu.workflow.schema.json`.
@@ -195,8 +197,8 @@ Safety:
 - Shell-like steps remain visible in plans so users can see exactly what is
   blocked.
 - Shell steps stay blocked even when `permissions.shell: prompt` is declared.
-- The execution sandbox reports shell commands, file writes, and network access
-  as blocked.
+- The execution sandbox reports the workflow directory plus shell commands, file
+  writes, and network access as blocked.
 
 ## `zw plugin`
 

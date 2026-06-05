@@ -41,6 +41,7 @@ It verifies:
 - workspace package dependencies use `workspace:*`
 - only `@zaowu/cli` exposes the `zw` binary
 - `docs/RELEASE_POLICY.md` includes the release policy sections
+- `docs/RELEASE_POLICY.md` includes provenance and publish-permission sections
 - `CHANGELOG.md` includes an `Unreleased` section
 
 The JSON contract check is:
@@ -53,7 +54,8 @@ It verifies the built package results and real built CLI output for
 `zw dev review`, `zw auto validate`, `zw auto plan`, and `zw auto run` against
 the machine-readable contracts documented in `docs/JSON_CONTRACTS.md`. It also
 validates representative expected-error JSON and checks the error schema code
-enum against the core error registry.
+enum against the core error registry. It also checks repeated command schema
+fragments for drift across schema files.
 
 ## Not Yet Ready
 

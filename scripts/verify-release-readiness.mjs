@@ -46,6 +46,8 @@ for (const section of [
   '## Changelog',
   '## Branches And Tags',
   '## npm Publish Rules',
+  '## Provenance',
+  '## Publish Permissions',
   '## Preflight',
 ]) {
   assert(releasePolicy.includes(section), `Release policy must include ${section}.`);

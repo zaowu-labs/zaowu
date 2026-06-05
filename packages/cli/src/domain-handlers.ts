@@ -102,12 +102,14 @@ const formatPolicy = (policy: { shell: string; fileWrites: string; network: stri
 
 const formatSandbox = (sandbox: {
   root: string;
+  workflowDirectory?: string;
   shellCommands: string;
   fileWrites: string;
   network: string;
 }): string =>
   [
     `- root: ${sandbox.root}`,
+    ...(sandbox.workflowDirectory ? [`- workflowDirectory: ${sandbox.workflowDirectory}`] : []),
     `- shellCommands: ${sandbox.shellCommands}`,
     `- fileWrites: ${sandbox.fileWrites}`,
     `- network: ${sandbox.network}`,

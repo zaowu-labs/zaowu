@@ -11,16 +11,16 @@ blocked until the execution model below is implemented and verified.
 - `run` shell steps are parsed, planned, and blocked.
 - Workflow `permissions` describe requested policy.
 - Runtime `policy` describes what ZaoWu will allow in this version.
-- Runtime `sandbox` reports shell commands, file writes, and network access as
-  blocked.
+- Runtime `sandbox` reports the resolved workflow directory plus shell commands,
+  file writes, and network access as blocked.
 
 ## Execution Principles
 
 1. Plans before actions: every sensitive step must appear in `zw auto plan`.
 2. No hidden authority: workflow permissions do not grant execution by
    themselves.
-3. Stable working root: future execution should default to the workflow
-   directory and reject path escapes.
+3. Stable working root: future execution should default to the resolved
+   workflow directory and reject path escapes.
 4. Explicit writes: future file writes need planned paths and overwrite rules.
 5. Explicit network: future network steps need planned targets and confirmation.
 6. Secret boundaries: workflows must reference secrets by name, not store secret

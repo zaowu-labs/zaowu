@@ -33,9 +33,28 @@ that must be true before the first publish and every publish after that.
 - Do not publish from an uncommitted working tree.
 - Run `corepack pnpm verify` before any publish attempt.
 - Run package dry-run and packed CLI install smoke before publish.
-- Public npm publishing should use provenance from the release workflow once the
+- Public npm publishing must use provenance from the release workflow once the
   workflow is intentionally designed.
 - API keys and npm tokens must stay out of repository files and memory.
+
+## Provenance
+
+- The first public npm publish must happen from a reviewed GitHub Actions
+  release workflow, not from an ad hoc local shell.
+- npm provenance must be enabled for public packages once publishing is turned
+  on.
+- Release artifacts must be built from the exact commit tagged for the release.
+- The workflow must run the same release gates documented in this repository
+  before publishing.
+
+## Publish Permissions
+
+- npm publishing credentials must be scoped to the `@zaowu` packages and held by
+  the organization, not an individual workstation.
+- GitHub release workflow permissions must be least-privilege and limited to the
+  publish job that needs them.
+- Manual local publish is blocked until the release workflow, permissions, and
+  rollback procedure are documented and tested.
 
 ## Preflight
 

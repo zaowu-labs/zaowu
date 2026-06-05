@@ -84,7 +84,9 @@ Stable fields:
 
 `workflow.permissions` reflects the user-authored workflow policy after parsing.
 `policy` is the runtime policy output and includes its own `schemaVersion`.
-`sandbox` is the execution boundary for the foundation version.
+`sandbox` is the execution boundary for the foundation version. It reports
+`root: "workflow-directory"` and a resolved `workflowDirectory` path so users can
+audit the directory future execution would be confined to.
 
 ### `zw auto plan --json`
 
@@ -137,3 +139,5 @@ This imports the built package outputs and executes the real built CLI for the
 versioned `dev review`, `auto validate`, `auto plan`, and `auto run` contracts.
 Both layers must validate against the same schemas. The same gate also validates
 representative real CLI expected-error JSON against the shared error schema.
+Repeated command schema fragments such as `operationPlan`, automation `policy`,
+and automation `sandbox` are checked for drift across schema files.

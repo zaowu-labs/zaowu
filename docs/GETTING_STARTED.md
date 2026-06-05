@@ -134,7 +134,8 @@ Workflow `permissions` can declare `shell`, `fileWrites`, and `network` as
 `blocked` or `prompt`. In this foundation version, shell steps still stay
 blocked even when `permissions.shell: prompt` is present. JSON output also
 includes a runtime `policy` and an execution `sandbox`; the sandbox keeps shell
-commands, file writes, and network access blocked in this phase.
+commands, file writes, and network access blocked in this phase. It also shows
+the resolved workflow directory that future execution would use as its boundary.
 
 Manage local plugin manifests:
 

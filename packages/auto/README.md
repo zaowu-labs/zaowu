@@ -11,3 +11,5 @@ Safety:
 - Workflow runs preview by default.
 - Shell commands are planned but blocked in this foundation version.
 - File writes and network access remain blocked by the execution sandbox.
+- The sandbox reports the resolved workflow directory before any future
+  execution support is enabled.
