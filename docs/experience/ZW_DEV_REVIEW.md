@@ -65,6 +65,7 @@ JSON output includes stable top-level keys:
 
 ```json
 {
+  "schemaVersion": 1,
   "status": "ok",
   "source": "staged",
   "summary": {},
@@ -89,6 +90,7 @@ The first foundation version flags:
 
 - missing tests when source files changed without test files
 - dependency metadata changes
+- package manifest and lockfile consistency risks
 - large diff hunks
 - newly added shell execution
 - newly added file mutation

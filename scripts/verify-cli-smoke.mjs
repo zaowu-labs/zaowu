@@ -64,6 +64,10 @@ try {
 
   const workflowPath = path.join(examples, 'workflows', 'message.yml');
   const autoPlan = run(['auto', 'plan', workflowPath, '--json'], { json: true });
+  assert(autoPlan.schemaVersion === 1, 'auto plan should expose result schema version');
+  assert(autoPlan.policy?.schemaVersion === 1, 'auto plan should expose policy schema version');
+  assert(autoPlan.sandbox?.schemaVersion === 1, 'auto plan should expose sandbox schema version');
+  assert(autoPlan.sandbox?.shellCommands === 'blocked', 'auto sandbox should block shell commands');
   assert(autoPlan.steps?.[0]?.blocked === false, 'auto plan should mark message step ready');
 
   const pluginManifestPath = path.join(examples, 'plugins', 'hello');

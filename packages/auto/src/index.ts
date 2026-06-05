@@ -12,17 +12,29 @@ export interface AutomationStep {
 export type AutomationPermissionMode = 'blocked' | 'prompt';
 export type AutomationPermissionName = 'shell' | 'fileWrites' | 'network';
 
-export interface AutomationExecutionPolicy {
+export interface AutomationWorkflowPermissions {
   shell: AutomationPermissionMode;
   fileWrites: AutomationPermissionMode;
   network: AutomationPermissionMode;
+}
+
+export interface AutomationExecutionPolicy extends AutomationWorkflowPermissions {
+  schemaVersion: 1;
+}
+
+export interface AutomationExecutionSandbox {
+  schemaVersion: 1;
+  root: 'workflow-directory';
+  shellCommands: 'blocked';
+  fileWrites: 'blocked';
+  network: 'blocked';
 }
 
 export interface AutomationWorkflow {
   version: number;
   name: string;
   variables: Record<string, string>;
-  permissions: AutomationExecutionPolicy;
+  permissions: AutomationWorkflowPermissions;
   steps: AutomationStep[];
 }
 
@@ -32,18 +44,22 @@ interface ParsedAutomationWorkflow extends AutomationWorkflow {
 }
 
 export interface AutomationValidationResult {
+  schemaVersion: 1;
   status: 'ok';
   filePath: string;
   workflow: AutomationWorkflow;
   policy: AutomationExecutionPolicy;
+  sandbox: AutomationExecutionSandbox;
   warnings: string[];
 }
 
 export interface AutomationRunResult {
+  schemaVersion: 1;
   status: 'ok' | 'preview';
   filePath: string;
   workflow: AutomationWorkflow;
   policy: AutomationExecutionPolicy;
+  sandbox: AutomationExecutionSandbox;
   executed: string[];
   skipped: string[];
 }
@@ -60,10 +76,12 @@ export interface AutomationPlanStep {
 }
 
 export interface AutomationPlanResult {
+  schemaVersion: 1;
   status: 'ok';
   filePath: string;
   workflow: AutomationWorkflow;
   policy: AutomationExecutionPolicy;
+  sandbox: AutomationExecutionSandbox;
   steps: AutomationPlanStep[];
   warnings: string[];
 }
@@ -96,12 +114,30 @@ export const AUTO_DOMAIN: DomainDefinition = {
 };
 
 const SUPPORTED_WORKFLOW_VERSION = 1;
-const DEFAULT_EXECUTION_POLICY: AutomationExecutionPolicy = {
+const AUTO_RESULT_SCHEMA_VERSION = 1;
+const AUTO_POLICY_SCHEMA_VERSION = 1;
+const DEFAULT_WORKFLOW_PERMISSIONS: AutomationWorkflowPermissions = {
   shell: 'blocked',
   fileWrites: 'blocked',
   network: 'blocked',
 };
+const DEFAULT_EXECUTION_SANDBOX: AutomationExecutionSandbox = {
+  schemaVersion: 1,
+  root: 'workflow-directory',
+  shellCommands: 'blocked',
+  fileWrites: 'blocked',
+  network: 'blocked',
+};
 const KNOWN_PERMISSIONS: readonly AutomationPermissionName[] = ['shell', 'fileWrites', 'network'];
+
+const createExecutionPolicy = (
+  permissions: AutomationWorkflowPermissions
+): AutomationExecutionPolicy => ({
+  schemaVersion: AUTO_POLICY_SCHEMA_VERSION,
+  ...permissions,
+});
+
+const createExecutionSandbox = (): AutomationExecutionSandbox => ({ ...DEFAULT_EXECUTION_SANDBOX });
 
 const getWorkflowFormat = (filePath: string): 'json' | 'yaml' => {
   const extension = path.extname(filePath).toLowerCase();
@@ -155,7 +191,7 @@ const parsePermissionMode = (
 ): { mode: AutomationPermissionMode; warning?: string } => {
   if (value === undefined || value === null || value === '') {
     return {
-      mode: DEFAULT_EXECUTION_POLICY[permission],
+      mode: DEFAULT_WORKFLOW_PERMISSIONS[permission],
     };
   }
 
@@ -166,14 +202,14 @@ const parsePermissionMode = (
   }
 
   return {
-    mode: DEFAULT_EXECUTION_POLICY[permission],
+    mode: DEFAULT_WORKFLOW_PERMISSIONS[permission],
     warning: `Permission \`${permission}\` value \`${String(value)}\` is invalid; defaulting to blocked.`,
   };
 };
 
 const parseExecutionPolicy = (
   value: unknown
-): { policy: AutomationExecutionPolicy; permissionWarnings: string[] } => {
+): { policy: AutomationWorkflowPermissions; permissionWarnings: string[] } => {
   const permissionWarnings: string[] = [];
 
   if (value !== undefined && (!value || typeof value !== 'object' || Array.isArray(value))) {
@@ -420,10 +456,12 @@ export const validateWorkflowContent = (
   }
 
   return {
+    schemaVersion: AUTO_RESULT_SCHEMA_VERSION,
     status: 'ok',
     filePath,
     workflow,
-    policy: workflow.permissions,
+    policy: createExecutionPolicy(workflow.permissions),
+    sandbox: createExecutionSandbox(),
     warnings,
   };
 };
@@ -509,10 +547,12 @@ export const planWorkflowContent = (
   });
 
   return {
+    schemaVersion: AUTO_RESULT_SCHEMA_VERSION,
     status: 'ok',
     filePath,
     workflow: validation.workflow,
     policy: validation.policy,
+    sandbox: validation.sandbox,
     steps,
     warnings: validation.warnings,
   };
@@ -560,10 +600,12 @@ export const runWorkflowFile = async (
   }
 
   return {
+    schemaVersion: AUTO_RESULT_SCHEMA_VERSION,
     status: options.yes ? 'ok' : 'preview',
     filePath,
     workflow: plan.workflow,
     policy: plan.policy,
+    sandbox: plan.sandbox,
     executed,
     skipped,
   };

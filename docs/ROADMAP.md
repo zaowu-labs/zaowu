@@ -30,7 +30,9 @@ Scope:
 - CLI smoke and golden-output checks for first-use experience
 - schema/example checks for user-authored config, workflow, and plugin inputs
 - generated rich fixture checks for PDF, DOCX, and XLSX command paths
+- JSON contract checks for versioned machine-readable command output
 - release metadata readiness checks before package dry-run
+- package-level README files included in release metadata checks
 - packed CLI install smoke for release-facing command availability
 - package boundary guard for domain packages
 - capability ledgers and operation plans for sensitive commands
@@ -43,7 +45,7 @@ Scope:
 - data schema/sample, clean metadata, and XLSX first-sheet or named-sheet
   support with stable normalized headers
 - automation planning with variable checks, workflow version warnings, and
-  explicit execution policy decisions
+  explicit execution policy decisions plus a blocked execution sandbox
 - local plugin manifest validation with schema version and command checks
 - user-facing examples and JSON Schemas kept outside runtime packages
 

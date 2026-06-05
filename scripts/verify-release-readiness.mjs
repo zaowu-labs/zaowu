@@ -6,7 +6,16 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const packageRoot = path.join(root, 'packages');
 
-const readJson = async (...parts) => JSON.parse(await readFile(path.join(root, ...parts), 'utf8'));
+const readText = async (message, ...parts) => {
+  try {
+    return await readFile(path.join(root, ...parts), 'utf8');
+  } catch {
+    throw new Error(message);
+  }
+};
+
+const readJson = async (...parts) =>
+  JSON.parse(await readText(`Could not read ${parts.join('/')}.`, ...parts));
 
 const assert = (condition, message) => {
   if (!condition) {
@@ -43,6 +52,7 @@ for (const dir of packageDirs) {
   assert(pkg.type === 'module', `${pkg.name} must publish ESM.`);
   assert(pkg.license === rootPackage.license, `${pkg.name} license must match the root license.`);
   assert(pkg.files?.includes('dist'), `${pkg.name} package files must include dist.`);
+  assert(pkg.files?.includes('README.md'), `${pkg.name} package files must include README.md.`);
   assert(pkg.main === './dist/index.js', `${pkg.name} main must point to dist/index.js.`);
   assert(pkg.types === './dist/index.d.ts', `${pkg.name} types must point to dist/index.d.ts.`);
   assert(
@@ -59,6 +69,21 @@ for (const dir of packageDirs) {
     `${pkg.name} must define a typecheck script.`
   );
   assert(pkg.keywords?.includes('zaowu'), `${pkg.name} keywords must include zaowu.`);
+
+  const packageReadme = await readText(
+    `${pkg.name} must include a package-level README.md.`,
+    'packages',
+    dir,
+    'README.md'
+  );
+  assert(
+    packageReadme.startsWith(`# ${pkg.name}\n`),
+    `${pkg.name} README.md must start with the package name.`
+  );
+  assert(
+    packageReadme.includes('Safety:') || packageReadme.includes('Boundary:'),
+    `${pkg.name} README.md must document a safety or boundary section.`
+  );
 
   for (const [dependency, version] of Object.entries(pkg.dependencies ?? {})) {
     if (dependency.startsWith('@zaowu/')) {

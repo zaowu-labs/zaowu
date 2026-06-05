@@ -132,7 +132,9 @@ Workflows default to `version: 1`; unsupported explicit versions produce a
 warning and remain visible in validation and plan output.
 Workflow `permissions` can declare `shell`, `fileWrites`, and `network` as
 `blocked` or `prompt`. In this foundation version, shell steps still stay
-blocked even when `permissions.shell: prompt` is present.
+blocked even when `permissions.shell: prompt` is present. JSON output also
+includes a runtime `policy` and an execution `sandbox`; the sandbox keeps shell
+commands, file writes, and network access blocked in this phase.
 
 Manage local plugin manifests:
 
@@ -164,6 +166,8 @@ before installation from a local source.
 - Sensitive JSON outputs include a schema-versioned `operationPlan` that lists
   reads, writes, deletes, network requests, secrets, execution, and confirmation
   requirements.
+- Versioned JSON contracts are documented in `docs/JSON_CONTRACTS.md`; public
+  machine output should evolve additively unless the schema version changes.
 
 Use `--json` for machine-readable output and `--help` on any command for
 command-specific usage.
@@ -180,7 +184,8 @@ corepack pnpm verify
 This gate also checks `examples/` against runtime parsers, validates the schema
 files, generates temporary PDF/DOCX/XLSX fixtures for CLI checks, and installs
 the packed CLI into a temporary project before running `zw`. It also checks
-release-facing package metadata before package dry-run.
+versioned JSON contracts and release-facing package metadata before package
+dry-run.
 
 Windows:
 

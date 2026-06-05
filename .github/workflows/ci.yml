@@ -47,6 +47,9 @@ jobs:
       - name: Check rich fixtures
         run: corepack pnpm verify:fixtures
 
+      - name: Check JSON contracts
+        run: corepack pnpm verify:json-contracts
+
       - name: Check release readiness
         run: corepack pnpm verify:release
 
