@@ -28,6 +28,22 @@
       },
       "description": "JSON-friendly variable map."
     },
+    "permissions": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Preview-first execution policy. This foundation release still blocks shell execution.",
+      "properties": {
+        "shell": {
+          "enum": ["blocked", "prompt"]
+        },
+        "fileWrites": {
+          "enum": ["blocked", "prompt"]
+        },
+        "network": {
+          "enum": ["blocked", "prompt"]
+        }
+      }
+    },
     "steps": {
       "type": "array",
       "items": {

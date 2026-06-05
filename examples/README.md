@@ -14,5 +14,6 @@ and tests together.
 - `docs/report.md` - Markdown document input for `zw doc`
 - `data/sales.csv` - CSV input for `zw data`
 - `workflows/message.yml` - safe message-only workflow for `zw auto`
-- `workflows/blocked-shell.yml` - workflow that demonstrates blocked shell steps
+- `workflows/blocked-shell.yml` - workflow that demonstrates explicit shell
+  policy and blocked shell steps
 - `plugins/hello/zaowu.plugin.json` - local plugin manifest for `zw plugin`

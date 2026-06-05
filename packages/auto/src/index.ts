@@ -9,21 +9,33 @@ export interface AutomationStep {
   run?: string;
 }
 
+export type AutomationPermissionMode = 'blocked' | 'prompt';
+export type AutomationPermissionName = 'shell' | 'fileWrites' | 'network';
+
+export interface AutomationExecutionPolicy {
+  shell: AutomationPermissionMode;
+  fileWrites: AutomationPermissionMode;
+  network: AutomationPermissionMode;
+}
+
 export interface AutomationWorkflow {
   version: number;
   name: string;
   variables: Record<string, string>;
+  permissions: AutomationExecutionPolicy;
   steps: AutomationStep[];
 }
 
 interface ParsedAutomationWorkflow extends AutomationWorkflow {
   versionWarning?: string;
+  permissionWarnings: string[];
 }
 
 export interface AutomationValidationResult {
   status: 'ok';
   filePath: string;
   workflow: AutomationWorkflow;
+  policy: AutomationExecutionPolicy;
   warnings: string[];
 }
 
@@ -31,6 +43,7 @@ export interface AutomationRunResult {
   status: 'ok' | 'preview';
   filePath: string;
   workflow: AutomationWorkflow;
+  policy: AutomationExecutionPolicy;
   executed: string[];
   skipped: string[];
 }
@@ -41,6 +54,8 @@ export interface AutomationPlanStep {
   action: 'message' | 'shell' | 'unsupported';
   preview: string;
   blocked: boolean;
+  requiredPermission?: AutomationPermissionName;
+  policyDecision: 'allowed' | 'blocked';
   reason?: string;
 }
 
@@ -48,6 +63,7 @@ export interface AutomationPlanResult {
   status: 'ok';
   filePath: string;
   workflow: AutomationWorkflow;
+  policy: AutomationExecutionPolicy;
   steps: AutomationPlanStep[];
   warnings: string[];
 }
@@ -80,6 +96,12 @@ export const AUTO_DOMAIN: DomainDefinition = {
 };
 
 const SUPPORTED_WORKFLOW_VERSION = 1;
+const DEFAULT_EXECUTION_POLICY: AutomationExecutionPolicy = {
+  shell: 'blocked',
+  fileWrites: 'blocked',
+  network: 'blocked',
+};
+const KNOWN_PERMISSIONS: readonly AutomationPermissionName[] = ['shell', 'fileWrites', 'network'];
 
 const getWorkflowFormat = (filePath: string): 'json' | 'yaml' => {
   const extension = path.extname(filePath).toLowerCase();
@@ -127,9 +149,71 @@ const parseWorkflowVersion = (value: unknown): { version: number; versionWarning
   };
 };
 
+const parsePermissionMode = (
+  value: unknown,
+  permission: AutomationPermissionName
+): { mode: AutomationPermissionMode; warning?: string } => {
+  if (value === undefined || value === null || value === '') {
+    return {
+      mode: DEFAULT_EXECUTION_POLICY[permission],
+    };
+  }
+
+  if (value === 'blocked' || value === 'prompt') {
+    return {
+      mode: value,
+    };
+  }
+
+  return {
+    mode: DEFAULT_EXECUTION_POLICY[permission],
+    warning: `Permission \`${permission}\` value \`${String(value)}\` is invalid; defaulting to blocked.`,
+  };
+};
+
+const parseExecutionPolicy = (
+  value: unknown
+): { policy: AutomationExecutionPolicy; permissionWarnings: string[] } => {
+  const permissionWarnings: string[] = [];
+
+  if (value !== undefined && (!value || typeof value !== 'object' || Array.isArray(value))) {
+    permissionWarnings.push('Permissions must be an object; defaulting to blocked.');
+  }
+
+  const input =
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+
+  for (const key of Object.keys(input)) {
+    if (!KNOWN_PERMISSIONS.includes(key as AutomationPermissionName)) {
+      permissionWarnings.push(`Permission \`${key}\` is not supported; ignoring it.`);
+    }
+  }
+
+  const shell = parsePermissionMode(input.shell, 'shell');
+  const fileWrites = parsePermissionMode(input.fileWrites, 'fileWrites');
+  const network = parsePermissionMode(input.network, 'network');
+
+  return {
+    policy: {
+      shell: shell.mode,
+      fileWrites: fileWrites.mode,
+      network: network.mode,
+    },
+    permissionWarnings: [
+      ...permissionWarnings,
+      shell.warning,
+      fileWrites.warning,
+      network.warning,
+    ].filter((warning): warning is string => Boolean(warning)),
+  };
+};
+
 const parseWorkflowJson = (content: string): ParsedAutomationWorkflow => {
   const parsed = JSON.parse(content) as Partial<AutomationWorkflow>;
   const version = parseWorkflowVersion(parsed.version);
+  const { policy, permissionWarnings } = parseExecutionPolicy(parsed.permissions);
   const variables =
     parsed.variables && typeof parsed.variables === 'object' && !Array.isArray(parsed.variables)
       ? Object.fromEntries(
@@ -141,6 +225,8 @@ const parseWorkflowJson = (content: string): ParsedAutomationWorkflow => {
     ...version,
     name: typeof parsed.name === 'string' && parsed.name ? parsed.name : 'workflow',
     variables,
+    permissions: policy,
+    permissionWarnings,
     steps: Array.isArray(parsed.steps) ? parsed.steps : [],
   };
 };
@@ -149,7 +235,8 @@ const parseWorkflowYaml = (content: string): ParsedAutomationWorkflow => {
   const lines = content.split(/\r?\n/);
   let parsedVersion = parseWorkflowVersion(undefined);
   let name = 'workflow';
-  let section: 'vars' | 'steps' | null = null;
+  let section: 'permissions' | 'vars' | 'steps' | null = null;
+  const permissions: Partial<Record<AutomationPermissionName, string>> = {};
   const variables: Record<string, string> = {};
   const steps: AutomationStep[] = [];
   let currentStep: AutomationStep | null = null;
@@ -183,6 +270,12 @@ const parseWorkflowYaml = (content: string): ParsedAutomationWorkflow => {
       continue;
     }
 
+    if (/^permissions:\s*$/.test(line) && !rawLine.startsWith(' ')) {
+      section = 'permissions';
+      currentStep = null;
+      continue;
+    }
+
     if (/^steps:\s*$/.test(line) && !rawLine.startsWith(' ')) {
       section = 'steps';
       currentStep = null;
@@ -193,6 +286,11 @@ const parseWorkflowYaml = (content: string): ParsedAutomationWorkflow => {
 
     if (section === 'vars' && variableMatch) {
       variables[variableMatch[1]] = variableMatch[2].trim();
+      continue;
+    }
+
+    if (section === 'permissions' && variableMatch) {
+      permissions[variableMatch[1] as AutomationPermissionName] = variableMatch[2].trim();
       continue;
     }
 
@@ -220,10 +318,14 @@ const parseWorkflowYaml = (content: string): ParsedAutomationWorkflow => {
     }
   }
 
+  const { policy, permissionWarnings } = parseExecutionPolicy(permissions);
+
   return {
     ...parsedVersion,
     name,
     variables,
+    permissions: policy,
+    permissionWarnings,
     steps,
   };
 };
@@ -250,6 +352,7 @@ const stripWorkflowMetadata = (workflow: ParsedAutomationWorkflow): AutomationWo
   version: workflow.version,
   name: workflow.name,
   variables: workflow.variables,
+  permissions: workflow.permissions,
   steps: workflow.steps,
 });
 
@@ -278,6 +381,8 @@ export const validateWorkflowContent = (
     warnings.push(parsedWorkflow.versionWarning);
   }
 
+  warnings.push(...parsedWorkflow.permissionWarnings);
+
   if (workflow.version !== SUPPORTED_WORKFLOW_VERSION) {
     warnings.push(
       `Workflow version ${workflow.version} is not supported; this foundation version expects ${SUPPORTED_WORKFLOW_VERSION}.`
@@ -301,6 +406,12 @@ export const validateWorkflowContent = (
       warnings.push(
         `Step \`${step.name}\` uses shell execution, which this first version will not run.`
       );
+
+      if (workflow.permissions.shell === 'prompt') {
+        warnings.push(
+          `Step \`${step.name}\` requests shell permission, but shell execution remains blocked in this foundation version.`
+        );
+      }
     }
 
     for (const missingVariable of getMissingVariables(step, workflow.variables)) {
@@ -312,6 +423,7 @@ export const validateWorkflowContent = (
     status: 'ok',
     filePath,
     workflow,
+    policy: workflow.permissions,
     warnings,
   };
 };
@@ -350,18 +462,27 @@ export const planWorkflowContent = (
         action: step.run ? 'shell' : step.message ? 'message' : 'unsupported',
         preview: step.message ?? step.run ?? '',
         blocked: true,
+        requiredPermission: step.run ? 'shell' : undefined,
+        policyDecision: 'blocked',
         reason: `Missing variable(s): ${missingVariables.join(', ')}`,
       };
     }
 
     if (step.run) {
+      const shellPolicy = validation.workflow.permissions.shell;
+
       return {
         index: index + 1,
         name: step.name,
         action: 'shell',
         preview: substituteVariables(step.run, validation.workflow.variables),
         blocked: true,
-        reason: 'Shell execution is not supported in this foundation version.',
+        requiredPermission: 'shell',
+        policyDecision: 'blocked',
+        reason:
+          shellPolicy === 'prompt'
+            ? 'Shell permission is prompt-only, but shell execution is not supported in this foundation version.'
+            : 'Shell permission is blocked by workflow policy.',
       };
     }
 
@@ -372,6 +493,7 @@ export const planWorkflowContent = (
         action: 'message',
         preview: substituteVariables(step.message, validation.workflow.variables),
         blocked: false,
+        policyDecision: 'allowed',
       };
     }
 
@@ -381,6 +503,7 @@ export const planWorkflowContent = (
       action: 'unsupported',
       preview: '',
       blocked: true,
+      policyDecision: 'blocked',
       reason: 'Step has no supported action.',
     };
   });
@@ -389,6 +512,7 @@ export const planWorkflowContent = (
     status: 'ok',
     filePath,
     workflow: validation.workflow,
+    policy: validation.policy,
     steps,
     warnings: validation.warnings,
   };
@@ -439,6 +563,7 @@ export const runWorkflowFile = async (
     status: options.yes ? 'ok' : 'preview',
     filePath,
     workflow: plan.workflow,
+    policy: plan.policy,
     executed,
     skipped,
   };

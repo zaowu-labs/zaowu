@@ -420,7 +420,7 @@ Usage:
   zw auto plan <workflow.json|workflow.yml|workflow.yaml> [options]
 
 Description:
-  Show the dry execution plan, variable substitution, blocked steps, and warnings.
+  Show the dry execution plan, permissions, variable substitution, blocked steps, and warnings.
 
 Options:
   --json             Output machine-readable JSON`,
@@ -581,7 +581,7 @@ Usage:
   zw dev review [--staged|--worktree] [options]
 
 Description:
-  Review staged changes by default, falling back to working-tree changes unless a mode is specified.
+  Review staged changes by default, falling back to working-tree changes unless a mode is specified. Output includes diff hunk summaries and risk signals.
 
 Options:
   --staged           Review only staged changes

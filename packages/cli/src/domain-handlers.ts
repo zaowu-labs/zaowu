@@ -93,6 +93,25 @@ const formatCounts = (items: Record<string, number>): string => {
   return lines.length > 0 ? lines.join('\n') : '- none';
 };
 
+const formatPolicy = (policy: { shell: string; fileWrites: string; network: string }): string =>
+  [
+    `- shell: ${policy.shell}`,
+    `- fileWrites: ${policy.fileWrites}`,
+    `- network: ${policy.network}`,
+  ].join('\n');
+
+const formatFinding = (finding: {
+  severity: string;
+  title: string;
+  detail: string;
+  filePath?: string;
+  hunkHeader?: string;
+}): string => {
+  const location = [finding.filePath, finding.hunkHeader].filter(Boolean).join(' ');
+
+  return `- ${finding.severity}: ${finding.title}${location ? ` (${location})` : ''} - ${finding.detail}`;
+};
+
 const formatOperationPlan = (plan: OperationPlan): string =>
   [
     'Operation plan:',
@@ -413,9 +432,14 @@ const handleDevReview: DomainActionHandler = async (_args, context) => {
     formatCounts(review.summary.categories),
     '',
     'Findings:',
-    ...review.findings.map(
-      (finding) => `- ${finding.severity}: ${finding.title} - ${finding.detail}`
-    ),
+    ...review.findings.map((finding) => formatFinding(finding)),
+    '',
+    'Diff hunks:',
+    ...(review.diffHunks.length > 0
+      ? review.diffHunks.map(
+          (hunk) => `- ${hunk.filePath} ${hunk.header}: +${hunk.addedLines}/-${hunk.removedLines}`
+        )
+      : ['- none']),
     '',
     'Recommended checks:',
     formatList(review.recommendedChecks),
@@ -674,6 +698,9 @@ const handleAutoValidate: DomainActionHandler = async (args, context) => {
     `Version: ${validation.workflow.version}`,
     `Steps: ${validation.workflow.steps.length}`,
     '',
+    'Policy:',
+    formatPolicy(validation.policy),
+    '',
     validation.warnings.length > 0
       ? ['Warnings:', ...validation.warnings.map((warning) => `- ${warning}`)].join('\n')
       : 'Warnings: none',
@@ -698,6 +725,7 @@ const handleAutoRun: DomainActionHandler = async (args, context) => {
     reads: [run.filePath],
     notes: [
       'Workflow runs preview by default.',
+      `Policy shell: ${plan.policy.shell}.`,
       `Ready message steps: ${readyMessageSteps.length > 0 ? readyMessageSteps.join(', ') : 'none'}.`,
       `Blocked steps: ${blockedSteps.length > 0 ? blockedSteps.join('; ') : 'none'}.`,
       'Shell steps are not executed in this foundation version.',
@@ -732,9 +760,12 @@ const handleAutoPlan: DomainActionHandler = async (args, context) => {
     `Workflow: ${plan.workflow.name}`,
     `Version: ${plan.workflow.version}`,
     '',
+    'Policy:',
+    formatPolicy(plan.policy),
+    '',
     ...plan.steps.map(
       (step) =>
-        `${step.index}. ${step.name} [${step.action}] ${step.blocked ? 'blocked' : 'ready'} - ${step.preview}`
+        `${step.index}. ${step.name} [${step.action}] ${step.blocked ? 'blocked' : 'ready'} (${step.policyDecision}) - ${step.preview}`
     ),
     '',
     plan.warnings.length > 0

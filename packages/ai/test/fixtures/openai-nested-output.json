@@ -1,0 +1,12 @@
+{
+  "output": [
+    {
+      "content": [
+        {
+          "type": "output_text",
+          "text": "Nested output works."
+        }
+      ]
+    }
+  ]
+}

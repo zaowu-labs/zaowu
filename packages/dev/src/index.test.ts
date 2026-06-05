@@ -67,6 +67,16 @@ describe('dev domain', () => {
         return '3\t1\tpackages/dev/src/index.ts';
       }
 
+      if (args.join(' ') === 'diff --unified=0') {
+        return [
+          'diff --git a/packages/dev/src/index.ts b/packages/dev/src/index.ts',
+          '@@ -1 +1,3 @@',
+          '-old',
+          '+new',
+          '+writeFile(path, content)',
+        ].join('\n');
+      }
+
       if (args.join(' ') === 'ls-files --others --exclude-standard') {
         return '';
       }
@@ -87,6 +97,14 @@ describe('dev domain', () => {
         additions: 3,
         deletions: 1,
       },
+      diffHunks: [
+        {
+          filePath: 'packages/dev/src/index.ts',
+          header: '@@ -1 +1,3 @@',
+          addedLines: 2,
+          removedLines: 1,
+        },
+      ],
       findings: [
         {
           severity: 'info',
@@ -95,6 +113,11 @@ describe('dev domain', () => {
         {
           severity: 'warning',
           title: 'Tests not detected',
+        },
+        {
+          severity: 'warning',
+          title: 'File mutation added',
+          filePath: 'packages/dev/src/index.ts',
         },
       ],
       recommendedChecks: ['corepack pnpm build', 'corepack pnpm test'],
@@ -121,6 +144,10 @@ describe('dev domain', () => {
 
       if (args.join(' ') === 'ls-files --others --exclude-standard') {
         return 'scripts/verify-local.sh';
+      }
+
+      if (args.join(' ') === 'diff --unified=0') {
+        return '';
       }
 
       throw new Error('unexpected git command');
@@ -165,6 +192,14 @@ describe('dev domain', () => {
         return '3\t1\tpackages/dev/src/index.ts';
       }
 
+      if (args.join(' ') === 'diff --cached --unified=0') {
+        return [
+          'diff --git a/packages/dev/src/index.ts b/packages/dev/src/index.ts',
+          '@@ -4,0 +5 @@',
+          '+fetch("https://example.com")',
+        ].join('\n');
+      }
+
       throw new Error('unexpected git command');
     };
 
@@ -173,6 +208,25 @@ describe('dev domain', () => {
       summary: {
         files: ['packages/dev/src/index.ts'],
       },
+      diffHunks: [
+        {
+          filePath: 'packages/dev/src/index.ts',
+          addedLines: 1,
+          removedLines: 0,
+        },
+      ],
+      findings: [
+        {
+          title: 'Change size',
+        },
+        {
+          title: 'Tests not detected',
+        },
+        {
+          title: 'Network access added',
+          filePath: 'packages/dev/src/index.ts',
+        },
+      ],
     });
   });
 

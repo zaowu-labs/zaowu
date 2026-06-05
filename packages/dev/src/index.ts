@@ -47,12 +47,22 @@ export interface DevReviewFinding {
   severity: 'info' | 'warning';
   title: string;
   detail: string;
+  filePath?: string;
+  hunkHeader?: string;
+}
+
+export interface DevDiffHunk {
+  filePath: string;
+  header: string;
+  addedLines: number;
+  removedLines: number;
 }
 
 export interface DevReviewResult {
   status: 'ok';
   source: 'staged' | 'working-tree';
   summary: GitChangeSummary;
+  diffHunks: DevDiffHunk[];
   findings: DevReviewFinding[];
   recommendedChecks: string[];
 }
@@ -227,6 +237,77 @@ const getWorkingTreeSummary = (commandRunner: DevCommandRunner, cwd?: string): G
     getChangedFiles(commandRunner, ['ls-files', '--others', '--exclude-standard'], cwd)
   );
 
+interface ParsedDiffHunk extends DevDiffHunk {
+  addedText: string[];
+}
+
+const stripDiffPath = (value: string): string => value.replace(/^[ab]\//, '');
+
+const parseDiffHunks = (diff: string): ParsedDiffHunk[] => {
+  const hunks: ParsedDiffHunk[] = [];
+  let currentFile = '';
+  let currentHunk: ParsedDiffHunk | undefined;
+
+  for (const line of diff.split(/\r?\n/)) {
+    const fileMatch = /^diff --git a\/(.+?) b\/(.+)$/.exec(line);
+
+    if (fileMatch) {
+      currentFile = stripDiffPath(fileMatch[2]);
+      currentHunk = undefined;
+      continue;
+    }
+
+    const hunkMatch = /^@@\s+(.+?)\s+@@/.exec(line);
+
+    if (hunkMatch && currentFile) {
+      currentHunk = {
+        filePath: currentFile,
+        header: hunkMatch[0],
+        addedLines: 0,
+        removedLines: 0,
+        addedText: [],
+      };
+      hunks.push(currentHunk);
+      continue;
+    }
+
+    if (!currentHunk) {
+      continue;
+    }
+
+    if (line.startsWith('+') && !line.startsWith('+++')) {
+      currentHunk.addedLines += 1;
+      currentHunk.addedText.push(line.slice(1));
+      continue;
+    }
+
+    if (line.startsWith('-') && !line.startsWith('---')) {
+      currentHunk.removedLines += 1;
+    }
+  }
+
+  return hunks;
+};
+
+const toPublicDiffHunks = (hunks: readonly ParsedDiffHunk[]): DevDiffHunk[] =>
+  hunks.map(({ filePath, header, addedLines, removedLines }) => ({
+    filePath,
+    header,
+    addedLines,
+    removedLines,
+  }));
+
+const getReviewDiffHunks = (
+  commandRunner: DevCommandRunner,
+  source: DevReviewResult['source'],
+  cwd?: string
+): ParsedDiffHunk[] => {
+  const args =
+    source === 'working-tree' ? ['diff', '--unified=0'] : ['diff', '--cached', '--unified=0'];
+
+  return parseDiffHunks(runGit(commandRunner, args, cwd));
+};
+
 const inferCommitType = (files: readonly string[]): string => {
   if (files.every((file) => file.startsWith('docs/') || file.endsWith('.md'))) {
     return 'docs';
@@ -300,6 +381,92 @@ const getRecommendedChecks = (summary: GitChangeSummary): string[] => {
   }
 
   return checks;
+};
+
+const addFindingOnce = (findings: DevReviewFinding[], finding: DevReviewFinding): void => {
+  if (
+    findings.some(
+      (existing) =>
+        existing.title === finding.title &&
+        existing.filePath === finding.filePath &&
+        existing.hunkHeader === finding.hunkHeader
+    )
+  ) {
+    return;
+  }
+
+  findings.push(finding);
+};
+
+const addDiffHeuristicFindings = (
+  findings: DevReviewFinding[],
+  hunks: readonly ParsedDiffHunk[]
+): void => {
+  for (const hunk of hunks) {
+    if (hunk.addedLines + hunk.removedLines > 80) {
+      addFindingOnce(findings, {
+        severity: 'warning',
+        title: 'Large diff hunk',
+        detail:
+          'This hunk is large enough to hide review risk; consider splitting it before merge.',
+        filePath: hunk.filePath,
+        hunkHeader: hunk.header,
+      });
+    }
+
+    if (
+      hunk.addedText.some((line) =>
+        /\b(?:exec|execFile|execFileSync|spawn|spawnSync|execSync)\b/.test(line)
+      )
+    ) {
+      addFindingOnce(findings, {
+        severity: 'warning',
+        title: 'Shell execution added',
+        detail:
+          'Added code appears to run shell commands; confirm preview or confirmation behavior.',
+        filePath: hunk.filePath,
+        hunkHeader: hunk.header,
+      });
+    }
+
+    if (
+      hunk.addedText.some((line) =>
+        /\b(?:writeFile|writeFileSync|appendFile|appendFileSync|rm|rmSync|unlink|unlinkSync)\b/.test(
+          line
+        )
+      )
+    ) {
+      addFindingOnce(findings, {
+        severity: 'warning',
+        title: 'File mutation added',
+        detail:
+          'Added code appears to write or delete files; confirm it cannot silently overwrite user data.',
+        filePath: hunk.filePath,
+        hunkHeader: hunk.header,
+      });
+    }
+
+    if (hunk.addedText.some((line) => /\bfetch\s*\(|https?:\/\//.test(line))) {
+      addFindingOnce(findings, {
+        severity: 'warning',
+        title: 'Network access added',
+        detail:
+          'Added code appears to access the network; confirm preview and user consent behavior.',
+        filePath: hunk.filePath,
+        hunkHeader: hunk.header,
+      });
+    }
+
+    if (hunk.addedText.some((line) => /\b(?:it|describe|test)\.only\s*\(/.test(line))) {
+      addFindingOnce(findings, {
+        severity: 'warning',
+        title: 'Focused test committed',
+        detail: 'A focused test marker was added and would narrow the test run.',
+        filePath: hunk.filePath,
+        hunkHeader: hunk.header,
+      });
+    }
+  }
 };
 
 export const previewDevCommit = (
@@ -410,6 +577,7 @@ export const reviewDevChanges = (
     });
   }
 
+  const diffHunks = getReviewDiffHunks(commandRunner, source, options.cwd);
   const findings: DevReviewFinding[] = [
     {
       severity: 'info',
@@ -447,10 +615,13 @@ export const reviewDevChanges = (
     });
   }
 
+  addDiffHeuristicFindings(findings, diffHunks);
+
   return {
     status: 'ok',
     source,
     summary,
+    diffHunks: toPublicDiffHunks(diffHunks),
     findings,
     recommendedChecks: getRecommendedChecks(summary),
   };
