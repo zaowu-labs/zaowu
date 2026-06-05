@@ -25,5 +25,5 @@ docs, and package validators aligned whenever command contracts change.
 `corepack pnpm verify:schemas` compiles user-authored file schemas with Ajv and
 checks both valid and invalid examples against the runtime parsers.
 
-`corepack pnpm verify:json-contracts` validates built command outputs against
-command-output schemas.
+`corepack pnpm verify:json-contracts` validates both built package command
+outputs and real built CLI `--json` outputs against command-output schemas.
