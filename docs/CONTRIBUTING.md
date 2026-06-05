@@ -129,6 +129,8 @@ When `--json` is used:
 - update `docs/JSON_CONTRACTS.md`, command-output schemas, and
   `corepack pnpm verify:json-contracts` when a versioned JSON contract changes;
   the gate should cover both owning-package output and real CLI `--json` output
+- keep expected error JSON aligned with `schemas/zaowu.command.error.schema.json`
+  and `packages/core/src/error-codes.ts`
 
 Expected errors should be actionable and should not show raw stack traces by
 default.

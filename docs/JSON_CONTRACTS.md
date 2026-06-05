@@ -26,6 +26,28 @@ machine-facing contract and should change more carefully.
 
 ## Current Versioned Results
 
+### Expected Error JSON
+
+Schema file: `schemas/zaowu.command.error.schema.json`.
+
+Expected command errors use a shared envelope:
+
+```json
+{
+  "error": {
+    "code": "TARGET_REQUIRED",
+    "message": "Target is required.",
+    "why": "`zw auto plan` needs a target argument.",
+    "fix": "Run `zw auto plan --help` to see the expected usage.",
+    "exitCode": 1
+  }
+}
+```
+
+The error code enum must stay synchronized with
+`packages/core/src/error-codes.ts`. Expected error JSON is written to stderr and
+must not include stack traces or extra fields.
+
 ### `zw dev review --json`
 
 Current result schema: `schemaVersion: 1`.
@@ -113,4 +135,5 @@ corepack pnpm verify:json-contracts
 
 This imports the built package outputs and executes the real built CLI for the
 versioned `dev review`, `auto validate`, `auto plan`, and `auto run` contracts.
-Both layers must validate against the same schemas.
+Both layers must validate against the same schemas. The same gate also validates
+representative real CLI expected-error JSON against the shared error schema.
