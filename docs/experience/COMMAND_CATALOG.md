@@ -183,6 +183,8 @@ Workflow support:
   `policy` and blocked execution `sandbox`.
 - The `sandbox` reports the resolved workflow directory so users can audit the
   path boundary before any future execution support exists.
+- Plan steps include per-step `operationPlan` entries for risk, confirmation,
+  and planned execution.
 - `message` steps can run when confirmed.
 - `run` shell steps are detected, planned, and blocked.
 - The public workflow shape is documented in `schemas/zaowu.workflow.schema.json`.

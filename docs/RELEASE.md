@@ -55,7 +55,7 @@ It verifies the built package results and real built CLI output for
 the machine-readable contracts documented in `docs/JSON_CONTRACTS.md`. It also
 validates representative expected-error JSON and checks the error schema code
 enum against the core error registry. It also checks repeated command schema
-fragments for drift across schema files.
+fragments reference the shared command schema definitions.
 
 ## Not Yet Ready
 

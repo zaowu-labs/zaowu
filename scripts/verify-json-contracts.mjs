@@ -25,6 +25,7 @@ const ajv = new Ajv2020({
 });
 
 const schemas = {
+  shared: await readJson('schemas', 'zaowu.command.shared.schema.json'),
   autoValidate: await readJson('schemas', 'zaowu.command.auto-validate.schema.json'),
   autoPlan: await readJson('schemas', 'zaowu.command.auto-plan.schema.json'),
   autoRun: await readJson('schemas', 'zaowu.command.auto-run.schema.json'),
@@ -43,6 +44,8 @@ for (const [name, schema] of Object.entries(schemas)) {
   );
   assert(ajv.validateSchema(schema), `${name} schema should be a valid JSON Schema.`);
 }
+
+ajv.addSchema(schemas.shared);
 
 const validators = {
   autoValidate: ajv.compile(schemas.autoValidate),
@@ -66,36 +69,60 @@ const assertJsonEqual = (left, right, message) => {
 };
 
 const assertSchemaFragmentsStayAligned = () => {
+  const ref = (definitionName) =>
+    `https://schemas.zaowu.dev/zaowu.command.shared.schema.json#/$defs/${definitionName}`;
+
   assertJsonEqual(
     schemas.autoPlan.properties.policy,
+    { $ref: ref('autoPolicy') },
+    'auto plan policy schema must reference the shared autoPolicy fragment.'
+  );
+  assertJsonEqual(
     schemas.autoRun.properties.policy,
-    'auto plan and auto run policy schema fragments must stay aligned.'
+    { $ref: ref('autoPolicy') },
+    'auto run policy schema must reference the shared autoPolicy fragment.'
   );
   assertJsonEqual(
-    schemas.autoPlan.properties.policy,
     schemas.autoValidate.properties.policy,
-    'auto plan and auto validate policy schema fragments must stay aligned.'
+    { $ref: ref('autoPolicy') },
+    'auto validate policy schema must reference the shared autoPolicy fragment.'
   );
   assertJsonEqual(
     schemas.autoPlan.properties.sandbox,
+    { $ref: ref('autoSandbox') },
+    'auto plan sandbox schema must reference the shared autoSandbox fragment.'
+  );
+  assertJsonEqual(
     schemas.autoRun.properties.sandbox,
-    'auto plan and auto run sandbox schema fragments must stay aligned.'
+    { $ref: ref('autoSandbox') },
+    'auto run sandbox schema must reference the shared autoSandbox fragment.'
   );
   assertJsonEqual(
-    schemas.autoPlan.properties.sandbox,
     schemas.autoValidate.properties.sandbox,
-    'auto plan and auto validate sandbox schema fragments must stay aligned.'
+    { $ref: ref('autoSandbox') },
+    'auto validate sandbox schema must reference the shared autoSandbox fragment.'
   );
   assertJsonEqual(
-    schemas.autoRun.$defs.operationPlan,
-    schemas.devReview.$defs.operationPlan,
-    'command operationPlan schema fragments must stay aligned.'
+    schemas.autoRun.properties.operationPlan,
+    { $ref: ref('operationPlan') },
+    'auto run operationPlan schema must reference the shared operationPlan fragment.'
+  );
+  assertJsonEqual(
+    schemas.devReview.properties.operationPlan,
+    { $ref: ref('operationPlan') },
+    'dev review operationPlan schema must reference the shared operationPlan fragment.'
+  );
+  assertJsonEqual(
+    schemas.autoPlan.properties.steps.items.properties.operationPlan,
+    { $ref: ref('operationPlan') },
+    'auto plan step operationPlan schema must reference the shared operationPlan fragment.'
   );
 };
 
 const runProcess = (command, args, options = {}) => {
   const result = spawnSync(command, args, {
     cwd: options.cwd ?? root,
+    env: options.env,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -115,6 +142,7 @@ const runProcess = (command, args, options = {}) => {
 const runProcessRaw = (command, args, options = {}) => {
   const result = spawnSync(command, args, {
     cwd: options.cwd ?? root,
+    env: options.env,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -234,6 +262,14 @@ assert(
   'workflow permissions must not be polluted with runtime schemaVersion.'
 );
 assert(plan.steps?.[0]?.policyDecision === 'allowed', 'auto plan steps must expose policy decisions.');
+assert(
+  plan.steps?.[0]?.operationPlan?.risk === 'low',
+  'auto plan message steps must expose low-risk step operation plans.'
+);
+assert(
+  plan.steps?.[0]?.operationPlan?.executes?.length === 0,
+  'auto plan message steps must not report shell execution.'
+);
 assertValid('autoPlan', plan);
 assert(run.schemaVersion === 1, 'auto run result schemaVersion must be 1.');
 assert(run.status === 'preview', 'auto run should preview by default.');
@@ -305,5 +341,12 @@ try {
 runCliErrorJson(['auto', 'plan'], 'TARGET_REQUIRED');
 runCliErrorJson(['unknown-command'], 'UNKNOWN_COMMAND');
 runCliErrorJson(['web', 'inspect', 'not-a-url'], 'WEB_URL_INVALID');
+runCliErrorJson(['ai', 'ask', 'Explain', 'ZaoWu', '--provider', 'missing'], 'AI_PROVIDER_NOT_FOUND');
+runCliErrorJson(['ai', 'ask', 'Explain', 'ZaoWu', '--provider', 'openai', '--yes'], 'AI_PROVIDER_CONFIG_MISSING', {
+  env: {
+    ...process.env,
+    OPENAI_API_KEY: '',
+  },
+});
 
 console.log('ZaoWu JSON contracts: ok');

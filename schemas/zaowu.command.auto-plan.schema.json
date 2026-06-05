@@ -64,62 +64,25 @@
       }
     },
     "policy": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["schemaVersion", "shell", "fileWrites", "network"],
-      "properties": {
-        "schemaVersion": {
-          "const": 1
-        },
-        "shell": {
-          "enum": ["blocked", "prompt"]
-        },
-        "fileWrites": {
-          "enum": ["blocked", "prompt"]
-        },
-        "network": {
-          "enum": ["blocked", "prompt"]
-        }
-      }
+      "$ref": "https://schemas.zaowu.dev/zaowu.command.shared.schema.json#/$defs/autoPolicy"
     },
     "sandbox": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "schemaVersion",
-        "root",
-        "workflowDirectory",
-        "shellCommands",
-        "fileWrites",
-        "network"
-      ],
-      "properties": {
-        "schemaVersion": {
-          "const": 1
-        },
-        "root": {
-          "const": "workflow-directory"
-        },
-        "workflowDirectory": {
-          "type": "string"
-        },
-        "shellCommands": {
-          "const": "blocked"
-        },
-        "fileWrites": {
-          "const": "blocked"
-        },
-        "network": {
-          "const": "blocked"
-        }
-      }
+      "$ref": "https://schemas.zaowu.dev/zaowu.command.shared.schema.json#/$defs/autoSandbox"
     },
     "steps": {
       "type": "array",
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["index", "name", "action", "preview", "blocked", "policyDecision"],
+        "required": [
+          "index",
+          "name",
+          "action",
+          "preview",
+          "blocked",
+          "policyDecision",
+          "operationPlan"
+        ],
         "properties": {
           "index": {
             "type": "integer",
@@ -145,6 +108,9 @@
           },
           "reason": {
             "type": "string"
+          },
+          "operationPlan": {
+            "$ref": "https://schemas.zaowu.dev/zaowu.command.shared.schema.json#/$defs/operationPlan"
           }
         }
       }
