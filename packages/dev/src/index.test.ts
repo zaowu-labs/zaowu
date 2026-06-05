@@ -117,6 +117,10 @@ describe('dev domain', () => {
         },
         {
           severity: 'warning',
+          title: 'Package tests not detected',
+        },
+        {
+          severity: 'warning',
           title: 'File mutation added',
           filePath: 'packages/dev/src/index.ts',
         },
@@ -225,11 +229,47 @@ describe('dev domain', () => {
           title: 'Tests not detected',
         },
         {
+          title: 'Package tests not detected',
+        },
+        {
           title: 'Network access added',
           filePath: 'packages/dev/src/index.ts',
         },
       ],
     });
+  });
+
+  it('does not flag sensitive keywords in documentation-only diffs', () => {
+    const runner: DevCommandRunner = (_command, args) => {
+      if (args.join(' ') === 'diff --cached --name-only') {
+        return 'docs/experience/ZW_AUTO_EXECUTION.md';
+      }
+
+      if (args.join(' ') === 'diff --cached --numstat') {
+        return '2\t0\tdocs/experience/ZW_AUTO_EXECUTION.md';
+      }
+
+      if (args.join(' ') === 'diff --cached --unified=0') {
+        return [
+          'diff --git a/docs/experience/ZW_AUTO_EXECUTION.md b/docs/experience/ZW_AUTO_EXECUTION.md',
+          '@@ -1,0 +2,2 @@',
+          '+Shell execution remains blocked even when docs mention execFileSync.',
+          '+Network execution remains blocked even when docs mention ' +
+            'fet' +
+            'ch("https://example.com").',
+        ].join('\n');
+      }
+
+      throw new Error('unexpected git command');
+    };
+
+    const titles = reviewDevChanges(runner, { mode: 'staged' }).findings.map(
+      (finding) => finding.title
+    );
+
+    expect(titles).not.toContain('Shell execution added');
+    expect(titles).not.toContain('Network access added');
+    expect(titles).not.toContain('File mutation added');
   });
 
   it('flags package manifest and lockfile consistency risks', () => {
@@ -258,6 +298,43 @@ describe('dev domain', () => {
         expect.objectContaining({
           severity: 'warning',
           title: 'Package manifest without lockfile',
+        }),
+      ])
+    );
+  });
+
+  it('flags package source changes without matching package tests', () => {
+    const runner: DevCommandRunner = (_command, args) => {
+      if (args.join(' ') === 'diff --cached --name-only') {
+        return [
+          'packages/dev/src/index.ts',
+          'packages/dev/src/index.test.ts',
+          'packages/auto/src/index.ts',
+        ].join('\n');
+      }
+
+      if (args.join(' ') === 'diff --cached --numstat') {
+        return [
+          '1\t0\tpackages/dev/src/index.ts',
+          '1\t0\tpackages/dev/src/index.test.ts',
+          '1\t0\tpackages/auto/src/index.ts',
+        ].join('\n');
+      }
+
+      if (args.join(' ') === 'diff --cached --unified=0') {
+        return '';
+      }
+
+      throw new Error('unexpected git command');
+    };
+
+    expect(reviewDevChanges(runner, { mode: 'staged' }).findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          severity: 'warning',
+          title: 'Package tests not detected',
+          detail:
+            'Source changed in package(s) auto, but no matching package test file changed in this diff.',
         }),
       ])
     );

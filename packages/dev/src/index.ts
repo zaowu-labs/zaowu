@@ -401,11 +401,64 @@ const addFindingOnce = (findings: DevReviewFinding[], finding: DevReviewFinding)
   findings.push(finding);
 };
 
+const SENSITIVE_REVIEW_FILE_EXTENSIONS = new Set([
+  '.bash',
+  '.bat',
+  '.cjs',
+  '.cmd',
+  '.cts',
+  '.js',
+  '.jsx',
+  '.mjs',
+  '.mts',
+  '.ps1',
+  '.sh',
+  '.ts',
+  '.tsx',
+  '.zsh',
+]);
+
+const SENSITIVE_REVIEW_FILE_NAMES = new Set([
+  'eslint.config.js',
+  'package.json',
+  'pnpm-workspace.yaml',
+  'tsconfig.json',
+  'vitest.config.ts',
+]);
+
+const isSensitiveReviewFile = (filePath: string): boolean => {
+  const normalized = filePath.replaceAll('\\', '/');
+  const fileName = normalized.split('/').pop() ?? normalized;
+
+  if (SENSITIVE_REVIEW_FILE_NAMES.has(fileName)) {
+    return true;
+  }
+
+  if (/^(?:\.github\/workflows|examples\/workflows)\//.test(normalized)) {
+    return /\.ya?ml$/.test(normalized);
+  }
+
+  return SENSITIVE_REVIEW_FILE_EXTENSIONS.has(/\.[^.]+$/.exec(fileName)?.[0] ?? '');
+};
+
+const hasShellExecutionAdded = (line: string): boolean =>
+  /(?:^|[^\w.])exec\s*\(/.test(line) ||
+  /\b(?:execFile|execFileSync|spawn|spawnSync|execSync)\s*\(/.test(line);
+
+const hasFileMutationAdded = (line: string): boolean =>
+  /\b(?:writeFile|writeFileSync|appendFile|appendFileSync|rm|rmSync|unlink|unlinkSync)\s*\(/.test(
+    line
+  );
+
+const hasNetworkAccessAdded = (line: string): boolean => /\bfetch\s*\(/.test(line);
+
 const addDiffHeuristicFindings = (
   findings: DevReviewFinding[],
   hunks: readonly ParsedDiffHunk[]
 ): void => {
   for (const hunk of hunks) {
+    const shouldScanSensitiveText = isSensitiveReviewFile(hunk.filePath);
+
     if (hunk.addedLines + hunk.removedLines > 80) {
       addFindingOnce(findings, {
         severity: 'warning',
@@ -417,11 +470,7 @@ const addDiffHeuristicFindings = (
       });
     }
 
-    if (
-      hunk.addedText.some((line) =>
-        /\b(?:exec|execFile|execFileSync|spawn|spawnSync|execSync)\b/.test(line)
-      )
-    ) {
+    if (shouldScanSensitiveText && hunk.addedText.some(hasShellExecutionAdded)) {
       addFindingOnce(findings, {
         severity: 'warning',
         title: 'Shell execution added',
@@ -432,13 +481,7 @@ const addDiffHeuristicFindings = (
       });
     }
 
-    if (
-      hunk.addedText.some((line) =>
-        /\b(?:writeFile|writeFileSync|appendFile|appendFileSync|rm|rmSync|unlink|unlinkSync)\b/.test(
-          line
-        )
-      )
-    ) {
+    if (shouldScanSensitiveText && hunk.addedText.some(hasFileMutationAdded)) {
       addFindingOnce(findings, {
         severity: 'warning',
         title: 'File mutation added',
@@ -449,7 +492,7 @@ const addDiffHeuristicFindings = (
       });
     }
 
-    if (hunk.addedText.some((line) => /\bfetch\s*\(|https?:\/\//.test(line))) {
+    if (shouldScanSensitiveText && hunk.addedText.some(hasNetworkAccessAdded)) {
       addFindingOnce(findings, {
         severity: 'warning',
         title: 'Network access added',
@@ -498,6 +541,55 @@ const addDependencyConsistencyFindings = (
         'pnpm-lock.yaml changed without a package manifest; confirm the lockfile change is intentional.',
     });
   }
+};
+
+const getPackageName = (filePath: string): string | undefined =>
+  /^packages\/([^/]+)\//.exec(filePath.replaceAll('\\', '/'))?.[1];
+
+const isTestFile = (filePath: string): boolean =>
+  filePath.includes('.test.') || filePath.includes('.spec.');
+
+const addPackageTestCoverageFindings = (
+  findings: DevReviewFinding[],
+  files: readonly string[]
+): void => {
+  const changedSourcePackages = [
+    ...new Set(
+      files
+        .filter(
+          (file) =>
+            file.replaceAll('\\', '/').startsWith('packages/') &&
+            file.replaceAll('\\', '/').includes('/src/') &&
+            !isTestFile(file)
+        )
+        .map((file) => getPackageName(file))
+        .filter((packageName): packageName is string => Boolean(packageName))
+    ),
+  ];
+
+  if (changedSourcePackages.length === 0) {
+    return;
+  }
+
+  const changedTestPackages = new Set(
+    files
+      .filter(isTestFile)
+      .map((file) => getPackageName(file))
+      .filter((packageName): packageName is string => Boolean(packageName))
+  );
+  const missingPackageTests = changedSourcePackages.filter(
+    (packageName) => !changedTestPackages.has(packageName)
+  );
+
+  if (missingPackageTests.length === 0) {
+    return;
+  }
+
+  findings.push({
+    severity: 'warning',
+    title: 'Package tests not detected',
+    detail: `Source changed in package(s) ${missingPackageTests.join(', ')}, but no matching package test file changed in this diff.`,
+  });
 };
 
 export const previewDevCommit = (
@@ -647,6 +739,7 @@ export const reviewDevChanges = (
   }
 
   addDependencyConsistencyFindings(findings, summary.files);
+  addPackageTestCoverageFindings(findings, summary.files);
   addDiffHeuristicFindings(findings, diffHunks);
 
   return {

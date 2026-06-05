@@ -31,8 +31,10 @@ Scope:
 - schema/example checks for user-authored config, workflow, and plugin inputs
 - generated rich fixture checks for PDF, DOCX, and XLSX command paths
 - JSON contract checks for versioned machine-readable command output
+- command-output schemas for the first versioned JSON contracts
 - release metadata readiness checks before package dry-run
 - package-level README files included in release metadata checks
+- release policy and changelog preflight checks before publish work
 - packed CLI install smoke for release-facing command availability
 - package boundary guard for domain packages
 - capability ledgers and operation plans for sensitive commands
@@ -46,6 +48,7 @@ Scope:
   support with stable normalized headers
 - automation planning with variable checks, workflow version warnings, and
   explicit execution policy decisions plus a blocked execution sandbox
+- automation execution rules documented before shell execution is enabled
 - local plugin manifest validation with schema version and command checks
 - user-facing examples and JSON Schemas kept outside runtime packages
 

@@ -30,6 +30,8 @@ machine-facing contract and should change more carefully.
 
 Current result schema: `schemaVersion: 1`.
 
+Schema file: `schemas/zaowu.command.dev-review.schema.json`.
+
 Stable fields:
 
 - `status`
@@ -46,6 +48,8 @@ It does not expose raw diff text by default.
 ### `zw auto validate --json`
 
 Current result schema: `schemaVersion: 1`.
+
+Schema file: `schemas/zaowu.command.auto-validate.schema.json`.
 
 Stable fields:
 
@@ -64,6 +68,8 @@ Stable fields:
 
 Current result schema: `schemaVersion: 1`.
 
+Schema file: `schemas/zaowu.command.auto-plan.schema.json`.
+
 Stable fields:
 
 - `status`
@@ -80,6 +86,8 @@ blocked, and unsupported actions without parsing text.
 ### `zw auto run --json`
 
 Current result schema: `schemaVersion: 1`.
+
+Schema file: `schemas/zaowu.command.auto-run.schema.json`.
 
 Stable fields:
 
@@ -103,5 +111,5 @@ The full gate runs:
 corepack pnpm verify:json-contracts
 ```
 
-This imports the built package outputs and checks the versioned `dev review` and
-`auto plan` contracts.
+This imports the built package outputs and validates the versioned `dev review`,
+`auto validate`, `auto plan`, and `auto run` contracts against their schemas.

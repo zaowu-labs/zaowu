@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.zaowu.dev/zaowu.command.auto-run.schema.json",
+  "title": "ZaoWu Auto Run Result",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schemaVersion",
+    "status",
+    "filePath",
+    "workflow",
+    "policy",
+    "sandbox",
+    "executed",
+    "skipped"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "status": {
+      "enum": ["ok", "preview"]
+    },
+    "filePath": {
+      "type": "string"
+    },
+    "workflow": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["version", "name", "variables", "permissions", "steps"]
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "shell", "fileWrites", "network"],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "shell": {
+          "enum": ["blocked", "prompt"]
+        },
+        "fileWrites": {
+          "enum": ["blocked", "prompt"]
+        },
+        "network": {
+          "enum": ["blocked", "prompt"]
+        }
+      }
+    },
+    "sandbox": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "root", "shellCommands", "fileWrites", "network"],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "root": {
+          "const": "workflow-directory"
+        },
+        "shellCommands": {
+          "const": "blocked"
+        },
+        "fileWrites": {
+          "const": "blocked"
+        },
+        "network": {
+          "const": "blocked"
+        }
+      }
+    },
+    "executed": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "skipped": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

@@ -184,8 +184,8 @@ corepack pnpm verify
 This gate also checks `examples/` against runtime parsers, validates the schema
 files, generates temporary PDF/DOCX/XLSX fixtures for CLI checks, and installs
 the packed CLI into a temporary project before running `zw`. It also checks
-versioned JSON contracts and release-facing package metadata before package
-dry-run.
+versioned JSON contracts against command-output schemas and release-facing
+package metadata before package dry-run.
 
 Windows:
 

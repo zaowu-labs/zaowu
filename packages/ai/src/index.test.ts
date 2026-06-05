@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import {
   AI_DOMAIN,
   askAI,
+  classifyAIProviderHttpFailure,
   getAIProvider,
   listAIProviders,
   previewAIRequest,
@@ -293,6 +294,27 @@ describe('AI provider registry', () => {
         }),
       })
     ).rejects.toThrow('AI provider request failed.');
+  });
+
+  it('classifies provider HTTP failures for actionable fixes', () => {
+    expect(classifyAIProviderHttpFailure('OpenAI', 401, 'Unauthorized')).toEqual({
+      kind: 'auth',
+      retryable: false,
+      why: 'OpenAI returned HTTP 401 Unauthorized; credentials or model access are not accepted.',
+      fix: 'Check the provider API key, model access, and environment variables before retrying.',
+    });
+    expect(classifyAIProviderHttpFailure('OpenAI', 429, 'Too Many Requests')).toMatchObject({
+      kind: 'rate-limit',
+      retryable: true,
+    });
+    expect(classifyAIProviderHttpFailure('OpenAI', 500, 'Server Error')).toMatchObject({
+      kind: 'server',
+      retryable: true,
+    });
+    expect(classifyAIProviderHttpFailure('OpenAI', 400, 'Bad Request')).toMatchObject({
+      kind: 'bad-request',
+      retryable: false,
+    });
   });
 
   it('maps OpenAI transport failures to actionable errors', async () => {

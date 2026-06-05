@@ -392,6 +392,9 @@ describe('executeCli', () => {
           title: 'Tests not detected',
         },
         {
+          title: 'Package tests not detected',
+        },
+        {
           title: 'Shell execution added',
           filePath: 'packages/dev/src/index.ts',
         },

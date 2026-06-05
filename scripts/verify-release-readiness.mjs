@@ -36,6 +36,24 @@ assert(
 assert(rootPackage.homepage === 'https://github.com/zaowu-labs/zaowu', 'Root homepage must point to the org repo.');
 assert(rootPackage.license === 'Apache-2.0', 'Root license must be Apache-2.0.');
 
+const releasePolicy = await readText(
+  'Release policy must be documented before release work.',
+  'docs',
+  'RELEASE_POLICY.md'
+);
+for (const section of [
+  '## Versioning',
+  '## Changelog',
+  '## Branches And Tags',
+  '## npm Publish Rules',
+  '## Preflight',
+]) {
+  assert(releasePolicy.includes(section), `Release policy must include ${section}.`);
+}
+
+const changelog = await readText('CHANGELOG.md must exist before release work.', 'CHANGELOG.md');
+assert(changelog.includes('## Unreleased'), 'CHANGELOG.md must include an Unreleased section.');
+
 const packageDirs = (await readdir(packageRoot, { withFileTypes: true }))
   .filter((entry) => entry.isDirectory())
   .map((entry) => entry.name)
