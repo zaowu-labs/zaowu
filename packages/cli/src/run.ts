@@ -40,6 +40,7 @@ interface DoctorCheck {
 }
 
 interface DoctorResult {
+  schemaVersion: 1;
   status: OverallStatus;
   checks: DoctorCheck[];
   nextSteps: string[];
@@ -264,6 +265,7 @@ const buildDoctorResult = async (options: CliExecutionOptions = {}): Promise<Doc
     .map((check) => check.fix as string);
 
   return {
+    schemaVersion: 1,
     status: checks.some((check) => check.status !== 'ok') ? 'warning' : 'ok',
     checks,
     nextSteps,

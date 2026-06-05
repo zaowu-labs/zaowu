@@ -10,6 +10,8 @@ validators.
 - `zaowu.workflow.schema.json` - `zw auto validate|plan|run` workflow files,
   including preview-first `permissions`
 - `zaowu.plugin.schema.json` - local plugin manifests such as `zaowu.plugin.json`
+- `zaowu.command.doctor.schema.json` - versioned `zw doctor --json` result
+  shape
 - `zaowu.command.dev-review.schema.json` - versioned `zw dev review --json`
   result shape
 - `zaowu.command.auto-validate.schema.json` - versioned

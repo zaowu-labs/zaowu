@@ -57,7 +57,8 @@ Reads:
 
 ## 7. Output Rules
 
-Default output is human-readable. `--json` returns valid JSON without extra text.
+Default output is human-readable. `--json` returns valid JSON without extra text
+and follows `schemas/zaowu.command.doctor.schema.json`.
 
 ## 8. Safety Rules
 
@@ -106,6 +107,7 @@ Examples:
 - [x] missing tools
 - [x] unsupported pnpm version
 - [x] `--json` output
+- [x] versioned `--json` schema contract
 - [x] config discovery
 - [x] help output
 

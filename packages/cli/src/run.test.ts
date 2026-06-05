@@ -707,6 +707,7 @@ describe('executeCli', () => {
 
       expect(result.exitCode).toBe(0);
       expect(JSON.parse(result.stdout)).toMatchObject({
+        schemaVersion: 1,
         status: 'ok',
         checks: [
           {
