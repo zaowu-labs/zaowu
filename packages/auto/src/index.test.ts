@@ -29,12 +29,22 @@ describe('auto domain', () => {
         version: 1,
         name: 'demo',
         variables: {},
+        permissions: {
+          shell: 'blocked',
+          fileWrites: 'blocked',
+          network: 'blocked',
+        },
         steps: [
           {
             name: 'hello',
             message: 'Hello',
           },
         ],
+      },
+      policy: {
+        shell: 'blocked',
+        fileWrites: 'blocked',
+        network: 'blocked',
       },
       warnings: [],
     });
@@ -51,6 +61,69 @@ describe('auto domain', () => {
     expect(
       validateWorkflowContent('name: demo\nsteps:\n  - name: build\n    run: pnpm build\n').warnings
     ).toEqual(['Step `build` uses shell execution, which this first version will not run.']);
+  });
+
+  it('parses workflow execution policy without enabling shell execution', () => {
+    expect(
+      planWorkflowContent(
+        'name: demo\npermissions:\n  shell: prompt\nsteps:\n  - name: build\n    run: pnpm build\n'
+      )
+    ).toMatchObject({
+      policy: {
+        shell: 'prompt',
+        fileWrites: 'blocked',
+        network: 'blocked',
+      },
+      steps: [
+        {
+          name: 'build',
+          action: 'shell',
+          requiredPermission: 'shell',
+          policyDecision: 'blocked',
+          blocked: true,
+          reason:
+            'Shell permission is prompt-only, but shell execution is not supported in this foundation version.',
+        },
+      ],
+      warnings: [
+        'Step `build` uses shell execution, which this first version will not run.',
+        'Step `build` requests shell permission, but shell execution remains blocked in this foundation version.',
+      ],
+    });
+  });
+
+  it('warns about invalid workflow permission values', () => {
+    expect(
+      validateWorkflowContent(
+        'name: demo\npermissions:\n  shell: always\nsteps:\n  - name: hello\n    message: Hi\n'
+      ).warnings
+    ).toEqual(['Permission `shell` value `always` is invalid; defaulting to blocked.']);
+  });
+
+  it('warns about unsupported workflow permission keys', () => {
+    expect(
+      validateWorkflowContent(
+        'name: demo\npermissions:\n  filesystem: prompt\nsteps:\n  - name: hello\n    message: Hi\n'
+      ).warnings
+    ).toEqual(['Permission `filesystem` is not supported; ignoring it.']);
+  });
+
+  it('warns when JSON workflow permissions are not an object', () => {
+    expect(
+      validateWorkflowContent(
+        JSON.stringify({
+          name: 'demo',
+          permissions: 'prompt',
+          steps: [
+            {
+              name: 'hello',
+              message: 'Hi',
+            },
+          ],
+        }),
+        'workflow.json'
+      ).warnings
+    ).toEqual(['Permissions must be an object; defaulting to blocked.']);
   });
 
   it('warns about unsupported explicit workflow versions', () => {
@@ -86,12 +159,16 @@ describe('auto domain', () => {
           action: 'message',
           preview: 'Hello ZaoWu',
           blocked: false,
+          policyDecision: 'allowed',
         },
         {
           name: 'build',
           action: 'shell',
           preview: 'pnpm build',
           blocked: true,
+          requiredPermission: 'shell',
+          policyDecision: 'blocked',
+          reason: 'Shell permission is blocked by workflow policy.',
         },
       ],
     });

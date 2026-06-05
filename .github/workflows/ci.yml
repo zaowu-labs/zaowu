@@ -47,6 +47,9 @@ jobs:
       - name: Check rich fixtures
         run: corepack pnpm verify:fixtures
 
+      - name: Check release readiness
+        run: corepack pnpm verify:release
+
       - name: Check package contents
         run: corepack pnpm pack:check
 

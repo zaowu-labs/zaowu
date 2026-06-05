@@ -7,7 +7,8 @@ validators.
 ## Files
 
 - `zaowu.config.schema.json` - `zw.yml`, `zw.yaml`, `zaowu.config.json`, and `.zaowurc`
-- `zaowu.workflow.schema.json` - `zw auto validate|plan|run` workflow files
+- `zaowu.workflow.schema.json` - `zw auto validate|plan|run` workflow files,
+  including preview-first `permissions`
 - `zaowu.plugin.schema.json` - local plugin manifests such as `zaowu.plugin.json`
 
 Runtime validation still lives in the owning packages. Keep schemas, examples,

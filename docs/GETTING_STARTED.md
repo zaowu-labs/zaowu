@@ -91,9 +91,10 @@ corepack pnpm --silent zw dev review --staged
 corepack pnpm --silent zw dev commit
 ```
 
-Review and commit previews include change categories and recommended validation
-commands so the next check is explicit. Worktree review lists untracked files by
-name; stage them when you need full Git diff context.
+Review output includes change categories, diff hunk summaries, deterministic
+risk signals, and recommended validation commands so the next check is explicit.
+Worktree review lists untracked files by name; stage them when you need full Git
+diff context.
 
 Work with supported documents. Text, Markdown-like files, PDF, and DOCX are
 handled as extracted text in this foundation version:
@@ -129,6 +130,9 @@ corepack pnpm --silent zw auto run examples/workflows/message.yml
 
 Workflows default to `version: 1`; unsupported explicit versions produce a
 warning and remain visible in validation and plan output.
+Workflow `permissions` can declare `shell`, `fileWrites`, and `network` as
+`blocked` or `prompt`. In this foundation version, shell steps still stay
+blocked even when `permissions.shell: prompt` is present.
 
 Manage local plugin manifests:
 
@@ -175,7 +179,8 @@ corepack pnpm verify
 
 This gate also checks `examples/` against runtime parsers, validates the schema
 files, generates temporary PDF/DOCX/XLSX fixtures for CLI checks, and installs
-the packed CLI into a temporary project before running `zw`.
+the packed CLI into a temporary project before running `zw`. It also checks
+release-facing package metadata before package dry-run.
 
 Windows:
 

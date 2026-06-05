@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -10,6 +10,11 @@ import {
   previewAIRequest,
   validateAIProviderConfig,
 } from './index';
+
+const readOpenAIFixture = async (name: string): Promise<unknown> =>
+  JSON.parse(
+    await readFile(new URL(`../test/fixtures/${name}.json`, import.meta.url), 'utf8')
+  ) as unknown;
 
 describe('AI provider registry', () => {
   it('starts with a local echo provider', () => {
@@ -172,9 +177,7 @@ describe('AI provider registry', () => {
             status: 200,
             statusText: 'OK',
             async json() {
-              return {
-                output_text: 'ZaoWu is a toolkit.',
-              };
+              return await readOpenAIFixture('openai-output-text');
             },
           };
         },
@@ -222,18 +225,7 @@ describe('AI provider registry', () => {
           status: 200,
           statusText: 'OK',
           async json() {
-            return {
-              output: [
-                {
-                  content: [
-                    {
-                      type: 'output_text',
-                      text: 'Nested output works.',
-                    },
-                  ],
-                },
-              ],
-            };
+            return await readOpenAIFixture('openai-nested-output');
           },
         }),
       })
@@ -333,17 +325,7 @@ describe('AI provider registry', () => {
           status: 200,
           statusText: 'OK',
           async json() {
-            return {
-              output: [
-                {
-                  content: [
-                    {
-                      type: 'refusal',
-                    },
-                  ],
-                },
-              ],
-            };
+            return await readOpenAIFixture('openai-no-text-output');
           },
         }),
       })

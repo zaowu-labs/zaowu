@@ -42,8 +42,9 @@ Use this process for every important command:
 7. Add or update stable error codes for new expected failures.
 8. Add focused tests.
 9. Update examples or schemas when user-authored input contracts change.
-10. Update README or related docs.
-11. Run validation.
+10. Update release-readiness checks when package metadata changes.
+11. Update README or related docs.
+12. Run validation.
 
 Command shape:
 
@@ -152,8 +153,8 @@ corepack pnpm verify
 ```
 
 The verify gate includes build, schema/example consistency, rich PDF/DOCX/XLSX
-fixture checks, CLI smoke, package tests, lint, formatting, package dry-run, and
-a packed CLI install smoke.
+fixture checks, CLI smoke, package tests, lint, formatting, release metadata,
+package dry-run, and a packed CLI install smoke.
 
 On Windows, `.\scripts\verify-local.ps1` runs the same local gate. On macOS or
 Linux, use `sh ./scripts/verify-local.sh`.

@@ -30,18 +30,20 @@ Scope:
 - CLI smoke and golden-output checks for first-use experience
 - schema/example checks for user-authored config, workflow, and plugin inputs
 - generated rich fixture checks for PDF, DOCX, and XLSX command paths
+- release metadata readiness checks before package dry-run
 - packed CLI install smoke for release-facing command availability
 - package boundary guard for domain packages
 - capability ledgers and operation plans for sensitive commands
 - local AI provider listing and explicit file input
 - non-streaming OpenAI provider adapter behind `packages/ai` with explicit
   network confirmation, shared preview, timeout, and input-size guardrails
-- developer status/review/commit previews with change categories and
-  recommended checks
+- developer status/review/commit previews with change categories, diff hunk
+  summaries, deterministic risk signals, and recommended checks
 - document outline/search, frontmatter extraction, PDF, and DOCX text extraction
 - data schema/sample, clean metadata, and XLSX first-sheet or named-sheet
   support with stable normalized headers
-- automation planning with variable checks and workflow version warnings
+- automation planning with variable checks, workflow version warnings, and
+  explicit execution policy decisions
 - local plugin manifest validation with schema version and command checks
 - user-facing examples and JSON Schemas kept outside runtime packages
 
@@ -57,6 +59,7 @@ Exit criteria:
   are covered by automated tests.
 - Package contents are checked with `pack --dry-run` before release-facing
   changes are considered ready.
+- Release-facing package metadata is checked before package dry-run.
 - Packed CLI installation is smoke-tested in a temporary project before
   release-facing changes are considered ready.
 - The built CLI smoke path covers init, doctor, AI preview, data, document,

@@ -118,6 +118,26 @@ assertInvalid(
   },
   'Workflow schema should reject steps without a supported action.'
 );
+assertInvalid(
+  validators.workflow,
+  {
+    ...messageWorkflow.workflow,
+    permissions: {
+      shell: 'always',
+    },
+  },
+  'Workflow schema should reject unsupported permission modes.'
+);
+assertInvalid(
+  validators.workflow,
+  {
+    ...messageWorkflow.workflow,
+    permissions: {
+      filesystem: 'prompt',
+    },
+  },
+  'Workflow schema should reject unsupported permission keys.'
+);
 
 const pluginValidation = await validatePluginSource(
   path.join(root, 'examples', 'plugins', 'hello')

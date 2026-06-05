@@ -347,6 +347,56 @@ describe('executeCli', () => {
     });
   });
 
+  it('runs dev review with diff hunk analysis from CLI', async () => {
+    const result = await executeCli(['dev', 'review', '--staged', '--json'], {
+      commandRunner: (_command, args) => {
+        if (args.join(' ') === 'diff --cached --name-only') {
+          return 'packages/dev/src/index.ts';
+        }
+
+        if (args.join(' ') === 'diff --cached --numstat') {
+          return '3\t1\tpackages/dev/src/index.ts';
+        }
+
+        if (args.join(' ') === 'diff --cached --unified=0') {
+          return [
+            'diff --git a/packages/dev/src/index.ts b/packages/dev/src/index.ts',
+            '@@ -10,0 +11 @@',
+            '+execFileSync("git", ["status"])',
+          ].join('\n');
+        }
+
+        throw new Error('unexpected command');
+      },
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      status: 'ok',
+      source: 'staged',
+      diffHunks: [
+        {
+          filePath: 'packages/dev/src/index.ts',
+          header: '@@ -10,0 +11 @@',
+          addedLines: 1,
+          removedLines: 0,
+        },
+      ],
+      findings: [
+        {
+          title: 'Change size',
+        },
+        {
+          title: 'Tests not detected',
+        },
+        {
+          title: 'Shell execution added',
+          filePath: 'packages/dev/src/index.ts',
+        },
+      ],
+    });
+  });
+
   it('runs document summary from CLI', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
     const filePath = path.join(root, 'note.md');
@@ -476,11 +526,15 @@ describe('executeCli', () => {
         workflow: {
           name: 'demo',
         },
+        policy: {
+          shell: 'blocked',
+        },
         steps: [
           {
             name: 'hello',
             preview: 'Hello ZaoWu',
             blocked: false,
+            policyDecision: 'allowed',
           },
         ],
       });

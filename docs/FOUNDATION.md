@@ -16,8 +16,8 @@ grows.
    `zw config migrate`.
 7. One AI boundary: model providers live behind `packages/ai`.
 8. One verification loop: build, schema/example checks, rich fixture checks,
-   tests, lint, format, package dry-run, packed-install smoke, and manual CLI
-   checks run before a change is considered finished.
+   tests, lint, format, release readiness, package dry-run, packed-install
+   smoke, and manual CLI checks run before a change is considered finished.
 9. One user-input contract surface: examples live under `examples/`, schemas
    live under `schemas/`, and runtime behavior lives in the owning package.
 
@@ -109,8 +109,10 @@ Use this order for new commands or major behavior:
 6. Add or update the command contract registry.
 7. Add tests for human output, JSON output, error paths, and preview behavior.
 8. Update README, Getting Started, and the command catalog.
-9. Run the full validation suite.
-10. Run manual CLI checks.
+9. Update release or schema checks when public package metadata or user-authored
+   input shapes change.
+10. Run the full validation suite.
+11. Run manual CLI checks.
 
 ## Validation Loop
 

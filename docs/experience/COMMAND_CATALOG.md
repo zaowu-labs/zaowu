@@ -101,6 +101,8 @@ Safety:
 - `zw dev review --staged` and `zw dev review --worktree` keep sources explicit.
 - Review and commit previews include change categories and recommended checks so
   users know whether build, test, lint, format, or frozen install is relevant.
+- Review output includes diff hunk summaries and deterministic risk signals for
+  large hunks, shell execution, file mutation, network access, and focused tests.
 - Worktree review lists untracked files by name; stage them when full Git diff
   context is required.
 
@@ -173,6 +175,8 @@ Workflow support:
 - Workflows default to `version: 1`; unsupported explicit versions are reported
   as warnings.
 - `vars` can be referenced as `{{name}}`.
+- `permissions` can declare `shell`, `fileWrites`, and `network` as `blocked` or
+  `prompt`; this is a planning policy, not execution permission in this phase.
 - `message` steps can run when confirmed.
 - `run` shell steps are detected, planned, and blocked.
 - The public workflow shape is documented in `schemas/zaowu.workflow.schema.json`.
@@ -184,6 +188,7 @@ Safety:
 - Shell execution is not enabled in this foundation version.
 - Shell-like steps remain visible in plans so users can see exactly what is
   blocked.
+- Shell steps stay blocked even when `permissions.shell: prompt` is declared.
 
 ## `zw plugin`
 
@@ -243,7 +248,7 @@ Every registered command must keep action help available in both human and JSON
 forms.
 
 The `corepack pnpm verify` script runs build, CLI smoke, tests, lint, format
-check, and package dry-run. The smoke check in `scripts/verify-cli-smoke.mjs`
+check, release readiness, and package dry-run. The smoke check in `scripts/verify-cli-smoke.mjs`
 exercises the built CLI across init, doctor, AI preview, data, document,
 automation, plugin, and web preview paths. `scripts/verify-local.ps1` and
 `scripts/verify-local.sh` add frozen install and `git diff --check` before
