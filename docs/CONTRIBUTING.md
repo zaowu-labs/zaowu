@@ -153,8 +153,9 @@ corepack pnpm verify
 ```
 
 The verify gate includes build, schema/example consistency, rich PDF/DOCX/XLSX
-fixture checks, CLI smoke, package tests, lint, formatting, release metadata,
-package dry-run, and a packed CLI install smoke.
+fixture checks, JSON contract checks, CLI smoke, package tests, lint,
+formatting, release metadata and package README checks, package dry-run, and a
+packed CLI install smoke.
 
 On Windows, `.\scripts\verify-local.ps1` runs the same local gate. On macOS or
 Linux, use `sh ./scripts/verify-local.sh`.

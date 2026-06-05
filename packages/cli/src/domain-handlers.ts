@@ -100,6 +100,19 @@ const formatPolicy = (policy: { shell: string; fileWrites: string; network: stri
     `- network: ${policy.network}`,
   ].join('\n');
 
+const formatSandbox = (sandbox: {
+  root: string;
+  shellCommands: string;
+  fileWrites: string;
+  network: string;
+}): string =>
+  [
+    `- root: ${sandbox.root}`,
+    `- shellCommands: ${sandbox.shellCommands}`,
+    `- fileWrites: ${sandbox.fileWrites}`,
+    `- network: ${sandbox.network}`,
+  ].join('\n');
+
 const formatFinding = (finding: {
   severity: string;
   title: string;
@@ -701,6 +714,9 @@ const handleAutoValidate: DomainActionHandler = async (args, context) => {
     'Policy:',
     formatPolicy(validation.policy),
     '',
+    'Sandbox:',
+    formatSandbox(validation.sandbox),
+    '',
     validation.warnings.length > 0
       ? ['Warnings:', ...validation.warnings.map((warning) => `- ${warning}`)].join('\n')
       : 'Warnings: none',
@@ -726,6 +742,7 @@ const handleAutoRun: DomainActionHandler = async (args, context) => {
     notes: [
       'Workflow runs preview by default.',
       `Policy shell: ${plan.policy.shell}.`,
+      `Sandbox shellCommands: ${plan.sandbox.shellCommands}.`,
       `Ready message steps: ${readyMessageSteps.length > 0 ? readyMessageSteps.join(', ') : 'none'}.`,
       `Blocked steps: ${blockedSteps.length > 0 ? blockedSteps.join('; ') : 'none'}.`,
       'Shell steps are not executed in this foundation version.',
@@ -737,6 +754,9 @@ const handleAutoRun: DomainActionHandler = async (args, context) => {
     `Status: ${run.status}`,
     `Workflow: ${run.workflow.name}`,
     `Version: ${run.workflow.version}`,
+    '',
+    'Sandbox:',
+    formatSandbox(run.sandbox),
     '',
     formatOperationPlan(operationPlan),
     '',
@@ -762,6 +782,9 @@ const handleAutoPlan: DomainActionHandler = async (args, context) => {
     '',
     'Policy:',
     formatPolicy(plan.policy),
+    '',
+    'Sandbox:',
+    formatSandbox(plan.sandbox),
     '',
     ...plan.steps.map(
       (step) =>

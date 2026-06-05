@@ -23,6 +23,7 @@ describe('auto domain', () => {
     expect(
       validateWorkflowContent('name: demo\nsteps:\n  - name: hello\n    message: Hello\n')
     ).toEqual({
+      schemaVersion: 1,
       status: 'ok',
       filePath: 'workflow.yml',
       workflow: {
@@ -42,7 +43,15 @@ describe('auto domain', () => {
         ],
       },
       policy: {
+        schemaVersion: 1,
         shell: 'blocked',
+        fileWrites: 'blocked',
+        network: 'blocked',
+      },
+      sandbox: {
+        schemaVersion: 1,
+        root: 'workflow-directory',
+        shellCommands: 'blocked',
         fileWrites: 'blocked',
         network: 'blocked',
       },
@@ -69,10 +78,16 @@ describe('auto domain', () => {
         'name: demo\npermissions:\n  shell: prompt\nsteps:\n  - name: build\n    run: pnpm build\n'
       )
     ).toMatchObject({
+      schemaVersion: 1,
       policy: {
+        schemaVersion: 1,
         shell: 'prompt',
         fileWrites: 'blocked',
         network: 'blocked',
+      },
+      sandbox: {
+        schemaVersion: 1,
+        shellCommands: 'blocked',
       },
       steps: [
         {
@@ -190,7 +205,12 @@ describe('auto domain', () => {
 
     try {
       await expect(runWorkflowFile(filePath)).resolves.toMatchObject({
+        schemaVersion: 1,
         status: 'preview',
+        sandbox: {
+          schemaVersion: 1,
+          shellCommands: 'blocked',
+        },
         executed: [],
         skipped: ['hello: dry-run'],
       });

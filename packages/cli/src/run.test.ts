@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -372,6 +373,7 @@ describe('executeCli', () => {
 
     expect(result.exitCode).toBe(0);
     expect(JSON.parse(result.stdout)).toMatchObject({
+      schemaVersion: 1,
       status: 'ok',
       source: 'staged',
       diffHunks: [
@@ -395,6 +397,36 @@ describe('executeCli', () => {
         },
       ],
     });
+  });
+
+  it('runs dev review against a real working-tree Git diff', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-git-'));
+    const filePath = path.join(root, 'note.txt');
+
+    try {
+      execFileSync('git', ['init'], { cwd: root, stdio: 'ignore' });
+      await writeFile(filePath, 'old\n', 'utf8');
+      execFileSync('git', ['add', 'note.txt'], { cwd: root, stdio: 'ignore' });
+      await writeFile(filePath, 'old\nnew\n', 'utf8');
+
+      const result = await executeCli(['dev', 'review', '--worktree', '--json'], { cwd: root });
+      const payload = JSON.parse(result.stdout);
+
+      expect(result.exitCode).toBe(0);
+      expect(payload).toMatchObject({
+        schemaVersion: 1,
+        source: 'working-tree',
+        diffHunks: [
+          {
+            filePath: 'note.txt',
+            addedLines: 1,
+            removedLines: 0,
+          },
+        ],
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 
   it('runs document summary from CLI', async () => {
@@ -523,11 +555,18 @@ describe('executeCli', () => {
       const plan = await executeCli(['auto', 'plan', filePath, '--json']);
 
       expect(JSON.parse(plan.stdout)).toMatchObject({
+        schemaVersion: 1,
         workflow: {
           name: 'demo',
         },
         policy: {
+          schemaVersion: 1,
           shell: 'blocked',
+        },
+        sandbox: {
+          schemaVersion: 1,
+          root: 'workflow-directory',
+          shellCommands: 'blocked',
         },
         steps: [
           {

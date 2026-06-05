@@ -66,7 +66,7 @@ export const DOMAIN_DEFINITIONS: readonly DomainDefinition[] = [
   CONFIG_DOMAIN,
 ];
 
-const WINDOWS_COMMAND_PART_PATTERN = /^[a-zA-Z0-9._@:/\\-]+$/;
+const WINDOWS_COMMAND_PART_PATTERN = /^[a-zA-Z0-9._@:/\\=-]+$/;
 
 const toWindowsCommand = (command: string, args: readonly string[]): string => {
   const parts = [command, ...args];

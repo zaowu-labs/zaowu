@@ -177,6 +177,8 @@ Workflow support:
 - `vars` can be referenced as `{{name}}`.
 - `permissions` can declare `shell`, `fileWrites`, and `network` as `blocked` or
   `prompt`; this is a planning policy, not execution permission in this phase.
+- JSON output separates the parsed workflow permissions from the runtime
+  `policy` and blocked execution `sandbox`.
 - `message` steps can run when confirmed.
 - `run` shell steps are detected, planned, and blocked.
 - The public workflow shape is documented in `schemas/zaowu.workflow.schema.json`.
@@ -189,6 +191,8 @@ Safety:
 - Shell-like steps remain visible in plans so users can see exactly what is
   blocked.
 - Shell steps stay blocked even when `permissions.shell: prompt` is declared.
+- The execution sandbox reports shell commands, file writes, and network access
+  as blocked.
 
 ## `zw plugin`
 
@@ -247,8 +251,9 @@ The CLI keeps a command contract registry in `packages/cli/src/command-contracts
 Every registered command must keep action help available in both human and JSON
 forms.
 
-The `corepack pnpm verify` script runs build, CLI smoke, tests, lint, format
-check, release readiness, and package dry-run. The smoke check in `scripts/verify-cli-smoke.mjs`
+The `corepack pnpm verify` script runs build, JSON contract checks, CLI smoke,
+tests, lint, format check, release readiness, and package dry-run. The smoke
+check in `scripts/verify-cli-smoke.mjs`
 exercises the built CLI across init, doctor, AI preview, data, document,
 automation, plugin, and web preview paths. `scripts/verify-local.ps1` and
 `scripts/verify-local.sh` add frozen install and `git diff --check` before

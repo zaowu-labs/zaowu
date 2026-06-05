@@ -26,14 +26,15 @@ ZaoWu is in the first runnable foundation phase. The repository is focused on:
 - capability ledgers and operation plans for sensitive commands
 - a local echo AI provider plus preview-first non-streaming OpenAI adapter with
   provider-level confirmation, timeout, and shared preview/input-size guards
-- CLI smoke, packed-install smoke, schema/example checks, and golden-output
-  checks for first-use command experience
+- CLI smoke, packed-install smoke, schema/example checks, JSON contract checks,
+  and golden-output checks for first-use command experience
 - developer review/commit previews with change categories, diff hunk summaries,
-  deterministic risk signals, and recommended checks
+  deterministic risk signals, dependency consistency checks, and recommended
+  checks
 - overwrite-safe PDF, DOCX, CSV, TSV, and XLSX support with named worksheet
   selection for XLSX and stable normalized column names
-- versioned automation workflows with explicit execution policy planning and
-  local plugin manifest validation
+- versioned automation workflows with explicit execution policy planning,
+  blocked execution sandbox reporting, and local plugin manifest validation
 - user-facing examples and JSON Schemas for config, workflow, and plugin inputs
 
 Later modules should build on this foundation instead of becoming separate scripts:
@@ -141,10 +142,10 @@ corepack pnpm verify
 ```
 
 `corepack pnpm verify` builds the workspace, compiles schemas with Ajv, checks
-examples, generates rich PDF/DOCX/XLSX fixtures for CLI checks, runs CLI smoke
-tests, tests packages, lints, checks formatting, verifies release metadata,
-verifies package contents, and installs the packed CLI into a temporary project
-before running `zw`.
+examples, generates rich PDF/DOCX/XLSX fixtures for CLI checks, checks versioned
+JSON contracts, runs CLI smoke tests, tests packages, lints, checks formatting,
+verifies release metadata and package README files, verifies package contents,
+and installs the packed CLI into a temporary project before running `zw`.
 
 Do not run dependency installation, commits, pushes, or destructive actions unless the user explicitly asks for them.
 
@@ -187,6 +188,7 @@ docs/ROADMAP.md       Preferred phase order for growing ZaoWu
 docs/CONTRIBUTING.md  Development workflow, safety rules, and validation
 docs/ERROR_CODES.md   Stable user-facing error code registry
 docs/FOUNDATION.md    Foundation invariants and future workflow rules
+docs/JSON_CONTRACTS.md Versioned machine-readable command output contracts
 docs/RELEASE.md       Release-readiness gate and publish boundaries
 docs/experience/COMMAND_CATALOG.md  First-version command behavior and limits
 examples/README.md    Checked examples for config, docs, data, workflows, plugins

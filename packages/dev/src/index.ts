@@ -59,6 +59,7 @@ export interface DevDiffHunk {
 }
 
 export interface DevReviewResult {
+  schemaVersion: 1;
   status: 'ok';
   source: 'staged' | 'working-tree';
   summary: GitChangeSummary;
@@ -68,6 +69,8 @@ export interface DevReviewResult {
 }
 
 export type DevReviewMode = 'auto' | 'staged' | 'worktree';
+
+const DEV_REVIEW_SCHEMA_VERSION = 1;
 
 export const DEV_DOMAIN: DomainDefinition = {
   name: 'dev',
@@ -469,6 +472,34 @@ const addDiffHeuristicFindings = (
   }
 };
 
+const addDependencyConsistencyFindings = (
+  findings: DevReviewFinding[],
+  files: readonly string[]
+): void => {
+  const hasPackageManifest = files.some(
+    (file) => file === 'package.json' || file.endsWith('/package.json')
+  );
+  const hasLockfile = files.includes('pnpm-lock.yaml');
+
+  if (hasPackageManifest && !hasLockfile) {
+    findings.push({
+      severity: 'warning',
+      title: 'Package manifest without lockfile',
+      detail:
+        'A package manifest changed without pnpm-lock.yaml; confirm dependency resolution did not change or run a frozen install.',
+    });
+  }
+
+  if (hasLockfile && !hasPackageManifest) {
+    findings.push({
+      severity: 'warning',
+      title: 'Lockfile without package manifest',
+      detail:
+        'pnpm-lock.yaml changed without a package manifest; confirm the lockfile change is intentional.',
+    });
+  }
+};
+
 export const previewDevCommit = (
   commandRunner: DevCommandRunner,
   options: { cwd?: string } = {}
@@ -615,9 +646,11 @@ export const reviewDevChanges = (
     });
   }
 
+  addDependencyConsistencyFindings(findings, summary.files);
   addDiffHeuristicFindings(findings, diffHunks);
 
   return {
+    schemaVersion: DEV_REVIEW_SCHEMA_VERSION,
     status: 'ok',
     source,
     summary,

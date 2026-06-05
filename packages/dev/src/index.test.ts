@@ -89,6 +89,7 @@ describe('dev domain', () => {
     };
 
     expect(reviewDevChanges(runner)).toMatchObject({
+      schemaVersion: 1,
       status: 'ok',
       source: 'working-tree',
       summary: {
@@ -204,6 +205,7 @@ describe('dev domain', () => {
     };
 
     expect(reviewDevChanges(runner, { mode: 'staged' })).toMatchObject({
+      schemaVersion: 1,
       source: 'staged',
       summary: {
         files: ['packages/dev/src/index.ts'],
@@ -228,6 +230,64 @@ describe('dev domain', () => {
         },
       ],
     });
+  });
+
+  it('flags package manifest and lockfile consistency risks', () => {
+    const runner: DevCommandRunner = (_command, args) => {
+      if (args.join(' ') === 'diff --cached --name-only') {
+        return 'packages/auto/package.json';
+      }
+
+      if (args.join(' ') === 'diff --cached --numstat') {
+        return '1\t0\tpackages/auto/package.json';
+      }
+
+      if (args.join(' ') === 'diff --cached --unified=0') {
+        return '';
+      }
+
+      throw new Error('unexpected git command');
+    };
+
+    expect(reviewDevChanges(runner, { mode: 'staged' }).findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          severity: 'warning',
+          title: 'Dependency metadata changed',
+        }),
+        expect.objectContaining({
+          severity: 'warning',
+          title: 'Package manifest without lockfile',
+        }),
+      ])
+    );
+  });
+
+  it('flags lockfile changes without package manifests', () => {
+    const runner: DevCommandRunner = (_command, args) => {
+      if (args.join(' ') === 'diff --cached --name-only') {
+        return 'pnpm-lock.yaml';
+      }
+
+      if (args.join(' ') === 'diff --cached --numstat') {
+        return '1\t1\tpnpm-lock.yaml';
+      }
+
+      if (args.join(' ') === 'diff --cached --unified=0') {
+        return '';
+      }
+
+      throw new Error('unexpected git command');
+    };
+
+    expect(reviewDevChanges(runner, { mode: 'staged' }).findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          severity: 'warning',
+          title: 'Lockfile without package manifest',
+        }),
+      ])
+    );
   });
 
   it('parses Git status output', () => {

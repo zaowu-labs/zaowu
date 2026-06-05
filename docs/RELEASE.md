@@ -16,6 +16,7 @@ The gate includes:
 - TypeScript build
 - schema/example validation
 - generated PDF/DOCX/XLSX fixture checks
+- JSON contract checks for versioned machine output
 - CLI smoke checks
 - package tests
 - lint and format checks
@@ -34,9 +35,19 @@ It verifies:
 - root package stays private
 - canonical repository and homepage point to `zaowu-labs/zaowu`
 - Node.js and pnpm engine policy stays pinned
-- package names, versions, license, ESM exports, files, and keywords stay aligned
+- package names, versions, license, ESM exports, files, README files, and
+  keywords stay aligned
 - workspace package dependencies use `workspace:*`
 - only `@zaowu/cli` exposes the `zw` binary
+
+The JSON contract check is:
+
+```bash
+corepack pnpm verify:json-contracts
+```
+
+It verifies the built `zw dev review` and `zw auto plan` machine-readable
+contracts documented in `docs/JSON_CONTRACTS.md`.
 
 ## Not Yet Ready
 
@@ -45,9 +56,8 @@ Do not publish packages until these are intentionally designed:
 - versioning and changelog policy
 - release branch/tag policy
 - npm provenance and publish permissions
-- package-level README content
 - public support policy
-- backward compatibility policy for command JSON output
+- backward compatibility policy beyond the current versioned JSON contracts
 
 ## Manual Preflight
 
