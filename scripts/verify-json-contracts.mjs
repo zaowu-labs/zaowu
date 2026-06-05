@@ -30,6 +30,7 @@ const schemas = {
   autoPlan: await readJson('schemas', 'zaowu.command.auto-plan.schema.json'),
   autoRun: await readJson('schemas', 'zaowu.command.auto-run.schema.json'),
   devReview: await readJson('schemas', 'zaowu.command.dev-review.schema.json'),
+  doctor: await readJson('schemas', 'zaowu.command.doctor.schema.json'),
   error: await readJson('schemas', 'zaowu.command.error.schema.json'),
 };
 
@@ -52,6 +53,7 @@ const validators = {
   autoPlan: ajv.compile(schemas.autoPlan),
   autoRun: ajv.compile(schemas.autoRun),
   devReview: ajv.compile(schemas.devReview),
+  doctor: ajv.compile(schemas.doctor),
   error: ajv.compile(schemas.error),
 };
 
@@ -111,6 +113,11 @@ const assertSchemaFragmentsStayAligned = () => {
     schemas.devReview.properties.operationPlan,
     { $ref: ref('operationPlan') },
     'dev review operationPlan schema must reference the shared operationPlan fragment.'
+  );
+  assertJsonEqual(
+    schemas.doctor.properties.operationPlan,
+    { $ref: ref('operationPlan') },
+    'doctor operationPlan schema must reference the shared operationPlan fragment.'
   );
   assertJsonEqual(
     schemas.autoPlan.properties.steps.items.properties.operationPlan,
@@ -311,10 +318,24 @@ assert(
 assertValid('devReview', review);
 
 const cliWorkflowPath = 'examples/workflows/message.yml';
+const cliDoctor = runCliJson(['doctor']);
 const cliValidation = runCliJson(['auto', 'validate', cliWorkflowPath]);
 const cliPlan = runCliJson(['auto', 'plan', cliWorkflowPath]);
 const cliRun = runCliJson(['auto', 'run', cliWorkflowPath]);
 
+assertValid('doctor', cliDoctor);
+assert(cliDoctor.schemaVersion === 1, 'CLI doctor result schemaVersion must be 1.');
+assert(cliDoctor.operationPlan?.risk === 'low', 'CLI doctor should expose low-risk diagnostics.');
+assert(
+  cliDoctor.operationPlan?.executes?.includes('corepack pnpm --version'),
+  'CLI doctor operation plan should disclose the Corepack pnpm check.'
+);
+assert(
+  ['Node.js', 'Git', 'pnpm', 'Config'].every((name) =>
+    cliDoctor.checks.some((check) => check.name === name)
+  ),
+  'CLI doctor should expose Node.js, Git, pnpm, and Config checks.'
+);
 assertValid('autoValidate', cliValidation);
 assertValid('autoPlan', cliPlan);
 assertValid('autoRun', cliRun);
