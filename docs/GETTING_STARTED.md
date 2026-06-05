@@ -136,6 +136,8 @@ blocked even when `permissions.shell: prompt` is present. JSON output also
 includes a runtime `policy` and an execution `sandbox`; the sandbox keeps shell
 commands, file writes, and network access blocked in this phase. It also shows
 the resolved workflow directory that future execution would use as its boundary.
+`zw auto plan --json` includes per-step `operationPlan` entries so automation
+can inspect risk and planned execution before anything runs.
 
 Manage local plugin manifests:
 

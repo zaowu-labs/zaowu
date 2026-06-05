@@ -578,6 +578,11 @@ describe('executeCli', () => {
             preview: 'Hello ZaoWu',
             blocked: false,
             policyDecision: 'allowed',
+            operationPlan: {
+              risk: 'low',
+              confirmationRequired: false,
+              executes: [],
+            },
           },
         ],
       });

@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.zaowu.dev/zaowu.command.shared.schema.json",
+  "title": "ZaoWu Shared Command Schema Fragments",
+  "type": "object",
+  "$defs": {
+    "operationPlan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "risk",
+        "confirmationRequired",
+        "reads",
+        "writes",
+        "deletes",
+        "executes",
+        "network",
+        "secrets",
+        "notes"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "risk": {
+          "enum": ["low", "medium", "high"]
+        },
+        "confirmationRequired": {
+          "type": "boolean"
+        },
+        "reads": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "writes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "deletes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "executes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "network": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "secrets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "autoPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "shell", "fileWrites", "network"],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "shell": {
+          "enum": ["blocked", "prompt"]
+        },
+        "fileWrites": {
+          "enum": ["blocked", "prompt"]
+        },
+        "network": {
+          "enum": ["blocked", "prompt"]
+        }
+      }
+    },
+    "autoSandbox": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "root",
+        "workflowDirectory",
+        "shellCommands",
+        "fileWrites",
+        "network"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "root": {
+          "const": "workflow-directory"
+        },
+        "workflowDirectory": {
+          "type": "string"
+        },
+        "shellCommands": {
+          "const": "blocked"
+        },
+        "fileWrites": {
+          "const": "blocked"
+        },
+        "network": {
+          "const": "blocked"
+        }
+      }
+    }
+  }
+}

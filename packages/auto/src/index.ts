@@ -1,7 +1,13 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { createCapabilityLedger, stripUtf8Bom, type DomainDefinition } from '@zaowu/core';
-import { ZaoWuError } from '@zaowu/core';
+import {
+  createCapabilityLedger,
+  createOperationPlan,
+  stripUtf8Bom,
+  ZaoWuError,
+  type DomainDefinition,
+  type OperationPlan,
+} from '@zaowu/core';
 
 export interface AutomationStep {
   name: string;
@@ -74,6 +80,7 @@ export interface AutomationPlanStep {
   requiredPermission?: AutomationPermissionName;
   policyDecision: 'allowed' | 'blocked';
   reason?: string;
+  operationPlan: OperationPlan;
 }
 
 export interface AutomationPlanResult {
@@ -411,6 +418,41 @@ const getMissingVariables = (step: AutomationStep, variables: Record<string, str
 const substituteVariables = (value: string, variables: Record<string, string>): string =>
   value.replace(VARIABLE_PATTERN, (_match, name: string) => variables[name] ?? `{{${name}}}`);
 
+const createStepOperationPlan = (step: {
+  action: AutomationPlanStep['action'];
+  preview: string;
+  blocked: boolean;
+  reason?: string;
+}): OperationPlan => {
+  const blockedNote = step.blocked ? [`Step is blocked: ${step.reason ?? 'blocked'}.`] : [];
+
+  if (step.action === 'shell') {
+    return createOperationPlan({
+      risk: 'high',
+      confirmationRequired: true,
+      executes: step.preview ? [step.preview] : [],
+      notes: [...blockedNote, 'Shell execution is not supported in this foundation version.'],
+    });
+  }
+
+  if (step.action === 'message') {
+    return createOperationPlan({
+      risk: 'low',
+      confirmationRequired: false,
+      notes: [
+        ...blockedNote,
+        'Message steps do not read files, write files, run shell commands, or use network.',
+      ],
+    });
+  }
+
+  return createOperationPlan({
+    risk: 'low',
+    confirmationRequired: false,
+    notes: [...blockedNote, 'Unsupported steps have no executable action.'],
+  });
+};
+
 export const validateWorkflowContent = (
   content: string,
   filePath = 'workflow.yml'
@@ -500,46 +542,73 @@ export const planWorkflowContent = (
     const missingVariables = getMissingVariables(step, validation.workflow.variables);
 
     if (missingVariables.length > 0) {
+      const action = step.run ? 'shell' : step.message ? 'message' : 'unsupported';
+      const preview = step.message ?? step.run ?? '';
+      const reason = `Missing variable(s): ${missingVariables.join(', ')}`;
+
       return {
         index: index + 1,
         name: step.name,
-        action: step.run ? 'shell' : step.message ? 'message' : 'unsupported',
-        preview: step.message ?? step.run ?? '',
+        action,
+        preview,
         blocked: true,
         requiredPermission: step.run ? 'shell' : undefined,
         policyDecision: 'blocked',
-        reason: `Missing variable(s): ${missingVariables.join(', ')}`,
+        reason,
+        operationPlan: createStepOperationPlan({
+          action,
+          preview,
+          blocked: true,
+          reason,
+        }),
       };
     }
 
     if (step.run) {
       const shellPolicy = validation.workflow.permissions.shell;
+      const preview = substituteVariables(step.run, validation.workflow.variables);
+      const reason =
+        shellPolicy === 'prompt'
+          ? 'Shell permission is prompt-only, but shell execution is not supported in this foundation version.'
+          : 'Shell permission is blocked by workflow policy.';
 
       return {
         index: index + 1,
         name: step.name,
         action: 'shell',
-        preview: substituteVariables(step.run, validation.workflow.variables),
+        preview,
         blocked: true,
         requiredPermission: 'shell',
         policyDecision: 'blocked',
-        reason:
-          shellPolicy === 'prompt'
-            ? 'Shell permission is prompt-only, but shell execution is not supported in this foundation version.'
-            : 'Shell permission is blocked by workflow policy.',
+        reason,
+        operationPlan: createStepOperationPlan({
+          action: 'shell',
+          preview,
+          blocked: true,
+          reason,
+        }),
       };
     }
 
     if (step.message) {
+      const preview = substituteVariables(step.message, validation.workflow.variables);
+
       return {
         index: index + 1,
         name: step.name,
         action: 'message',
-        preview: substituteVariables(step.message, validation.workflow.variables),
+        preview,
         blocked: false,
         policyDecision: 'allowed',
+        operationPlan: createStepOperationPlan({
+          action: 'message',
+          preview,
+          blocked: false,
+        }),
       };
     }
+
+    const reason = 'Step has no supported action.';
 
     return {
       index: index + 1,
@@ -548,7 +617,13 @@ export const planWorkflowContent = (
       preview: '',
       blocked: true,
       policyDecision: 'blocked',
-      reason: 'Step has no supported action.',
+      reason,
+      operationPlan: createStepOperationPlan({
+        action: 'unsupported',
+        preview: '',
+        blocked: true,
+        reason,
+      }),
     };
   });
 

@@ -20,6 +20,8 @@ validators.
   result shape
 - `zaowu.command.error.schema.json` - shared expected-error JSON shape and
   registered error-code enum
+- `zaowu.command.shared.schema.json` - shared command-output fragments such as
+  `operationPlan`, automation `policy`, and automation `sandbox`
 
 Runtime validation still lives in the owning packages. Keep schemas, examples,
 docs, and package validators aligned whenever command contracts change.
@@ -29,4 +31,5 @@ checks both valid and invalid examples against the runtime parsers.
 
 `corepack pnpm verify:json-contracts` validates both built package command
 outputs, real built CLI `--json` outputs, and representative CLI error outputs
-against command-output schemas.
+against command-output schemas. It also checks that command schemas reference
+shared command fragments instead of copying them.

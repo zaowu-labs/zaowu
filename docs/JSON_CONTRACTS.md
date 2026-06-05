@@ -105,7 +105,9 @@ Stable fields:
 - `warnings`
 
 Each step includes `policyDecision` so automation can distinguish ready,
-blocked, and unsupported actions without parsing text.
+blocked, and unsupported actions without parsing text. Each step also includes a
+schema-versioned `operationPlan` so callers can inspect per-step risk,
+confirmation requirements, and planned execution without parsing human output.
 
 ### `zw auto run --json`
 
@@ -139,5 +141,7 @@ This imports the built package outputs and executes the real built CLI for the
 versioned `dev review`, `auto validate`, `auto plan`, and `auto run` contracts.
 Both layers must validate against the same schemas. The same gate also validates
 representative real CLI expected-error JSON against the shared error schema.
-Repeated command schema fragments such as `operationPlan`, automation `policy`,
-and automation `sandbox` are checked for drift across schema files.
+Shared command schema fragments such as `operationPlan`, automation `policy`,
+and automation `sandbox` live in `schemas/zaowu.command.shared.schema.json`; the
+same gate checks that command schemas reference those definitions instead of
+copying them.

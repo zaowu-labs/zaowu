@@ -13,6 +13,8 @@ blocked until the execution model below is implemented and verified.
 - Runtime `policy` describes what ZaoWu will allow in this version.
 - Runtime `sandbox` reports the resolved workflow directory plus shell commands,
   file writes, and network access as blocked.
+- Runtime plan steps include per-step `operationPlan` entries before any
+  execution support is expanded.
 
 ## Execution Principles
 
@@ -59,6 +61,7 @@ The first shell execution version, if implemented later, should be narrow:
 
 - Default behavior remains preview-first.
 - `zw auto plan --json` remains schema-versioned.
+- `zw auto plan --json` includes per-step operation plans.
 - `zw auto run` never executes a step that was absent from the plan.
 - Human output explains blocked, ready, executed, and skipped steps.
 - Expected failures use structured ZaoWu errors and no raw stack traces.

@@ -13,3 +13,5 @@ Safety:
 - File writes and network access remain blocked by the execution sandbox.
 - The sandbox reports the resolved workflow directory before any future
   execution support is enabled.
+- Plan steps include per-step operation plans so callers can audit risk and
+  planned execution before running.

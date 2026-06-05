@@ -99,6 +99,12 @@ describe('auto domain', () => {
           blocked: true,
           reason:
             'Shell permission is prompt-only, but shell execution is not supported in this foundation version.',
+          operationPlan: {
+            schemaVersion: 1,
+            risk: 'high',
+            confirmationRequired: true,
+            executes: ['pnpm build'],
+          },
         },
       ],
       warnings: [
@@ -176,6 +182,12 @@ describe('auto domain', () => {
           preview: 'Hello ZaoWu',
           blocked: false,
           policyDecision: 'allowed',
+          operationPlan: {
+            schemaVersion: 1,
+            risk: 'low',
+            confirmationRequired: false,
+            executes: [],
+          },
         },
         {
           name: 'build',
@@ -185,6 +197,12 @@ describe('auto domain', () => {
           requiredPermission: 'shell',
           policyDecision: 'blocked',
           reason: 'Shell permission is blocked by workflow policy.',
+          operationPlan: {
+            schemaVersion: 1,
+            risk: 'high',
+            confirmationRequired: true,
+            executes: ['pnpm build'],
+          },
         },
       ],
     });

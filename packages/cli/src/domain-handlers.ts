@@ -790,7 +790,7 @@ const handleAutoPlan: DomainActionHandler = async (args, context) => {
     '',
     ...plan.steps.map(
       (step) =>
-        `${step.index}. ${step.name} [${step.action}] ${step.blocked ? 'blocked' : 'ready'} (${step.policyDecision}) - ${step.preview}`
+        `${step.index}. ${step.name} [${step.action}] ${step.blocked ? 'blocked' : 'ready'} (${step.policyDecision}; risk: ${step.operationPlan.risk}; confirmation: ${step.operationPlan.confirmationRequired ? 'yes' : 'no'}) - ${step.preview}`
     ),
     '',
     plan.warnings.length > 0
