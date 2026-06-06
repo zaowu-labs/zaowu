@@ -50,6 +50,16 @@ try {
   );
   assert(configValidation.status === 'ok', 'config validate should be ok after init');
 
+  const configSet = run(['config', 'set', 'project.name', 'smoke-project', '--json'], {
+    json: true,
+  });
+  assert(configSet.schemaVersion === 1, 'config set should expose result schema version');
+  assert(configSet.status === 'preview', 'config set should preview by default');
+
+  const configMigrate = run(['config', 'migrate', '--json'], { json: true });
+  assert(configMigrate.schemaVersion === 1, 'config migrate should expose result schema version');
+  assert(configMigrate.status === 'ok', 'config migrate should be ok for canonical config');
+
   const doctor = run(['doctor', '--json'], { json: true });
   assert(['ok', 'warning'].includes(doctor.status), 'doctor should return a known status');
   assert(doctor.operationPlan?.schemaVersion === 1, 'doctor should expose operation plan');

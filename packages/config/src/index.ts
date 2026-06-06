@@ -66,6 +66,7 @@ export interface ConfigGetResult {
 }
 
 export interface ConfigSetResult {
+  schemaVersion: 1;
   status: 'ok' | 'preview';
   filePath: string;
   key: ConfigKey;
@@ -76,6 +77,7 @@ export interface ConfigSetResult {
 }
 
 export interface ConfigMigrationResult {
+  schemaVersion: 1;
   status: 'ok' | 'preview';
   filePath: string;
   fromVersion: number | null;
@@ -643,6 +645,7 @@ export const setResolvedConfigValue = async (
   }
 
   return {
+    schemaVersion: 1,
     status: options.yes ? 'ok' : 'preview',
     filePath,
     key: configKey,
@@ -665,6 +668,7 @@ export const migrateResolvedConfig = async (
 
   if (!changed) {
     return {
+      schemaVersion: 1,
       status: 'ok',
       filePath,
       fromVersion,
@@ -680,6 +684,7 @@ export const migrateResolvedConfig = async (
   }
 
   return {
+    schemaVersion: 1,
     status: options.yes ? 'ok' : 'preview',
     filePath,
     fromVersion,

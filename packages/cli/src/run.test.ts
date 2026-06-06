@@ -299,6 +299,7 @@ describe('executeCli', () => {
         value: 'zaowu-project',
       });
       expect(JSON.parse(set.stdout)).toMatchObject({
+        schemaVersion: 1,
         status: 'preview',
         key: 'project.name',
         oldValue: 'zaowu-project',
@@ -311,6 +312,7 @@ describe('executeCli', () => {
         },
       });
       expect(JSON.parse(migrate.stdout)).toMatchObject({
+        schemaVersion: 1,
         status: 'ok',
         changed: false,
         operationPlan: {
