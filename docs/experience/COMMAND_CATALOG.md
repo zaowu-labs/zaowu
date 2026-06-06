@@ -262,10 +262,10 @@ forms.
 The `corepack pnpm verify` script runs build, JSON contract checks, CLI smoke,
 tests, lint, format check, release readiness, and package dry-run. The smoke
 check in `scripts/verify-cli-smoke.mjs`
-exercises the built CLI across init, doctor, AI preview, data, document,
-automation, plugin, and web preview paths. `scripts/verify-local.ps1` and
-`scripts/verify-local.sh` add frozen install and `git diff --check` before
-pushing.
+exercises the built CLI across init, doctor, config, AI provider preview, dev
+Git previews, data, document, automation, plugin, and web preview paths.
+`scripts/verify-local.ps1` and `scripts/verify-local.sh` add frozen install and
+`git diff --check` before pushing.
 
 Domain packages also declare capability ledgers. The boundary guard test checks
 source imports and package manifests so feature packages do not import each other

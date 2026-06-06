@@ -143,6 +143,60 @@ Stable fields:
 If the config is already canonical, it returns `status: "ok"` and no write is
 planned.
 
+### `zw ai ask --json`
+
+Current result schema: `schemaVersion: 1`.
+
+Schema file: `schemas/zaowu.command.ai-ask.schema.json`.
+
+Stable fields:
+
+- `status`
+- `provider`
+- `model`
+- `input`
+- `output`
+- `validation` for preview output
+- `operationPlan` when routed through the CLI
+
+Local providers can return `status: "ok"` without network access. Network
+providers preview by default and return `status: "preview"` with `output: null`
+until the user confirms with `--yes`.
+
+### `zw ai providers --json`
+
+Current result schema: `schemaVersion: 1`.
+
+Schema file: `schemas/zaowu.command.ai-providers.schema.json`.
+
+Stable fields:
+
+- `status`
+- `providers`
+- `validation` when `--provider` targets one provider
+
+Provider entries report whether a provider uses network access, whether it is
+configured from environment variables, and which environment variables are
+required. Secrets are never returned.
+
+### `zw dev commit --json`
+
+Current result schema: `schemaVersion: 1`.
+
+Schema file: `schemas/zaowu.command.dev-commit.schema.json`.
+
+Stable fields:
+
+- `status`
+- `source`
+- `summary`
+- `message`
+- `recommendedChecks`
+- `operationPlan` when routed through the CLI
+
+`zw dev commit` reads staged changes only and does not modify Git state. The
+suggested message is deterministic in the foundation version.
+
 ### `zw dev review --json`
 
 Current result schema: `schemaVersion: 1`.
@@ -161,6 +215,24 @@ Stable fields:
 
 `diffHunks` intentionally reports only file path, hunk header, and line counts.
 It does not expose raw diff text by default.
+
+### `zw dev status --json`
+
+Current result schema: `schemaVersion: 1`.
+
+Schema file: `schemas/zaowu.command.dev-status.schema.json`.
+
+Stable fields:
+
+- `status`
+- `branch`
+- `clean`
+- `staged`
+- `unstaged`
+- `untracked`
+- `operationPlan` when routed through the CLI
+
+`zw dev status` reads Git status only and does not modify Git state.
 
 ### `zw auto validate --json`
 
@@ -234,10 +306,11 @@ corepack pnpm verify:json-contracts
 
 This imports the built package outputs and executes the real built CLI for the
 versioned `init`, `doctor`, `config validate`, `config set`, `config migrate`,
-`dev review`, `auto validate`, `auto plan`, and `auto run` contracts. Both
-layers must validate against the same schemas. The same gate also validates
-representative real CLI expected-error JSON against the shared error schema.
-Shared command schema fragments such as `operationPlan`, automation `policy`,
-and automation `sandbox` live in `schemas/zaowu.command.shared.schema.json`; the
-same gate checks that command schemas reference those definitions instead of
-copying them.
+`ai ask`, `ai providers`, `dev status`, `dev commit`, `dev review`,
+`auto validate`, `auto plan`, and `auto run` contracts. Both layers must
+validate against the same schemas. The same gate also validates representative
+real CLI expected-error JSON against the shared error schema. Shared command
+schema fragments such as `operationPlan`, AI provider/input metadata, dev change
+summaries, automation `policy`, and automation `sandbox` live in
+`schemas/zaowu.command.shared.schema.json`; the same gate checks that command
+schemas reference those definitions instead of copying them.

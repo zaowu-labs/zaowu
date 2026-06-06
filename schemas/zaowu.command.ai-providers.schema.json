@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.zaowu.dev/zaowu.command.ai-providers.schema.json",
+  "title": "ZaoWu AI Providers Result",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "status", "providers"],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "status": {
+      "enum": ["ok", "warning"]
+    },
+    "providers": {
+      "type": "array",
+      "items": {
+        "$ref": "https://schemas.zaowu.dev/zaowu.command.shared.schema.json#/$defs/aiProviderDescriptor"
+      }
+    },
+    "validation": {
+      "$ref": "https://schemas.zaowu.dev/zaowu.command.shared.schema.json#/$defs/aiProviderValidation"
+    }
+  }
+}

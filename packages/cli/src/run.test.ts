@@ -177,6 +177,7 @@ describe('executeCli', () => {
 
     expect(result.exitCode).toBe(0);
     expect(JSON.parse(result.stdout)).toMatchObject({
+      schemaVersion: 1,
       status: 'ok',
       source: 'staged',
       message: 'feat: update dev',
@@ -205,6 +206,7 @@ describe('executeCli', () => {
 
     expect(result.exitCode).toBe(0);
     expect(JSON.parse(result.stdout)).toMatchObject({
+      schemaVersion: 1,
       status: 'ok',
       provider: {
         id: 'echo',
@@ -226,6 +228,7 @@ describe('executeCli', () => {
 
     expect(result.exitCode).toBe(0);
     expect(JSON.parse(result.stdout)).toMatchObject({
+      schemaVersion: 1,
       status: 'preview',
       provider: {
         id: 'openai',
@@ -252,6 +255,7 @@ describe('executeCli', () => {
       const ask = await executeCli(['ai', 'ask', 'Summarize', '--file', filePath, '--json']);
 
       expect(JSON.parse(providers.stdout)).toMatchObject({
+        schemaVersion: 1,
         status: 'ok',
         providers: [
           {
@@ -263,6 +267,7 @@ describe('executeCli', () => {
         ],
       });
       expect(JSON.parse(ask.stdout)).toMatchObject({
+        schemaVersion: 1,
         input: {
           source: 'prompt+file',
           filePath,
@@ -337,6 +342,7 @@ describe('executeCli', () => {
     });
 
     expect(JSON.parse(result.stdout)).toMatchObject({
+      schemaVersion: 1,
       status: 'ok',
       branch: 'main',
       clean: false,

@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.zaowu.dev/zaowu.command.dev-commit.schema.json",
+  "title": "ZaoWu Dev Commit Result",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "status", "source", "summary", "message", "recommendedChecks"],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "status": {
+      "const": "ok"
+    },
+    "source": {
+      "const": "staged"
+    },
+    "summary": {
+      "$ref": "https://schemas.zaowu.dev/zaowu.command.shared.schema.json#/$defs/devChangeSummary"
+    },
+    "message": {
+      "type": "string"
+    },
+    "recommendedChecks": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "operationPlan": {
+      "$ref": "https://schemas.zaowu.dev/zaowu.command.shared.schema.json#/$defs/operationPlan"
+    }
+  }
+}

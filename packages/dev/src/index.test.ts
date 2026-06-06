@@ -31,6 +31,7 @@ describe('dev domain', () => {
     };
 
     expect(previewDevCommit(runner)).toEqual({
+      schemaVersion: 1,
       status: 'ok',
       source: 'staged',
       message: 'test: update dev',
@@ -377,6 +378,7 @@ describe('dev domain', () => {
     };
 
     expect(getDevStatus(runner)).toEqual({
+      schemaVersion: 1,
       status: 'ok',
       branch: 'codex/work',
       clean: false,
