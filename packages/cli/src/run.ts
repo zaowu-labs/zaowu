@@ -860,6 +860,7 @@ const handleInit = async (
 
   if (dryRun || !yes) {
     const payload = {
+      schemaVersion: 1,
       status: 'ok',
       dryRun: true,
       wouldCreate: configPath,
@@ -887,6 +888,7 @@ const handleInit = async (
   }
 
   const payload = {
+    schemaVersion: 1,
     status: 'ok',
     created: configPath,
     operationPlan: {

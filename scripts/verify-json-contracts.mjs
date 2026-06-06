@@ -32,6 +32,7 @@ const schemas = {
   devReview: await readJson('schemas', 'zaowu.command.dev-review.schema.json'),
   doctor: await readJson('schemas', 'zaowu.command.doctor.schema.json'),
   error: await readJson('schemas', 'zaowu.command.error.schema.json'),
+  init: await readJson('schemas', 'zaowu.command.init.schema.json'),
 };
 
 for (const [name, schema] of Object.entries(schemas)) {
@@ -55,6 +56,7 @@ const validators = {
   devReview: ajv.compile(schemas.devReview),
   doctor: ajv.compile(schemas.doctor),
   error: ajv.compile(schemas.error),
+  init: ajv.compile(schemas.init),
 };
 
 const assertValid = (name, value) => {
@@ -118,6 +120,11 @@ const assertSchemaFragmentsStayAligned = () => {
     schemas.doctor.properties.operationPlan,
     { $ref: ref('operationPlan') },
     'doctor operationPlan schema must reference the shared operationPlan fragment.'
+  );
+  assertJsonEqual(
+    schemas.init.properties.operationPlan,
+    { $ref: ref('operationPlan') },
+    'init operationPlan schema must reference the shared operationPlan fragment.'
   );
   assertJsonEqual(
     schemas.autoPlan.properties.steps.items.properties.operationPlan,
@@ -318,10 +325,32 @@ assert(
 assertValid('devReview', review);
 
 const cliWorkflowPath = 'examples/workflows/message.yml';
+const cliInitFixture = await mkdtemp(path.join(tmpdir(), 'zaowu-init-contract-'));
 const cliDoctor = runCliJson(['doctor']);
 const cliValidation = runCliJson(['auto', 'validate', cliWorkflowPath]);
 const cliPlan = runCliJson(['auto', 'plan', cliWorkflowPath]);
 const cliRun = runCliJson(['auto', 'run', cliWorkflowPath]);
+
+try {
+  const cliInitPreview = runCliJson(['init'], { cwd: cliInitFixture });
+  const cliInitCreated = runCliJson(['init', '--yes'], { cwd: cliInitFixture });
+
+  assertValid('init', cliInitPreview);
+  assertValid('init', cliInitCreated);
+  assert(cliInitPreview.schemaVersion === 1, 'CLI init preview schemaVersion must be 1.');
+  assert(cliInitPreview.dryRun === true, 'CLI init preview should report dryRun true.');
+  assert(
+    cliInitPreview.operationPlan?.confirmationRequired === true,
+    'CLI init preview should require confirmation.'
+  );
+  assert(cliInitCreated.schemaVersion === 1, 'CLI init created schemaVersion must be 1.');
+  assert(
+    cliInitCreated.operationPlan?.confirmationRequired === false,
+    'CLI init created output should not require further confirmation.'
+  );
+} finally {
+  await rm(cliInitFixture, { force: true, recursive: true });
+}
 
 assertValid('doctor', cliDoctor);
 assert(cliDoctor.schemaVersion === 1, 'CLI doctor result schemaVersion must be 1.');

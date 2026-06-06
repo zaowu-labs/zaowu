@@ -35,10 +35,12 @@ try {
   assert(version.status === 'ok', 'version JSON should be ok');
 
   const initPreview = run(['init', '--json'], { json: true });
+  assert(initPreview.schemaVersion === 1, 'init preview should expose result schema version');
   assert(initPreview.status === 'ok', 'init preview should be ok');
   assert(initPreview.operationPlan?.writes?.length === 1, 'init should expose planned write');
 
   const init = run(['init', '--yes', '--json'], { json: true });
+  assert(init.schemaVersion === 1, 'confirmed init should expose result schema version');
   assert(init.status === 'ok', 'confirmed init should be ok');
 
   const doctor = run(['doctor', '--json'], { json: true });

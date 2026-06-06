@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.zaowu.dev/zaowu.command.init.schema.json",
+  "title": "ZaoWu Init Result",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "status", "operationPlan"],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "status": {
+      "const": "ok"
+    },
+    "dryRun": {
+      "type": "boolean"
+    },
+    "wouldCreate": {
+      "type": "string"
+    },
+    "content": {
+      "type": "string"
+    },
+    "created": {
+      "type": "string"
+    },
+    "operationPlan": {
+      "$ref": "https://schemas.zaowu.dev/zaowu.command.shared.schema.json#/$defs/operationPlan"
+    }
+  },
+  "oneOf": [
+    {
+      "required": ["dryRun", "wouldCreate", "content"],
+      "properties": {
+        "dryRun": {
+          "const": true
+        }
+      }
+    },
+    {
+      "required": ["created"]
+    }
+  ]
+}

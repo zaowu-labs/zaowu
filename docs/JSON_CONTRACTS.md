@@ -48,6 +48,24 @@ The error code enum must stay synchronized with
 `packages/core/src/error-codes.ts`. Expected error JSON is written to stderr and
 must not include stack traces or extra fields.
 
+### `zw init --json`
+
+Current result schema: `schemaVersion: 1`.
+
+Schema file: `schemas/zaowu.command.init.schema.json`.
+
+Stable fields:
+
+- `status`
+- `dryRun`, `wouldCreate`, and `content` for preview output
+- `created` for confirmed creation output
+- `operationPlan`
+
+`zw init` previews by default. The preview JSON reports the file path and
+content that would be written, with `operationPlan.confirmationRequired: true`.
+The confirmed `--yes` JSON reports the created file and sets the operation plan
+confirmation flag to `false`.
+
 ### `zw doctor --json`
 
 Current result schema: `schemaVersion: 1`.
@@ -156,10 +174,10 @@ corepack pnpm verify:json-contracts
 ```
 
 This imports the built package outputs and executes the real built CLI for the
-versioned `doctor`, `dev review`, `auto validate`, `auto plan`, and `auto run`
-contracts. Both layers must validate against the same schemas. The same gate
-also validates representative real CLI expected-error JSON against the shared
-error schema. Shared command schema fragments such as `operationPlan`,
+versioned `init`, `doctor`, `dev review`, `auto validate`, `auto plan`, and
+`auto run` contracts. Both layers must validate against the same schemas. The
+same gate also validates representative real CLI expected-error JSON against the
+shared error schema. Shared command schema fragments such as `operationPlan`,
 automation `policy`, and automation `sandbox` live in
 `schemas/zaowu.command.shared.schema.json`; the same gate checks that command
 schemas reference those definitions instead of copying them.

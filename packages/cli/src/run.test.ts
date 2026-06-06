@@ -867,6 +867,7 @@ describe('executeCli', () => {
       const payload = JSON.parse(result.stdout);
 
       expect(result.exitCode).toBe(0);
+      expect(payload.schemaVersion).toBe(1);
       expect(payload.status).toBe('ok');
       expect(payload.dryRun).toBe(true);
       expect(payload.wouldCreate).toBe(path.join(root, DEFAULT_CONFIG_FILE_NAME));
@@ -902,6 +903,33 @@ describe('executeCli', () => {
       });
 
       expect(doctor.stdout).toContain('Config: ok');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('returns versioned JSON when init is confirmed', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
+
+    try {
+      const result = await executeCli(['init', '--yes', '--json'], { cwd: root });
+      const payload = JSON.parse(result.stdout);
+
+      expect(result.exitCode).toBe(0);
+      expect(payload).toMatchObject({
+        schemaVersion: 1,
+        status: 'ok',
+        created: path.join(root, DEFAULT_CONFIG_FILE_NAME),
+        operationPlan: {
+          schemaVersion: 1,
+          risk: 'medium',
+          confirmationRequired: false,
+          writes: [path.join(root, DEFAULT_CONFIG_FILE_NAME)],
+        },
+      });
+      await expect(readFile(path.join(root, DEFAULT_CONFIG_FILE_NAME), 'utf8')).resolves.toContain(
+        'version: 1'
+      );
     } finally {
       await rm(root, { recursive: true, force: true });
     }
