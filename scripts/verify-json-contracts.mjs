@@ -29,6 +29,8 @@ const schemas = {
   autoValidate: await readJson('schemas', 'zaowu.command.auto-validate.schema.json'),
   autoPlan: await readJson('schemas', 'zaowu.command.auto-plan.schema.json'),
   autoRun: await readJson('schemas', 'zaowu.command.auto-run.schema.json'),
+  config: await readJson('schemas', 'zaowu.config.schema.json'),
+  configValidate: await readJson('schemas', 'zaowu.command.config-validate.schema.json'),
   devReview: await readJson('schemas', 'zaowu.command.dev-review.schema.json'),
   doctor: await readJson('schemas', 'zaowu.command.doctor.schema.json'),
   error: await readJson('schemas', 'zaowu.command.error.schema.json'),
@@ -48,11 +50,13 @@ for (const [name, schema] of Object.entries(schemas)) {
 }
 
 ajv.addSchema(schemas.shared);
+ajv.addSchema(schemas.config);
 
 const validators = {
   autoValidate: ajv.compile(schemas.autoValidate),
   autoPlan: ajv.compile(schemas.autoPlan),
   autoRun: ajv.compile(schemas.autoRun),
+  configValidate: ajv.compile(schemas.configValidate),
   devReview: ajv.compile(schemas.devReview),
   doctor: ajv.compile(schemas.doctor),
   error: ajv.compile(schemas.error),
@@ -244,6 +248,7 @@ const createDevReviewCliFixture = async () => {
 
 const core = await importBuiltPackage('core');
 const auto = await importBuiltPackage('auto');
+const configPackage = await importBuiltPackage('config');
 const dev = await importBuiltPackage('dev');
 
 assertSchemaFragmentsStayAligned();
@@ -288,6 +293,41 @@ assertValid('autoPlan', plan);
 assert(run.schemaVersion === 1, 'auto run result schemaVersion must be 1.');
 assert(run.status === 'preview', 'auto run should preview by default.');
 assertValid('autoRun', run);
+
+const configValidateFixture = await mkdtemp(path.join(tmpdir(), 'zaowu-config-validate-contract-'));
+
+try {
+  await writeFile(
+    path.join(configValidateFixture, 'zw.yml'),
+    [
+      'version: 1',
+      '',
+      'project:',
+      '  name: contract',
+      '',
+      'ai:',
+      '  provider: echo',
+      '',
+      'defaults:',
+      '  output: human',
+      '',
+      'paths:',
+      '  workspace: .',
+      '  cache: .zaowu/cache',
+      '',
+    ].join('\n')
+  );
+
+  const configValidation = await configPackage.validateResolvedConfig(configValidateFixture);
+
+  assert(
+    configValidation.schemaVersion === 1,
+    'config validate result schemaVersion must be 1.'
+  );
+  assertValid('configValidate', configValidation);
+} finally {
+  await rm(configValidateFixture, { force: true, recursive: true });
+}
 
 const runner = (_command, args) => {
   const key = args.join(' ');
@@ -334,9 +374,11 @@ const cliRun = runCliJson(['auto', 'run', cliWorkflowPath]);
 try {
   const cliInitPreview = runCliJson(['init'], { cwd: cliInitFixture });
   const cliInitCreated = runCliJson(['init', '--yes'], { cwd: cliInitFixture });
+  const cliConfigValidation = runCliJson(['config', 'validate'], { cwd: cliInitFixture });
 
   assertValid('init', cliInitPreview);
   assertValid('init', cliInitCreated);
+  assertValid('configValidate', cliConfigValidation);
   assert(cliInitPreview.schemaVersion === 1, 'CLI init preview schemaVersion must be 1.');
   assert(cliInitPreview.dryRun === true, 'CLI init preview should report dryRun true.');
   assert(
@@ -348,6 +390,11 @@ try {
     cliInitCreated.operationPlan?.confirmationRequired === false,
     'CLI init created output should not require further confirmation.'
   );
+  assert(
+    cliConfigValidation.schemaVersion === 1,
+    'CLI config validate schemaVersion must be 1.'
+  );
+  assert(cliConfigValidation.status === 'ok', 'CLI config validate should be ok after init.');
 } finally {
   await rm(cliInitFixture, { force: true, recursive: true });
 }

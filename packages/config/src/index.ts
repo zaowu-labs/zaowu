@@ -51,6 +51,7 @@ export type ConfigKey =
   | 'paths.cache';
 
 export interface ConfigValidationResult {
+  schemaVersion: 1;
   status: 'ok' | 'warning';
   filePath: string;
   config: ZaoWuConfig;
@@ -601,6 +602,7 @@ export const validateResolvedConfig = async (cwd?: string): Promise<ConfigValida
   const warnings = getValidationWarnings(resolved.config);
 
   return {
+    schemaVersion: 1,
     status: warnings.length > 0 ? 'warning' : 'ok',
     filePath: resolved.filePath,
     config: resolved.config,

@@ -147,6 +147,7 @@ describe('config utilities', () => {
 
     try {
       await expect(validateResolvedConfig(root)).resolves.toMatchObject({
+        schemaVersion: 1,
         status: 'warning',
         warnings: ['AI provider is not set; ZaoWu will use the local echo provider by default.'],
       });
