@@ -101,6 +101,48 @@ Stable fields:
 user-authored config files, so command-output validation and editor-facing
 config validation stay aligned.
 
+### `zw config set --json`
+
+Current result schema: `schemaVersion: 1`.
+
+Schema file: `schemas/zaowu.command.config-set.schema.json`.
+
+Stable fields:
+
+- `status`
+- `filePath`
+- `key`
+- `oldValue`
+- `newValue`
+- `content`
+- `wroteFile`
+- `operationPlan` when routed through the CLI
+
+`zw config set` previews by default and writes only with `--yes`. The CLI
+operation plan exposes the target config file and whether confirmation is still
+required.
+
+### `zw config migrate --json`
+
+Current result schema: `schemaVersion: 1`.
+
+Schema file: `schemas/zaowu.command.config-migrate.schema.json`.
+
+Stable fields:
+
+- `status`
+- `filePath`
+- `fromVersion`
+- `toVersion`
+- `changed`
+- `content`
+- `wroteFile`
+- `operationPlan` when routed through the CLI
+
+`zw config migrate` previews rewrites when a legacy config needs canonicalizing.
+If the config is already canonical, it returns `status: "ok"` and no write is
+planned.
+
 ### `zw dev review --json`
 
 Current result schema: `schemaVersion: 1`.
@@ -191,10 +233,11 @@ corepack pnpm verify:json-contracts
 ```
 
 This imports the built package outputs and executes the real built CLI for the
-versioned `init`, `doctor`, `config validate`, `dev review`, `auto validate`,
-`auto plan`, and `auto run` contracts. Both layers must validate against the
-same schemas. The same gate also validates representative real CLI
-expected-error JSON against the shared error schema. Shared command schema
-fragments such as `operationPlan`, automation `policy`, and automation
-`sandbox` live in `schemas/zaowu.command.shared.schema.json`; the same gate
-checks that command schemas reference those definitions instead of copying them.
+versioned `init`, `doctor`, `config validate`, `config set`, `config migrate`,
+`dev review`, `auto validate`, `auto plan`, and `auto run` contracts. Both
+layers must validate against the same schemas. The same gate also validates
+representative real CLI expected-error JSON against the shared error schema.
+Shared command schema fragments such as `operationPlan`, automation `policy`,
+and automation `sandbox` live in `schemas/zaowu.command.shared.schema.json`; the
+same gate checks that command schemas reference those definitions instead of
+copying them.

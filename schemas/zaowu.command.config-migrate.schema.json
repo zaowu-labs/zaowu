@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.zaowu.dev/zaowu.command.config-migrate.schema.json",
+  "title": "ZaoWu Config Migrate Result",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schemaVersion",
+    "status",
+    "filePath",
+    "fromVersion",
+    "toVersion",
+    "changed",
+    "content",
+    "wroteFile"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "status": {
+      "enum": ["ok", "preview"]
+    },
+    "filePath": {
+      "type": "string"
+    },
+    "fromVersion": {
+      "type": ["integer", "null"],
+      "minimum": 1
+    },
+    "toVersion": {
+      "const": 1
+    },
+    "changed": {
+      "type": "boolean"
+    },
+    "content": {
+      "type": "string"
+    },
+    "wroteFile": {
+      "type": "boolean"
+    },
+    "operationPlan": {
+      "$ref": "https://schemas.zaowu.dev/zaowu.command.shared.schema.json#/$defs/operationPlan"
+    }
+  }
+}

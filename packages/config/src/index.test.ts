@@ -180,6 +180,7 @@ describe('config utilities', () => {
 
     try {
       await expect(setResolvedConfigValue('project.name', 'new', { cwd: root })).resolves.toEqual({
+        schemaVersion: 1,
         status: 'preview',
         filePath,
         key: 'project.name',
@@ -223,6 +224,7 @@ describe('config utilities', () => {
       await expect(
         setResolvedConfigValue('defaults.output', 'json', { cwd: root, yes: true })
       ).resolves.toMatchObject({
+        schemaVersion: 1,
         status: 'ok',
         key: 'defaults.output',
         oldValue: 'human',
@@ -249,6 +251,7 @@ describe('config utilities', () => {
 
     try {
       await expect(migrateResolvedConfig({ cwd: root })).resolves.toMatchObject({
+        schemaVersion: 1,
         status: 'preview',
         filePath,
         fromVersion: null,
@@ -273,6 +276,7 @@ describe('config utilities', () => {
 
     try {
       await expect(migrateResolvedConfig({ cwd: root, yes: true })).resolves.toMatchObject({
+        schemaVersion: 1,
         status: 'ok',
         changed: true,
         wroteFile: true,

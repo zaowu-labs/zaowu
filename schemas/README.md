@@ -16,6 +16,10 @@ validators.
   shape
 - `zaowu.command.config-validate.schema.json` - versioned
   `zw config validate --json` result shape
+- `zaowu.command.config-set.schema.json` - versioned `zw config set --json`
+  preview and write result shape
+- `zaowu.command.config-migrate.schema.json` - versioned
+  `zw config migrate --json` preview and write result shape
 - `zaowu.command.dev-review.schema.json` - versioned `zw dev review --json`
   result shape
 - `zaowu.command.auto-validate.schema.json` - versioned

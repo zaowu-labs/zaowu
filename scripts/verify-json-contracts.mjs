@@ -30,6 +30,8 @@ const schemas = {
   autoPlan: await readJson('schemas', 'zaowu.command.auto-plan.schema.json'),
   autoRun: await readJson('schemas', 'zaowu.command.auto-run.schema.json'),
   config: await readJson('schemas', 'zaowu.config.schema.json'),
+  configMigrate: await readJson('schemas', 'zaowu.command.config-migrate.schema.json'),
+  configSet: await readJson('schemas', 'zaowu.command.config-set.schema.json'),
   configValidate: await readJson('schemas', 'zaowu.command.config-validate.schema.json'),
   devReview: await readJson('schemas', 'zaowu.command.dev-review.schema.json'),
   doctor: await readJson('schemas', 'zaowu.command.doctor.schema.json'),
@@ -56,6 +58,8 @@ const validators = {
   autoValidate: ajv.compile(schemas.autoValidate),
   autoPlan: ajv.compile(schemas.autoPlan),
   autoRun: ajv.compile(schemas.autoRun),
+  configMigrate: ajv.compile(schemas.configMigrate),
+  configSet: ajv.compile(schemas.configSet),
   configValidate: ajv.compile(schemas.configValidate),
   devReview: ajv.compile(schemas.devReview),
   doctor: ajv.compile(schemas.doctor),
@@ -129,6 +133,16 @@ const assertSchemaFragmentsStayAligned = () => {
     schemas.init.properties.operationPlan,
     { $ref: ref('operationPlan') },
     'init operationPlan schema must reference the shared operationPlan fragment.'
+  );
+  assertJsonEqual(
+    schemas.configSet.properties.operationPlan,
+    { $ref: ref('operationPlan') },
+    'config set operationPlan schema must reference the shared operationPlan fragment.'
+  );
+  assertJsonEqual(
+    schemas.configMigrate.properties.operationPlan,
+    { $ref: ref('operationPlan') },
+    'config migrate operationPlan schema must reference the shared operationPlan fragment.'
   );
   assertJsonEqual(
     schemas.autoPlan.properties.steps.items.properties.operationPlan,
@@ -319,12 +333,27 @@ try {
   );
 
   const configValidation = await configPackage.validateResolvedConfig(configValidateFixture);
+  const configSet = await configPackage.setResolvedConfigValue(
+    'project.name',
+    'contract-next',
+    {
+      cwd: configValidateFixture,
+    }
+  );
+  const configMigration = await configPackage.migrateResolvedConfig({
+    cwd: configValidateFixture,
+  });
 
   assert(
     configValidation.schemaVersion === 1,
     'config validate result schemaVersion must be 1.'
   );
   assertValid('configValidate', configValidation);
+  assert(configSet.schemaVersion === 1, 'config set result schemaVersion must be 1.');
+  assert(configSet.status === 'preview', 'config set package output should preview by default.');
+  assertValid('configSet', configSet);
+  assert(configMigration.schemaVersion === 1, 'config migrate result schemaVersion must be 1.');
+  assertValid('configMigrate', configMigration);
 } finally {
   await rm(configValidateFixture, { force: true, recursive: true });
 }
@@ -375,9 +404,15 @@ try {
   const cliInitPreview = runCliJson(['init'], { cwd: cliInitFixture });
   const cliInitCreated = runCliJson(['init', '--yes'], { cwd: cliInitFixture });
   const cliConfigValidation = runCliJson(['config', 'validate'], { cwd: cliInitFixture });
+  const cliConfigSet = runCliJson(['config', 'set', 'project.name', 'contract-cli'], {
+    cwd: cliInitFixture,
+  });
+  const cliConfigMigration = runCliJson(['config', 'migrate'], { cwd: cliInitFixture });
 
   assertValid('init', cliInitPreview);
   assertValid('init', cliInitCreated);
+  assertValid('configSet', cliConfigSet);
+  assertValid('configMigrate', cliConfigMigration);
   assertValid('configValidate', cliConfigValidation);
   assert(cliInitPreview.schemaVersion === 1, 'CLI init preview schemaVersion must be 1.');
   assert(cliInitPreview.dryRun === true, 'CLI init preview should report dryRun true.');
@@ -395,6 +430,16 @@ try {
     'CLI config validate schemaVersion must be 1.'
   );
   assert(cliConfigValidation.status === 'ok', 'CLI config validate should be ok after init.');
+  assert(cliConfigSet.schemaVersion === 1, 'CLI config set schemaVersion must be 1.');
+  assert(
+    cliConfigSet.operationPlan?.confirmationRequired === true,
+    'CLI config set preview should require confirmation.'
+  );
+  assert(cliConfigMigration.schemaVersion === 1, 'CLI config migrate schemaVersion must be 1.');
+  assert(
+    cliConfigMigration.operationPlan?.confirmationRequired === false,
+    'CLI config migrate unchanged output should not require confirmation.'
+  );
 } finally {
   await rm(cliInitFixture, { force: true, recursive: true });
 }
