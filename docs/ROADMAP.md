@@ -32,6 +32,8 @@ Scope:
 - generated rich fixture checks for PDF, DOCX, and XLSX command paths
 - JSON contract checks for versioned machine-readable command output
 - command-output schemas for the first versioned JSON contracts
+- AI and developer command-output contracts for high-risk provider and Git
+  preview paths
 - release metadata readiness checks before package dry-run
 - package-level README files included in release metadata checks
 - release policy and changelog preflight checks before publish work

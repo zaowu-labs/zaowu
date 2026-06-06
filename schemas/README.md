@@ -20,8 +20,16 @@ validators.
   preview and write result shape
 - `zaowu.command.config-migrate.schema.json` - versioned
   `zw config migrate --json` preview and write result shape
+- `zaowu.command.ai-ask.schema.json` - versioned `zw ai ask --json` local,
+  preview, and provider-backed result shape
+- `zaowu.command.ai-providers.schema.json` - versioned
+  `zw ai providers --json` provider inventory and validation result shape
+- `zaowu.command.dev-commit.schema.json` - versioned `zw dev commit --json`
+  commit-message preview result shape
 - `zaowu.command.dev-review.schema.json` - versioned `zw dev review --json`
   result shape
+- `zaowu.command.dev-status.schema.json` - versioned `zw dev status --json`
+  Git status result shape
 - `zaowu.command.auto-validate.schema.json` - versioned
   `zw auto validate --json` result shape
 - `zaowu.command.auto-plan.schema.json` - versioned `zw auto plan --json`
@@ -31,7 +39,8 @@ validators.
 - `zaowu.command.error.schema.json` - shared expected-error JSON shape and
   registered error-code enum
 - `zaowu.command.shared.schema.json` - shared command-output fragments such as
-  `operationPlan`, automation `policy`, and automation `sandbox`
+  `operationPlan`, AI provider/input metadata, dev change summaries, automation
+  `policy`, and automation `sandbox`
 
 Runtime validation still lives in the owning packages. Keep schemas, examples,
 docs, and package validators aligned whenever command contracts change.

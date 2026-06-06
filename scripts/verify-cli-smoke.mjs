@@ -1,6 +1,6 @@
 /* global console */
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -66,13 +66,39 @@ try {
 
   const notePath = path.join(examples, 'docs', 'report.md');
 
+  const aiProviders = run(['ai', 'providers', '--json'], { json: true });
+  assert(aiProviders.schemaVersion === 1, 'ai providers should expose result schema version');
+  assert(
+    aiProviders.providers?.some((provider) => provider.id === 'openai'),
+    'ai providers should list openai'
+  );
+
+  const aiLocal = run(['ai', 'ask', 'Explain', 'ZaoWu', '--json'], { json: true });
+  assert(aiLocal.schemaVersion === 1, 'local AI ask should expose result schema version');
+  assert(aiLocal.status === 'ok', 'local AI ask should be ok');
+
   const aiPreview = run(
     ['ai', 'ask', 'Summarize', '--file', notePath, '--provider', 'openai', '--json'],
     { json: true }
   );
+  assert(aiPreview.schemaVersion === 1, 'network AI preview should expose result schema version');
   assert(aiPreview.status === 'preview', 'network AI should preview by default');
   assert(aiPreview.output === null, 'AI preview should not contain provider output');
   assert(aiPreview.input?.fileCharacters > 0, 'AI preview should read file input metadata');
+
+  const devRoot = path.join(scratch, 'dev-fixture');
+  mkdirSync(path.join(devRoot, 'packages', 'dev', 'src'), { recursive: true });
+  execFileSync('git', ['init', '--quiet'], { cwd: devRoot, stdio: 'ignore' });
+  writeFileSync(path.join(devRoot, 'packages', 'dev', 'src', 'index.ts'), 'export const x = 1;\n');
+  execFileSync('git', ['add', 'packages/dev/src/index.ts'], { cwd: devRoot, stdio: 'ignore' });
+
+  const devStatus = run(['dev', 'status', '--json'], { cwd: devRoot, json: true });
+  assert(devStatus.schemaVersion === 1, 'dev status should expose result schema version');
+  assert(devStatus.clean === false, 'dev status should report staged changes');
+
+  const devCommit = run(['dev', 'commit', '--json'], { cwd: devRoot, json: true });
+  assert(devCommit.schemaVersion === 1, 'dev commit should expose result schema version');
+  assert(devCommit.source === 'staged', 'dev commit should read staged changes');
 
   const docSummary = run(['doc', 'summary', notePath, '--json'], { json: true });
   assert(docSummary.title === 'Smoke Report', 'doc summary should read markdown title');

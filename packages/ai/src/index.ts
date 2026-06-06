@@ -44,6 +44,8 @@ export interface AIAskRequest {
 }
 
 export interface AIAskResponse {
+  schemaVersion: 1;
+  status: 'ok';
   provider: AIProviderDescriptor;
   model: string;
   input: {
@@ -88,6 +90,7 @@ export interface AIProvider {
 }
 
 export interface AIAskPreview {
+  schemaVersion: 1;
   status: 'preview';
   provider: AIProviderDescriptor;
   model: string;
@@ -131,6 +134,7 @@ const createProviderDescriptor = (
 
 const DEFAULT_PROVIDER_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_INPUT_CHARACTERS = 200_000;
+const AI_RESULT_SCHEMA_VERSION = 1;
 
 const createCombinedPrompt = (
   prompt: string,
@@ -257,6 +261,8 @@ const ECHO_PROVIDER: AIProvider = {
     const prepared = await prepareAIInput(request);
 
     return {
+      schemaVersion: AI_RESULT_SCHEMA_VERSION,
+      status: 'ok',
       provider: this.descriptor,
       model: request.model ?? 'echo-local',
       input: prepared.input,
@@ -527,6 +533,8 @@ const OPENAI_PROVIDER: AIProvider = {
     const descriptor = createProviderDescriptor(OPENAI_PROVIDER_DESCRIPTOR, env);
 
     return {
+      schemaVersion: AI_RESULT_SCHEMA_VERSION,
+      status: 'ok',
       provider: descriptor,
       model,
       input: prepared.input,
@@ -616,6 +624,7 @@ export const previewAIRequest = async (request: AIAskRequest): Promise<AIAskPrev
   const prepared = await prepareAIInput(request);
 
   return {
+    schemaVersion: AI_RESULT_SCHEMA_VERSION,
     status: 'preview',
     provider: validation.provider,
     model: getPreviewModel(validation.provider, request, env),

@@ -27,6 +27,7 @@ export interface GitChangeSummary {
 }
 
 export interface DevCommitResult {
+  schemaVersion: 1;
   status: 'ok';
   source: 'staged';
   summary: GitChangeSummary;
@@ -35,6 +36,7 @@ export interface DevCommitResult {
 }
 
 export interface DevStatusResult {
+  schemaVersion: 1;
   status: 'ok';
   branch: string;
   clean: boolean;
@@ -71,6 +73,8 @@ export interface DevReviewResult {
 export type DevReviewMode = 'auto' | 'staged' | 'worktree';
 
 const DEV_REVIEW_SCHEMA_VERSION = 1;
+const DEV_COMMIT_SCHEMA_VERSION = 1;
+const DEV_STATUS_SCHEMA_VERSION = 1;
 
 export const DEV_DOMAIN: DomainDefinition = {
   name: 'dev',
@@ -611,6 +615,7 @@ export const previewDevCommit = (
   const scope = inferScope(summary.files);
 
   return {
+    schemaVersion: DEV_COMMIT_SCHEMA_VERSION,
     status: 'ok',
     source: 'staged',
     summary,
@@ -656,6 +661,7 @@ export const getDevStatus = (
   }
 
   return {
+    schemaVersion: DEV_STATUS_SCHEMA_VERSION,
     status: 'ok',
     branch,
     clean: staged.length === 0 && unstaged.length === 0 && untracked.length === 0,

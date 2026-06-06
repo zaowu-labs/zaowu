@@ -26,6 +26,8 @@ const ajv = new Ajv2020({
 
 const schemas = {
   shared: await readJson('schemas', 'zaowu.command.shared.schema.json'),
+  aiAsk: await readJson('schemas', 'zaowu.command.ai-ask.schema.json'),
+  aiProviders: await readJson('schemas', 'zaowu.command.ai-providers.schema.json'),
   autoValidate: await readJson('schemas', 'zaowu.command.auto-validate.schema.json'),
   autoPlan: await readJson('schemas', 'zaowu.command.auto-plan.schema.json'),
   autoRun: await readJson('schemas', 'zaowu.command.auto-run.schema.json'),
@@ -33,7 +35,9 @@ const schemas = {
   configMigrate: await readJson('schemas', 'zaowu.command.config-migrate.schema.json'),
   configSet: await readJson('schemas', 'zaowu.command.config-set.schema.json'),
   configValidate: await readJson('schemas', 'zaowu.command.config-validate.schema.json'),
+  devCommit: await readJson('schemas', 'zaowu.command.dev-commit.schema.json'),
   devReview: await readJson('schemas', 'zaowu.command.dev-review.schema.json'),
+  devStatus: await readJson('schemas', 'zaowu.command.dev-status.schema.json'),
   doctor: await readJson('schemas', 'zaowu.command.doctor.schema.json'),
   error: await readJson('schemas', 'zaowu.command.error.schema.json'),
   init: await readJson('schemas', 'zaowu.command.init.schema.json'),
@@ -55,13 +59,17 @@ ajv.addSchema(schemas.shared);
 ajv.addSchema(schemas.config);
 
 const validators = {
+  aiAsk: ajv.compile(schemas.aiAsk),
+  aiProviders: ajv.compile(schemas.aiProviders),
   autoValidate: ajv.compile(schemas.autoValidate),
   autoPlan: ajv.compile(schemas.autoPlan),
   autoRun: ajv.compile(schemas.autoRun),
   configMigrate: ajv.compile(schemas.configMigrate),
   configSet: ajv.compile(schemas.configSet),
   configValidate: ajv.compile(schemas.configValidate),
+  devCommit: ajv.compile(schemas.devCommit),
   devReview: ajv.compile(schemas.devReview),
+  devStatus: ajv.compile(schemas.devStatus),
   doctor: ajv.compile(schemas.doctor),
   error: ajv.compile(schemas.error),
   init: ajv.compile(schemas.init),
@@ -84,6 +92,31 @@ const assertSchemaFragmentsStayAligned = () => {
   const ref = (definitionName) =>
     `https://schemas.zaowu.dev/zaowu.command.shared.schema.json#/$defs/${definitionName}`;
 
+  assertJsonEqual(
+    schemas.aiAsk.properties.provider,
+    { $ref: ref('aiProviderDescriptor') },
+    'ai ask provider schema must reference the shared aiProviderDescriptor fragment.'
+  );
+  assertJsonEqual(
+    schemas.aiAsk.properties.input,
+    { $ref: ref('aiInput') },
+    'ai ask input schema must reference the shared aiInput fragment.'
+  );
+  assertJsonEqual(
+    schemas.aiAsk.properties.validation,
+    { $ref: ref('aiProviderValidation') },
+    'ai ask validation schema must reference the shared aiProviderValidation fragment.'
+  );
+  assertJsonEqual(
+    schemas.aiProviders.properties.providers.items,
+    { $ref: ref('aiProviderDescriptor') },
+    'ai providers entries must reference the shared aiProviderDescriptor fragment.'
+  );
+  assertJsonEqual(
+    schemas.aiProviders.properties.validation,
+    { $ref: ref('aiProviderValidation') },
+    'ai providers validation schema must reference the shared aiProviderValidation fragment.'
+  );
   assertJsonEqual(
     schemas.autoPlan.properties.policy,
     { $ref: ref('autoPolicy') },
@@ -115,14 +148,39 @@ const assertSchemaFragmentsStayAligned = () => {
     'auto validate sandbox schema must reference the shared autoSandbox fragment.'
   );
   assertJsonEqual(
+    schemas.aiAsk.properties.operationPlan,
+    { $ref: ref('operationPlan') },
+    'ai ask operationPlan schema must reference the shared operationPlan fragment.'
+  );
+  assertJsonEqual(
     schemas.autoRun.properties.operationPlan,
     { $ref: ref('operationPlan') },
     'auto run operationPlan schema must reference the shared operationPlan fragment.'
   );
   assertJsonEqual(
+    schemas.devCommit.properties.summary,
+    { $ref: ref('devChangeSummary') },
+    'dev commit summary schema must reference the shared devChangeSummary fragment.'
+  );
+  assertJsonEqual(
+    schemas.devReview.properties.summary,
+    { $ref: ref('devChangeSummary') },
+    'dev review summary schema must reference the shared devChangeSummary fragment.'
+  );
+  assertJsonEqual(
+    schemas.devCommit.properties.operationPlan,
+    { $ref: ref('operationPlan') },
+    'dev commit operationPlan schema must reference the shared operationPlan fragment.'
+  );
+  assertJsonEqual(
     schemas.devReview.properties.operationPlan,
     { $ref: ref('operationPlan') },
     'dev review operationPlan schema must reference the shared operationPlan fragment.'
+  );
+  assertJsonEqual(
+    schemas.devStatus.properties.operationPlan,
+    { $ref: ref('operationPlan') },
+    'dev status operationPlan schema must reference the shared operationPlan fragment.'
   );
   assertJsonEqual(
     schemas.doctor.properties.operationPlan,
@@ -261,6 +319,7 @@ const createDevReviewCliFixture = async () => {
 };
 
 const core = await importBuiltPackage('core');
+const ai = await importBuiltPackage('ai');
 const auto = await importBuiltPackage('auto');
 const configPackage = await importBuiltPackage('config');
 const dev = await importBuiltPackage('dev');
@@ -272,6 +331,18 @@ assert(
   JSON.stringify([...schemaErrorCodes].sort()) === JSON.stringify([...core.ZAOWU_ERROR_CODES].sort()),
   'Command error schema code enum must match the core error code registry.'
 );
+
+const localAIAsk = await ai.askAI({ prompt: 'Explain ZaoWu' });
+const aiProviders = {
+  schemaVersion: 1,
+  status: 'ok',
+  providers: ai.listAIProviders({}),
+};
+
+assert(localAIAsk.schemaVersion === 1, 'ai ask result schemaVersion must be 1.');
+assert(localAIAsk.status === 'ok', 'ai ask local provider output should be ok.');
+assertValid('aiAsk', localAIAsk);
+assertValid('aiProviders', aiProviders);
 
 const workflowContent =
   'name: contract\nvars:\n  target: ZaoWu\nsteps:\n  - name: hello\n    message: Hello {{target}}\n';
@@ -379,11 +450,20 @@ const runner = (_command, args) => {
     ].join('\n');
   }
 
+  if (key === 'status --short --branch') {
+    return '## main\nM  packages/dev/src/index.ts';
+  }
+
   throw new Error(`Unexpected git command: ${key}`);
 };
 
+const commit = dev.previewDevCommit(runner);
 const review = dev.reviewDevChanges(runner, { mode: 'staged' });
+const status = dev.getDevStatus(runner);
 
+assert(commit.schemaVersion === 1, 'dev commit result schemaVersion must be 1.');
+assert(commit.source === 'staged', 'dev commit should use staged changes.');
+assertValid('devCommit', commit);
 assert(review.schemaVersion === 1, 'dev review result schemaVersion must be 1.');
 assert(Array.isArray(review.diffHunks), 'dev review diffHunks must be an array.');
 assert(review.diffHunks[0]?.addedLines === 2, 'dev review diffHunks must expose added lines.');
@@ -392,10 +472,24 @@ assert(
   'dev review must expose deterministic shell-execution risk findings.'
 );
 assertValid('devReview', review);
+assert(status.schemaVersion === 1, 'dev status result schemaVersion must be 1.');
+assert(status.clean === false, 'dev status should report staged changes.');
+assertValid('devStatus', status);
 
 const cliWorkflowPath = 'examples/workflows/message.yml';
 const cliInitFixture = await mkdtemp(path.join(tmpdir(), 'zaowu-init-contract-'));
 const cliDoctor = runCliJson(['doctor']);
+const cliAIProviders = runCliJson(['ai', 'providers']);
+const cliAIAsk = runCliJson(['ai', 'ask', 'Explain', 'ZaoWu']);
+const cliAIPreview = runCliJson([
+  'ai',
+  'ask',
+  'Summarize',
+  '--file',
+  'examples/docs/report.md',
+  '--provider',
+  'openai',
+]);
 const cliValidation = runCliJson(['auto', 'validate', cliWorkflowPath]);
 const cliPlan = runCliJson(['auto', 'plan', cliWorkflowPath]);
 const cliRun = runCliJson(['auto', 'run', cliWorkflowPath]);
@@ -445,8 +539,28 @@ try {
 }
 
 assertValid('doctor', cliDoctor);
+assertValid('aiProviders', cliAIProviders);
+assertValid('aiAsk', cliAIAsk);
+assertValid('aiAsk', cliAIPreview);
 assert(cliDoctor.schemaVersion === 1, 'CLI doctor result schemaVersion must be 1.');
 assert(cliDoctor.operationPlan?.risk === 'low', 'CLI doctor should expose low-risk diagnostics.');
+assert(cliAIProviders.schemaVersion === 1, 'CLI ai providers schemaVersion must be 1.');
+assert(
+  cliAIProviders.providers.some((provider) => provider.id === 'openai'),
+  'CLI ai providers should expose the OpenAI provider.'
+);
+assert(cliAIAsk.schemaVersion === 1, 'CLI ai ask schemaVersion must be 1.');
+assert(cliAIAsk.status === 'ok', 'CLI local ai ask should be ok.');
+assert(
+  cliAIAsk.operationPlan?.network?.length === 0,
+  'CLI local ai ask should not report network access.'
+);
+assert(cliAIPreview.status === 'preview', 'CLI network ai ask should preview by default.');
+assert(cliAIPreview.output === null, 'CLI network ai preview should not expose provider output.');
+assert(
+  cliAIPreview.operationPlan?.confirmationRequired === true,
+  'CLI network ai preview should require confirmation.'
+);
 assert(
   cliDoctor.operationPlan?.executes?.includes('corepack pnpm --version'),
   'CLI doctor operation plan should disclose the Corepack pnpm check.'
@@ -465,9 +579,23 @@ assert(cliRun.status === 'preview', 'CLI auto run should preview by default.');
 const devReviewCliFixture = await createDevReviewCliFixture();
 
 try {
+  const cliStatus = runCliJson(['dev', 'status'], { cwd: devReviewCliFixture });
+  const cliCommit = runCliJson(['dev', 'commit'], { cwd: devReviewCliFixture });
   const cliReview = runCliJson(['dev', 'review', '--staged'], { cwd: devReviewCliFixture });
 
+  assertValid('devStatus', cliStatus);
+  assertValid('devCommit', cliCommit);
   assertValid('devReview', cliReview);
+  assert(cliStatus.schemaVersion === 1, 'CLI dev status schemaVersion must be 1.');
+  assert(
+    cliStatus.operationPlan?.executes?.includes('git status --short --branch'),
+    'CLI dev status operation plan should disclose git status.'
+  );
+  assert(cliCommit.schemaVersion === 1, 'CLI dev commit schemaVersion must be 1.');
+  assert(
+    cliCommit.operationPlan?.reads?.includes('staged git diff'),
+    'CLI dev commit operation plan should disclose staged diff reads.'
+  );
   assert(
     cliReview.summary.files.includes('packages/dev/src/index.ts'),
     'CLI dev review should expose staged fixture files.'
@@ -483,6 +611,8 @@ try {
 runCliErrorJson(['auto', 'plan'], 'TARGET_REQUIRED');
 runCliErrorJson(['unknown-command'], 'UNKNOWN_COMMAND');
 runCliErrorJson(['web', 'inspect', 'not-a-url'], 'WEB_URL_INVALID');
+runCliErrorJson(['ai', 'ask'], 'AI_PROMPT_REQUIRED');
+runCliErrorJson(['ai', 'providers', '--provider', 'missing'], 'AI_PROVIDER_NOT_FOUND');
 runCliErrorJson(['ai', 'ask', 'Explain', 'ZaoWu', '--provider', 'missing'], 'AI_PROVIDER_NOT_FOUND');
 runCliErrorJson(['ai', 'ask', 'Explain', 'ZaoWu', '--provider', 'openai', '--yes'], 'AI_PROVIDER_CONFIG_MISSING', {
   env: {
@@ -490,5 +620,17 @@ runCliErrorJson(['ai', 'ask', 'Explain', 'ZaoWu', '--provider', 'openai', '--yes
     OPENAI_API_KEY: '',
   },
 });
+
+const emptyDevCliFixture = await mkdtemp(path.join(tmpdir(), 'zaowu-dev-empty-contract-'));
+
+try {
+  runGit(emptyDevCliFixture, ['init', '--quiet']);
+  runCliErrorJson(['dev', 'commit'], 'NO_STAGED_CHANGES', { cwd: emptyDevCliFixture });
+  runCliErrorJson(['dev', 'review', '--staged'], 'NO_CHANGES_TO_REVIEW', {
+    cwd: emptyDevCliFixture,
+  });
+} finally {
+  await rm(emptyDevCliFixture, { force: true, recursive: true });
+}
 
 console.log('ZaoWu JSON contracts: ok');

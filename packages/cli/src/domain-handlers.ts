@@ -311,6 +311,7 @@ const handleAiAsk: DomainActionHandler = async (args, context) => {
       model: requestedModel,
     });
     const payload = {
+      schemaVersion: preview.schemaVersion,
       status: 'preview',
       provider,
       model: preview.model,
@@ -340,10 +341,7 @@ const handleAiAsk: DomainActionHandler = async (args, context) => {
     model: requestedModel,
     allowNetwork: context.yes,
   });
-  const payload = {
-    status: 'ok',
-    ...response,
-  };
+  const payload = response;
   const human = [
     'ZaoWu AI Ask',
     '',
@@ -364,6 +362,7 @@ const handleAiProviders: DomainActionHandler = async (_args, context) => {
   const activeProvider = getValue(context.parsed, '--provider');
   const validation = activeProvider ? validateAIProviderConfig(activeProvider) : undefined;
   const payload = {
+    schemaVersion: 1,
     status: validation?.status ?? 'ok',
     providers,
     validation,

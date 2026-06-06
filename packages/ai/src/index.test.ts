@@ -46,6 +46,7 @@ describe('AI provider registry', () => {
 
   it('answers through the local echo provider without network access', async () => {
     await expect(askAI({ prompt: 'Explain ZaoWu' })).resolves.toMatchObject({
+      schemaVersion: 1,
       provider: {
         id: 'echo',
       },
@@ -117,6 +118,7 @@ describe('AI provider registry', () => {
           },
         })
       ).resolves.toMatchObject({
+        schemaVersion: 1,
         status: 'preview',
         provider: {
           id: 'openai',
@@ -185,6 +187,7 @@ describe('AI provider registry', () => {
         },
       })
     ).resolves.toMatchObject({
+      schemaVersion: 1,
       provider: {
         id: 'openai',
         network: true,
