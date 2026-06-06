@@ -288,6 +288,7 @@ describe('executeCli', () => {
       const migrate = await executeCli(['config', 'migrate', '--json'], { cwd: root });
 
       expect(JSON.parse(validate.stdout)).toMatchObject({
+        schemaVersion: 1,
         status: 'ok',
         config: {
           version: 1,

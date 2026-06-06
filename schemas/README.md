@@ -14,6 +14,8 @@ validators.
   creation result shape
 - `zaowu.command.doctor.schema.json` - versioned `zw doctor --json` result
   shape
+- `zaowu.command.config-validate.schema.json` - versioned
+  `zw config validate --json` result shape
 - `zaowu.command.dev-review.schema.json` - versioned `zw dev review --json`
   result shape
 - `zaowu.command.auto-validate.schema.json` - versioned

@@ -43,6 +43,13 @@ try {
   assert(init.schemaVersion === 1, 'confirmed init should expose result schema version');
   assert(init.status === 'ok', 'confirmed init should be ok');
 
+  const configValidation = run(['config', 'validate', '--json'], { json: true });
+  assert(
+    configValidation.schemaVersion === 1,
+    'config validate should expose result schema version'
+  );
+  assert(configValidation.status === 'ok', 'config validate should be ok after init');
+
   const doctor = run(['doctor', '--json'], { json: true });
   assert(['ok', 'warning'].includes(doctor.status), 'doctor should return a known status');
   assert(doctor.operationPlan?.schemaVersion === 1, 'doctor should expose operation plan');
