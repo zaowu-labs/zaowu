@@ -59,7 +59,8 @@ If the config already exists, ZaoWu must not overwrite it.
 
 ## 7. Output Rules
 
-Default output is human-readable. `--json` returns valid JSON without extra text.
+Default output is human-readable. `--json` returns valid JSON without extra text
+and follows `schemas/zaowu.command.init.schema.json`.
 
 ## 8. Safety Rules
 
@@ -105,6 +106,7 @@ Examples:
 - [x] confirmed write
 - [x] existing config error
 - [x] JSON output
+- [x] versioned JSON schema contract
 - [x] help output
 
 ## 13. Documentation
