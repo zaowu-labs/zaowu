@@ -255,8 +255,19 @@ export const loadDataTable = async (
 
   if (source.format === 'xlsx') {
     try {
+      const workbookBuffer = await readFile(filePath);
+
+      if (workbookBuffer[0] !== 0x50 || workbookBuffer[1] !== 0x4b) {
+        throw new ZaoWuError({
+          code: 'DATA_READ_FAILED',
+          message: 'Could not read data file.',
+          why: `ZaoWu tried to read \`${filePath}\` as an XLSX workbook, but the file is not an XLSX ZIP container.`,
+          fix: 'Check the workbook format or export the data as `.csv`, `.tsv`, or `.xlsx`.',
+        });
+      }
+
       const XLSX = await import('xlsx');
-      const workbook = XLSX.read(await readFile(filePath), {
+      const workbook = XLSX.read(workbookBuffer, {
         type: 'buffer',
       });
       const firstSheetName = workbook.SheetNames[0];

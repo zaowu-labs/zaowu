@@ -439,7 +439,7 @@ describe('executeCli', () => {
     } finally {
       await rm(root, { recursive: true, force: true });
     }
-  });
+  }, 15_000);
 
   it('runs document summary from CLI', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));

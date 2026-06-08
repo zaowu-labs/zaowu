@@ -48,9 +48,24 @@ for (const section of [
   '## npm Publish Rules',
   '## Provenance',
   '## Publish Permissions',
+  '## Release Workflow Requirements',
+  '## Rollback',
   '## Preflight',
 ]) {
   assert(releasePolicy.includes(section), `Release policy must include ${section}.`);
+}
+for (const requiredText of [
+  'https://docs.npmjs.com/trusted-publishers/',
+  'https://docs.github.com/en/actions/concepts/security/openid-connect',
+  'corepack pnpm install --frozen-lockfile',
+  'corepack pnpm verify',
+  'Do not add or enable a publishing workflow until all of these are true',
+  'Re-run the full release gate before publishing a corrective version',
+]) {
+  assert(
+    releasePolicy.includes(requiredText),
+    `Release policy must include release safety text: ${requiredText}.`
+  );
 }
 
 const changelog = await readText('CHANGELOG.md must exist before release work.', 'CHANGELOG.md');
