@@ -32,6 +32,7 @@ const assert = (condition, message) => {
 
 try {
   const version = run(['--version', '--json'], { json: true });
+  assert(version.schemaVersion === 1, 'version JSON should expose result schema version');
   assert(version.status === 'ok', 'version JSON should be ok');
 
   const initPreview = run(['init', '--json'], { json: true });
@@ -49,6 +50,15 @@ try {
     'config validate should expose result schema version'
   );
   assert(configValidation.status === 'ok', 'config validate should be ok after init');
+
+  const configPath = run(['config', 'path', '--json'], { json: true });
+  assert(configPath.schemaVersion === 1, 'config path should expose result schema version');
+
+  const configShow = run(['config', 'show', '--json'], { json: true });
+  assert(configShow.schemaVersion === 1, 'config show should expose result schema version');
+
+  const configGet = run(['config', 'get', 'project.name', '--json'], { json: true });
+  assert(configGet.schemaVersion === 1, 'config get should expose result schema version');
 
   const configSet = run(['config', 'set', 'project.name', 'smoke-project', '--json'], {
     json: true,
@@ -101,10 +111,12 @@ try {
   assert(devCommit.source === 'staged', 'dev commit should read staged changes');
 
   const docSummary = run(['doc', 'summary', notePath, '--json'], { json: true });
+  assert(docSummary.schemaVersion === 1, 'doc summary should expose result schema version');
   assert(docSummary.title === 'Smoke Report', 'doc summary should read markdown title');
 
   const dataPath = path.join(examples, 'data', 'sales.csv');
   const dataSchema = run(['data', 'schema', dataPath, '--json'], { json: true });
+  assert(dataSchema.schemaVersion === 1, 'data schema should expose result schema version');
   assert(dataSchema.columns?.[1]?.type === 'number', 'data schema should infer numbers');
 
   const workflowPath = path.join(examples, 'workflows', 'message.yml');
@@ -119,12 +131,21 @@ try {
   const pluginValidation = run(['plugin', 'validate', pluginManifestPath, '--json'], {
     json: true,
   });
+  assert(
+    pluginValidation.schemaVersion === 1,
+    'plugin validate should expose result schema version'
+  );
   assert(pluginValidation.status === 'ok', 'example plugin manifest should validate');
 
   const pluginPreview = run(['plugin', 'install', 'smoke-plugin', '--json'], { json: true });
+  assert(pluginPreview.schemaVersion === 1, 'plugin install should expose result schema version');
   assert(pluginPreview.status === 'preview', 'plugin install should preview by default');
 
+  const teachPlan = run(['teach', 'plan', 'TypeScript basics', '--json'], { json: true });
+  assert(teachPlan.schemaVersion === 1, 'teach plan should expose result schema version');
+
   const webPreview = run(['web', 'inspect', 'https://example.com', '--json'], { json: true });
+  assert(webPreview.schemaVersion === 1, 'web inspect should expose result schema version');
   assert(webPreview.status === 'preview', 'web inspect should preview by default');
 
   console.log('ZaoWu CLI smoke: ok');

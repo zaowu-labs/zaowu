@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL, URL } from 'node:url';
 import Ajv2020 from 'ajv/dist/2020.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -32,15 +32,39 @@ const schemas = {
   autoPlan: await readJson('schemas', 'zaowu.command.auto-plan.schema.json'),
   autoRun: await readJson('schemas', 'zaowu.command.auto-run.schema.json'),
   config: await readJson('schemas', 'zaowu.config.schema.json'),
+  configGet: await readJson('schemas', 'zaowu.command.config-get.schema.json'),
   configMigrate: await readJson('schemas', 'zaowu.command.config-migrate.schema.json'),
+  configPath: await readJson('schemas', 'zaowu.command.config-path.schema.json'),
   configSet: await readJson('schemas', 'zaowu.command.config-set.schema.json'),
+  configShow: await readJson('schemas', 'zaowu.command.config-show.schema.json'),
   configValidate: await readJson('schemas', 'zaowu.command.config-validate.schema.json'),
+  dataAnalyze: await readJson('schemas', 'zaowu.command.data-analyze.schema.json'),
+  dataClean: await readJson('schemas', 'zaowu.command.data-clean.schema.json'),
+  dataInspect: await readJson('schemas', 'zaowu.command.data-inspect.schema.json'),
+  dataSample: await readJson('schemas', 'zaowu.command.data-sample.schema.json'),
+  dataSchema: await readJson('schemas', 'zaowu.command.data-schema.schema.json'),
   devCommit: await readJson('schemas', 'zaowu.command.dev-commit.schema.json'),
   devReview: await readJson('schemas', 'zaowu.command.dev-review.schema.json'),
   devStatus: await readJson('schemas', 'zaowu.command.dev-status.schema.json'),
+  docConvert: await readJson('schemas', 'zaowu.command.doc-convert.schema.json'),
+  docExtract: await readJson('schemas', 'zaowu.command.doc-extract.schema.json'),
+  docOutline: await readJson('schemas', 'zaowu.command.doc-outline.schema.json'),
+  docSearch: await readJson('schemas', 'zaowu.command.doc-search.schema.json'),
+  docSummary: await readJson('schemas', 'zaowu.command.doc-summary.schema.json'),
   doctor: await readJson('schemas', 'zaowu.command.doctor.schema.json'),
   error: await readJson('schemas', 'zaowu.command.error.schema.json'),
+  help: await readJson('schemas', 'zaowu.command.help.schema.json'),
   init: await readJson('schemas', 'zaowu.command.init.schema.json'),
+  plugin: await readJson('schemas', 'zaowu.plugin.schema.json'),
+  pluginInstall: await readJson('schemas', 'zaowu.command.plugin-install.schema.json'),
+  pluginList: await readJson('schemas', 'zaowu.command.plugin-list.schema.json'),
+  pluginRemove: await readJson('schemas', 'zaowu.command.plugin-remove.schema.json'),
+  pluginValidate: await readJson('schemas', 'zaowu.command.plugin-validate.schema.json'),
+  teachPlan: await readJson('schemas', 'zaowu.command.teach-plan.schema.json'),
+  teachQuiz: await readJson('schemas', 'zaowu.command.teach-quiz.schema.json'),
+  version: await readJson('schemas', 'zaowu.command.version.schema.json'),
+  webFetch: await readJson('schemas', 'zaowu.command.web-fetch.schema.json'),
+  webInspect: await readJson('schemas', 'zaowu.command.web-inspect.schema.json'),
 };
 
 for (const [name, schema] of Object.entries(schemas)) {
@@ -57,6 +81,7 @@ for (const [name, schema] of Object.entries(schemas)) {
 
 ajv.addSchema(schemas.shared);
 ajv.addSchema(schemas.config);
+ajv.addSchema(schemas.plugin);
 
 const validators = {
   aiAsk: ajv.compile(schemas.aiAsk),
@@ -65,21 +90,45 @@ const validators = {
   autoPlan: ajv.compile(schemas.autoPlan),
   autoRun: ajv.compile(schemas.autoRun),
   configMigrate: ajv.compile(schemas.configMigrate),
+  configGet: ajv.compile(schemas.configGet),
+  configPath: ajv.compile(schemas.configPath),
   configSet: ajv.compile(schemas.configSet),
+  configShow: ajv.compile(schemas.configShow),
   configValidate: ajv.compile(schemas.configValidate),
+  dataAnalyze: ajv.compile(schemas.dataAnalyze),
+  dataClean: ajv.compile(schemas.dataClean),
+  dataInspect: ajv.compile(schemas.dataInspect),
+  dataSample: ajv.compile(schemas.dataSample),
+  dataSchema: ajv.compile(schemas.dataSchema),
   devCommit: ajv.compile(schemas.devCommit),
   devReview: ajv.compile(schemas.devReview),
   devStatus: ajv.compile(schemas.devStatus),
+  docConvert: ajv.compile(schemas.docConvert),
+  docExtract: ajv.compile(schemas.docExtract),
+  docOutline: ajv.compile(schemas.docOutline),
+  docSearch: ajv.compile(schemas.docSearch),
+  docSummary: ajv.compile(schemas.docSummary),
   doctor: ajv.compile(schemas.doctor),
   error: ajv.compile(schemas.error),
+  help: ajv.compile(schemas.help),
   init: ajv.compile(schemas.init),
+  pluginInstall: ajv.compile(schemas.pluginInstall),
+  pluginList: ajv.compile(schemas.pluginList),
+  pluginRemove: ajv.compile(schemas.pluginRemove),
+  pluginValidate: ajv.compile(schemas.pluginValidate),
+  teachPlan: ajv.compile(schemas.teachPlan),
+  teachQuiz: ajv.compile(schemas.teachQuiz),
+  version: ajv.compile(schemas.version),
+  webFetch: ajv.compile(schemas.webFetch),
+  webInspect: ajv.compile(schemas.webInspect),
 };
 
 const assertValid = (name, value) => {
   const validator = validators[name];
+  const jsonValue = JSON.parse(JSON.stringify(value));
 
   assert(
-    validator(value),
+    validator(jsonValue),
     `${name} JSON contract errors: ${ajv.errorsText(validator.errors, { separator: '; ' })}`
   );
 };
@@ -203,6 +252,36 @@ const assertSchemaFragmentsStayAligned = () => {
     'config migrate operationPlan schema must reference the shared operationPlan fragment.'
   );
   assertJsonEqual(
+    schemas.docConvert.properties.operationPlan,
+    { $ref: ref('operationPlan') },
+    'doc convert operationPlan schema must reference the shared operationPlan fragment.'
+  );
+  assertJsonEqual(
+    schemas.dataClean.properties.operationPlan,
+    { $ref: ref('operationPlan') },
+    'data clean operationPlan schema must reference the shared operationPlan fragment.'
+  );
+  assertJsonEqual(
+    schemas.pluginInstall.properties.operationPlan,
+    { $ref: ref('operationPlan') },
+    'plugin install operationPlan schema must reference the shared operationPlan fragment.'
+  );
+  assertJsonEqual(
+    schemas.pluginRemove.properties.operationPlan,
+    { $ref: ref('operationPlan') },
+    'plugin remove operationPlan schema must reference the shared operationPlan fragment.'
+  );
+  assertJsonEqual(
+    schemas.webInspect.properties.operationPlan,
+    { $ref: ref('operationPlan') },
+    'web inspect operationPlan schema must reference the shared operationPlan fragment.'
+  );
+  assertJsonEqual(
+    schemas.webFetch.properties.operationPlan,
+    { $ref: ref('operationPlan') },
+    'web fetch operationPlan schema must reference the shared operationPlan fragment.'
+  );
+  assertJsonEqual(
     schemas.autoPlan.properties.steps.items.properties.operationPlan,
     { $ref: ref('operationPlan') },
     'auto plan step operationPlan schema must reference the shared operationPlan fragment.'
@@ -322,9 +401,40 @@ const core = await importBuiltPackage('core');
 const ai = await importBuiltPackage('ai');
 const auto = await importBuiltPackage('auto');
 const configPackage = await importBuiltPackage('config');
+const data = await importBuiltPackage('data');
 const dev = await importBuiltPackage('dev');
+const doc = await importBuiltPackage('doc');
+const plugin = await importBuiltPackage('plugin');
+const teach = await importBuiltPackage('teach');
+const web = await importBuiltPackage('web');
+const { COMMAND_CONTRACTS } = await import(
+  pathToFileURL(path.join(root, 'packages', 'cli', 'dist', 'command-contracts.js')).href
+);
 
 assertSchemaFragmentsStayAligned();
+
+for (const contract of COMMAND_CONTRACTS.filter((candidate) => candidate.id !== 'root.help')) {
+  assert(
+    typeof contract.schemaFile === 'string',
+    `${contract.id} must register a result schema file.`
+  );
+  assert(
+    Object.values(schemas).some((schema) => path.basename(contract.schemaFile) === path.basename(new URL(schema.$id).pathname)),
+    `${contract.id} schema file must be loaded by the JSON contract gate.`
+  );
+}
+
+const cliVersion = runCliJson(['--version']);
+
+assertValid('version', cliVersion);
+assert(cliVersion.schemaVersion === 1, 'CLI version schemaVersion must be 1.');
+
+for (const contract of COMMAND_CONTRACTS) {
+  const help = runCliJson([...contract.helpArgs]);
+
+  assertValid('help', help);
+  assert(help.schemaVersion === 1, `${contract.id} help schemaVersion must be 1.`);
+}
 
 const schemaErrorCodes = schemas.error.properties.error.properties.code.enum;
 assert(
@@ -429,6 +539,100 @@ try {
   await rm(configValidateFixture, { force: true, recursive: true });
 }
 
+const documentPath = path.join(root, 'examples', 'docs', 'report.md');
+const dataPath = path.join(root, 'examples', 'data', 'sales.csv');
+const pluginSourcePath = path.join(root, 'examples', 'plugins', 'hello');
+const packageFixture = await mkdtemp(path.join(tmpdir(), 'zaowu-package-contract-'));
+
+try {
+  const documentSummary = await doc.summarizeDocument(documentPath);
+  const documentExtract = await doc.extractDocument(documentPath);
+  const documentOutline = await doc.outlineDocument(documentPath);
+  const documentSearch = await doc.searchDocument(documentPath, 'ZaoWu');
+  const documentConversion = await doc.convertDocument(documentPath, {
+    outputPath: path.join(packageFixture, 'report.txt'),
+  });
+
+  assertValid('docSummary', documentSummary);
+  assertValid('docExtract', documentExtract);
+  assertValid('docOutline', documentOutline);
+  assertValid('docSearch', documentSearch);
+  assertValid('docConvert', documentConversion);
+  assert(
+    documentConversion.schemaVersion === 1,
+    'doc convert result schemaVersion must be 1.'
+  );
+  assert(documentConversion.status === 'preview', 'doc convert package output should preview.');
+
+  const dataInspection = await data.inspectData(dataPath);
+  const dataAnalysis = await data.analyzeData(dataPath);
+  const dataCleaning = await data.cleanData(dataPath, {
+    outputPath: path.join(packageFixture, 'sales-clean.csv'),
+  });
+  const dataShape = await data.inferDataSchema(dataPath);
+  const dataSample = await data.sampleData(dataPath, { rows: 2 });
+
+  assertValid('dataInspect', dataInspection);
+  assertValid('dataAnalyze', dataAnalysis);
+  assertValid('dataClean', dataCleaning);
+  assertValid('dataSchema', dataShape);
+  assertValid('dataSample', dataSample);
+  assert(dataCleaning.schemaVersion === 1, 'data clean result schemaVersion must be 1.');
+  assert(dataCleaning.status === 'preview', 'data clean package output should preview.');
+
+  const pluginList = await plugin.listPlugins({ cwd: packageFixture });
+  const pluginInstall = await plugin.installPlugin('contract-plugin', { cwd: packageFixture });
+  const pluginRemove = await plugin.removePlugin('contract-plugin', { cwd: packageFixture });
+  const pluginValidation = await plugin.validatePluginSource(pluginSourcePath);
+
+  assertValid('pluginList', pluginList);
+  assertValid('pluginInstall', pluginInstall);
+  assertValid('pluginRemove', pluginRemove);
+  assertValid('pluginValidate', pluginValidation);
+  assert(pluginInstall.status === 'preview', 'plugin install package output should preview.');
+  assert(pluginRemove.status === 'preview', 'plugin remove package output should preview.');
+
+  const teachingPlan = await teach.createTeachingPlan('TypeScript basics');
+  const teachingQuiz = await teach.createTeachingQuiz(
+    'Variables store values. Functions group behavior.'
+  );
+
+  assertValid('teachPlan', teachingPlan);
+  assertValid('teachQuiz', teachingQuiz);
+
+  const fetcher = async (_url, init) => ({
+    status: 200,
+    statusText: 'OK',
+    headers: {
+      forEach(callback) {
+        callback(init?.method === 'HEAD' ? 'text/html' : 'text/plain', 'content-type');
+      },
+    },
+    async text() {
+      return 'Contract body';
+    },
+  });
+  const webInspectionPreview = await web.inspectWebTarget('https://example.com');
+  const webInspection = await web.inspectWebTarget('https://example.com', {
+    yes: true,
+    fetcher,
+  });
+  const webFetchPreview = await web.fetchWebTarget('https://example.com');
+  const webFetch = await web.fetchWebTarget('https://example.com', {
+    yes: true,
+    fetcher,
+  });
+
+  assertValid('webInspect', webInspectionPreview);
+  assertValid('webInspect', webInspection);
+  assertValid('webFetch', webFetchPreview);
+  assertValid('webFetch', webFetch);
+  assert(webInspectionPreview.status === 'preview', 'web inspect should preview by default.');
+  assert(webFetchPreview.status === 'preview', 'web fetch should preview by default.');
+} finally {
+  await rm(packageFixture, { force: true, recursive: true });
+}
+
 const runner = (_command, args) => {
   const key = args.join(' ');
 
@@ -493,21 +697,58 @@ const cliAIPreview = runCliJson([
 const cliValidation = runCliJson(['auto', 'validate', cliWorkflowPath]);
 const cliPlan = runCliJson(['auto', 'plan', cliWorkflowPath]);
 const cliRun = runCliJson(['auto', 'run', cliWorkflowPath]);
+const cliDocSummary = runCliJson(['doc', 'summary', documentPath]);
+const cliDocExtract = runCliJson(['doc', 'extract', documentPath]);
+const cliDocConvert = runCliJson(['doc', 'convert', documentPath]);
+const cliDocOutline = runCliJson(['doc', 'outline', documentPath]);
+const cliDocSearch = runCliJson(['doc', 'search', documentPath, 'ZaoWu']);
+const cliDataInspect = runCliJson(['data', 'inspect', dataPath]);
+const cliDataAnalyze = runCliJson(['data', 'analyze', dataPath]);
+const cliDataClean = runCliJson(['data', 'clean', dataPath]);
+const cliDataSchema = runCliJson(['data', 'schema', dataPath]);
+const cliDataSample = runCliJson(['data', 'sample', dataPath, '--rows', '2']);
+const cliPluginValidation = runCliJson(['plugin', 'validate', pluginSourcePath]);
+const cliTeachPlan = runCliJson(['teach', 'plan', 'TypeScript basics']);
+const cliTeachQuiz = runCliJson([
+  'teach',
+  'quiz',
+  'Variables store values. Functions group behavior.',
+]);
+const cliWebInspect = runCliJson(['web', 'inspect', 'https://example.com']);
+const cliWebFetch = runCliJson(['web', 'fetch', 'https://example.com']);
 
 try {
   const cliInitPreview = runCliJson(['init'], { cwd: cliInitFixture });
   const cliInitCreated = runCliJson(['init', '--yes'], { cwd: cliInitFixture });
+  const cliConfigPath = runCliJson(['config', 'path'], { cwd: cliInitFixture });
+  const cliConfigShow = runCliJson(['config', 'show'], { cwd: cliInitFixture });
+  const cliConfigGet = runCliJson(['config', 'get', 'project.name'], {
+    cwd: cliInitFixture,
+  });
   const cliConfigValidation = runCliJson(['config', 'validate'], { cwd: cliInitFixture });
   const cliConfigSet = runCliJson(['config', 'set', 'project.name', 'contract-cli'], {
     cwd: cliInitFixture,
   });
   const cliConfigMigration = runCliJson(['config', 'migrate'], { cwd: cliInitFixture });
+  const cliPluginList = runCliJson(['plugin', 'list'], { cwd: cliInitFixture });
+  const cliPluginInstall = runCliJson(['plugin', 'install', 'contract-plugin'], {
+    cwd: cliInitFixture,
+  });
+  const cliPluginRemove = runCliJson(['plugin', 'remove', 'contract-plugin'], {
+    cwd: cliInitFixture,
+  });
 
   assertValid('init', cliInitPreview);
   assertValid('init', cliInitCreated);
+  assertValid('configPath', cliConfigPath);
+  assertValid('configShow', cliConfigShow);
+  assertValid('configGet', cliConfigGet);
   assertValid('configSet', cliConfigSet);
   assertValid('configMigrate', cliConfigMigration);
   assertValid('configValidate', cliConfigValidation);
+  assertValid('pluginList', cliPluginList);
+  assertValid('pluginInstall', cliPluginInstall);
+  assertValid('pluginRemove', cliPluginRemove);
   assert(cliInitPreview.schemaVersion === 1, 'CLI init preview schemaVersion must be 1.');
   assert(cliInitPreview.dryRun === true, 'CLI init preview should report dryRun true.');
   assert(
@@ -533,6 +774,17 @@ try {
   assert(
     cliConfigMigration.operationPlan?.confirmationRequired === false,
     'CLI config migrate unchanged output should not require confirmation.'
+  );
+  assert(cliConfigPath.schemaVersion === 1, 'CLI config path schemaVersion must be 1.');
+  assert(cliConfigShow.schemaVersion === 1, 'CLI config show schemaVersion must be 1.');
+  assert(cliConfigGet.schemaVersion === 1, 'CLI config get schemaVersion must be 1.');
+  assert(
+    cliPluginInstall.operationPlan?.confirmationRequired === true,
+    'CLI plugin install preview should require confirmation.'
+  );
+  assert(
+    cliPluginRemove.operationPlan?.confirmationRequired === true,
+    'CLI plugin remove preview should require confirmation.'
   );
 } finally {
   await rm(cliInitFixture, { force: true, recursive: true });
@@ -575,6 +827,39 @@ assertValid('autoValidate', cliValidation);
 assertValid('autoPlan', cliPlan);
 assertValid('autoRun', cliRun);
 assert(cliRun.status === 'preview', 'CLI auto run should preview by default.');
+assertValid('docSummary', cliDocSummary);
+assertValid('docExtract', cliDocExtract);
+assertValid('docConvert', cliDocConvert);
+assertValid('docOutline', cliDocOutline);
+assertValid('docSearch', cliDocSearch);
+assert(cliDocConvert.schemaVersion === 1, 'CLI doc convert schemaVersion must be 1.');
+assert(
+  cliDocConvert.operationPlan?.confirmationRequired === false,
+  'CLI doc convert without an output path should not require confirmation.'
+);
+assertValid('dataInspect', cliDataInspect);
+assertValid('dataAnalyze', cliDataAnalyze);
+assertValid('dataClean', cliDataClean);
+assertValid('dataSchema', cliDataSchema);
+assertValid('dataSample', cliDataSample);
+assert(cliDataClean.schemaVersion === 1, 'CLI data clean schemaVersion must be 1.');
+assert(
+  cliDataClean.operationPlan?.confirmationRequired === false,
+  'CLI data clean without an output path should not require confirmation.'
+);
+assertValid('pluginValidate', cliPluginValidation);
+assertValid('teachPlan', cliTeachPlan);
+assertValid('teachQuiz', cliTeachQuiz);
+assertValid('webInspect', cliWebInspect);
+assertValid('webFetch', cliWebFetch);
+assert(
+  cliWebInspect.operationPlan?.confirmationRequired === true,
+  'CLI web inspect preview should require confirmation.'
+);
+assert(
+  cliWebFetch.operationPlan?.confirmationRequired === true,
+  'CLI web fetch preview should require confirmation.'
+);
 
 const devReviewCliFixture = await createDevReviewCliFixture();
 

@@ -143,6 +143,7 @@ describe('doc domain', () => {
 
     try {
       await expect(summarizeDocument(filePath)).resolves.toEqual({
+        schemaVersion: 1,
         status: 'ok',
         filePath,
         title: 'empty.txt',
@@ -218,6 +219,7 @@ describe('doc domain', () => {
 
     try {
       await expect(searchDocument(filePath, 'zaowu')).resolves.toEqual({
+        schemaVersion: 1,
         status: 'ok',
         filePath,
         keyword: 'zaowu',

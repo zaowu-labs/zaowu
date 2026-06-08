@@ -32,6 +32,7 @@ describe('data domain', () => {
 
     try {
       await expect(inspectData(filePath)).resolves.toEqual({
+        schemaVersion: 1,
         status: 'ok',
         filePath,
         rowCount: 2,
@@ -97,6 +98,7 @@ describe('data domain', () => {
 
     try {
       await expect(inspectData(filePath)).resolves.toEqual({
+        schemaVersion: 1,
         status: 'ok',
         filePath,
         rowCount: 0,
@@ -124,6 +126,7 @@ describe('data domain', () => {
 
     try {
       await expect(analyzeData(filePath)).resolves.toEqual({
+        schemaVersion: 1,
         status: 'ok',
         filePath,
         numericColumns: [
@@ -150,6 +153,7 @@ describe('data domain', () => {
 
     try {
       await expect(cleanData(inputPath, { outputPath })).resolves.toEqual({
+        schemaVersion: 1,
         status: 'preview',
         inputPath,
         outputPath,

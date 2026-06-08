@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.zaowu.dev/zaowu.command.plugin-list.schema.json",
+  "title": "ZaoWu Plugin List Result",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "status", "pluginDir", "plugins"],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "status": {
+      "const": "ok"
+    },
+    "pluginDir": {
+      "type": "string"
+    },
+    "plugins": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/pluginManifest"
+      }
+    }
+  },
+  "$defs": {
+    "pluginManifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "source", "installedAt"],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "installedAt": {
+          "type": ["string", "null"]
+        }
+      }
+    }
+  }
+}

@@ -257,7 +257,9 @@ Safety:
 
 The CLI keeps a command contract registry in `packages/cli/src/command-contracts.ts`.
 Every registered command must keep action help available in both human and JSON
-forms.
+forms. Every runnable JSON command except help must also register a versioned
+result schema, and the JSON contract gate validates both package and real CLI
+output against it.
 
 The `corepack pnpm verify` script runs build, JSON contract checks, CLI smoke,
 tests, lint, format check, release readiness, and package dry-run. The smoke

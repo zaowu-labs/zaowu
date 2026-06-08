@@ -16,6 +16,7 @@ export interface DataTable {
 }
 
 export interface DataInspectResult {
+  schemaVersion: 1;
   status: 'ok';
   filePath: string;
   sheetName?: string;
@@ -34,6 +35,7 @@ export interface NumericColumnAnalysis {
 }
 
 export interface DataAnalyzeResult {
+  schemaVersion: 1;
   status: 'ok';
   filePath: string;
   sheetName?: string;
@@ -41,6 +43,7 @@ export interface DataAnalyzeResult {
 }
 
 export interface DataCleanResult {
+  schemaVersion: 1;
   status: 'ok' | 'preview';
   inputPath: string;
   sheetName?: string;
@@ -61,6 +64,7 @@ export interface DataColumnSchema {
 }
 
 export interface DataSchemaResult {
+  schemaVersion: 1;
   status: 'ok';
   filePath: string;
   sheetName?: string;
@@ -68,6 +72,7 @@ export interface DataSchemaResult {
 }
 
 export interface DataSampleResult {
+  schemaVersion: 1;
   status: 'ok';
   filePath: string;
   sheetName?: string;
@@ -399,6 +404,7 @@ export const inspectData = async (
   const table = await loadDataTable(filePath, options);
 
   return {
+    schemaVersion: 1,
     status: 'ok',
     filePath,
     sheetName: table.sheetName,
@@ -437,6 +443,7 @@ export const analyzeData = async (
   }
 
   return {
+    schemaVersion: 1,
     status: 'ok',
     filePath,
     sheetName: table.sheetName,
@@ -475,6 +482,7 @@ export const cleanData = async (
   }
 
   return {
+    schemaVersion: 1,
     status: options.outputPath && !options.yes ? 'preview' : 'ok',
     inputPath,
     sheetName: table.sheetName,
@@ -521,6 +529,7 @@ export const inferDataSchema = async (
   const table = await loadDataTable(filePath, options);
 
   return {
+    schemaVersion: 1,
     status: 'ok',
     filePath,
     sheetName: table.sheetName,
@@ -553,6 +562,7 @@ export const sampleData = async (
     );
 
   return {
+    schemaVersion: 1,
     status: 'ok',
     filePath,
     sheetName: table.sheetName,

@@ -38,6 +38,7 @@ export interface ZaoWuConfig {
 }
 
 export interface ResolvedConfig {
+  schemaVersion: 1;
   filePath: string;
   config: ZaoWuConfig;
 }
@@ -59,6 +60,7 @@ export interface ConfigValidationResult {
 }
 
 export interface ConfigGetResult {
+  schemaVersion: 1;
   status: 'ok';
   filePath: string;
   key: ConfigKey;
@@ -574,6 +576,7 @@ export const loadResolvedConfig = async (cwd?: string): Promise<ResolvedConfig> 
   const loaded = await loadConfig(filePath);
 
   return {
+    schemaVersion: 1,
     filePath,
     config: parseConfig(loaded.content, loaded.filePath),
   };
@@ -620,6 +623,7 @@ export const getResolvedConfigValue = async (
   const resolved = await loadResolvedConfig(cwd);
 
   return {
+    schemaVersion: 1,
     status: 'ok',
     filePath: resolved.filePath,
     key: configKey,

@@ -20,6 +20,12 @@ validators.
   preview and write result shape
 - `zaowu.command.config-migrate.schema.json` - versioned
   `zw config migrate --json` preview and write result shape
+- `zaowu.command.config-path.schema.json` - versioned `zw config path --json`
+  result shape
+- `zaowu.command.config-show.schema.json` - versioned `zw config show --json`
+  result shape
+- `zaowu.command.config-get.schema.json` - versioned `zw config get --json`
+  result shape
 - `zaowu.command.ai-ask.schema.json` - versioned `zw ai ask --json` local,
   preview, and provider-backed result shape
 - `zaowu.command.ai-providers.schema.json` - versioned
@@ -36,8 +42,21 @@ validators.
   result shape
 - `zaowu.command.auto-run.schema.json` - versioned `zw auto run --json`
   result shape
+- `zaowu.command.doc-*.schema.json` - versioned document summary, extraction,
+  conversion, outline, and search result shapes
+- `zaowu.command.data-*.schema.json` - versioned data inspection, analysis,
+  cleaning, schema inference, and sampling result shapes
+- `zaowu.command.plugin-*.schema.json` - versioned plugin list, install, remove,
+  and validation result shapes
+- `zaowu.command.teach-*.schema.json` - versioned teaching plan and quiz result
+  shapes
+- `zaowu.command.web-*.schema.json` - versioned web inspection and fetch preview
+  or confirmed result shapes
 - `zaowu.command.error.schema.json` - shared expected-error JSON shape and
   registered error-code enum
+- `zaowu.command.help.schema.json` - root, domain, and action help JSON
+  envelope
+- `zaowu.command.version.schema.json` - `zw --version --json` result shape
 - `zaowu.command.shared.schema.json` - shared command-output fragments such as
   `operationPlan`, AI provider/input metadata, dev change summaries, automation
   `policy`, and automation `sandbox`
@@ -51,4 +70,7 @@ checks both valid and invalid examples against the runtime parsers.
 `corepack pnpm verify:json-contracts` validates both built package command
 outputs, real built CLI `--json` outputs, and representative CLI error outputs
 against command-output schemas. It also checks that command schemas reference
-shared command fragments instead of copying them.
+shared command fragments instead of copying them. Every runnable JSON command
+except help must register its schema file in
+`packages/cli/src/command-contracts.ts`, and the gate fails if that schema is
+not loaded and validated.

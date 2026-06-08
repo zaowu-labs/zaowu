@@ -29,6 +29,7 @@ describe('executeCli', () => {
 
     expect(result.exitCode).toBe(0);
     expect(JSON.parse(result.stdout)).toEqual({
+      schemaVersion: 1,
       status: 'ok',
       version: '0.0.1',
     });
@@ -145,6 +146,19 @@ describe('executeCli', () => {
     expect(contractActions).toEqual(availableActions);
   });
 
+  it('keeps a result schema registered for every available JSON action', async () => {
+    const resultContracts = COMMAND_CONTRACTS.filter((contract) => contract.id !== 'root.help');
+
+    for (const contract of resultContracts) {
+      expect(contract.schemaFile, `${contract.id} is missing a schema file`).toEqual(
+        expect.any(String)
+      );
+      await expect(
+        readFile(path.join(process.cwd(), contract.schemaFile ?? ''), 'utf8')
+      ).resolves.toEqual(expect.any(String));
+    }
+  });
+
   it('keeps dedicated help text for every available action', () => {
     for (const domain of DOMAIN_DEFINITIONS) {
       for (const command of domain.commands.filter(
@@ -193,6 +207,7 @@ describe('executeCli', () => {
 
       expect(result.exitCode).toBe(0);
       expect(JSON.parse(result.stdout)).toEqual({
+        schemaVersion: 1,
         status: 'ok',
         path: path.join(root, DEFAULT_CONFIG_FILE_NAME),
       });

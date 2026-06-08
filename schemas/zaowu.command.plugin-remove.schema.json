@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.zaowu.dev/zaowu.command.plugin-remove.schema.json",
+  "title": "ZaoWu Plugin Remove Result",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "status", "pluginDir", "plugin", "wroteFile", "removedFile"],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "status": {
+      "enum": ["ok", "preview"]
+    },
+    "pluginDir": {
+      "type": "string"
+    },
+    "plugin": {
+      "$ref": "#/$defs/pluginManifest"
+    },
+    "wroteFile": {
+      "type": "boolean"
+    },
+    "removedFile": {
+      "type": "boolean"
+    },
+    "operationPlan": {
+      "$ref": "https://schemas.zaowu.dev/zaowu.command.shared.schema.json#/$defs/operationPlan"
+    }
+  },
+  "$defs": {
+    "pluginManifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "source", "installedAt"],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "installedAt": {
+          "type": ["string", "null"]
+        }
+      }
+    }
+  }
+}

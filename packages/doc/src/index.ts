@@ -5,6 +5,7 @@ import { createCapabilityLedger, stripUtf8Bom, type DomainDefinition } from '@za
 import { ZaoWuError } from '@zaowu/core';
 
 export interface DocumentSummary {
+  schemaVersion: 1;
   status: 'ok';
   filePath: string;
   title: string;
@@ -14,6 +15,7 @@ export interface DocumentSummary {
 }
 
 export interface DocumentExtract {
+  schemaVersion: 1;
   status: 'ok';
   filePath: string;
   headings: string[];
@@ -23,6 +25,7 @@ export interface DocumentExtract {
 }
 
 export interface DocumentConversion {
+  schemaVersion: 1;
   status: 'ok' | 'preview';
   inputPath: string;
   outputPath?: string;
@@ -38,6 +41,7 @@ export interface DocumentOutlineItem {
 }
 
 export interface DocumentOutline {
+  schemaVersion: 1;
   status: 'ok';
   filePath: string;
   outline: DocumentOutlineItem[];
@@ -49,6 +53,7 @@ export interface DocumentSearchMatch {
 }
 
 export interface DocumentSearchResult {
+  schemaVersion: 1;
   status: 'ok';
   filePath: string;
   keyword: string;
@@ -370,6 +375,7 @@ export const summarizeDocument = async (filePath: string): Promise<DocumentSumma
   const summaryLines = getFirstMeaningfulLines(content, 3);
 
   return {
+    schemaVersion: 1,
     status: 'ok',
     filePath,
     title: getTitle(content, filePath),
@@ -386,6 +392,7 @@ export const extractDocument = async (filePath: string): Promise<DocumentExtract
   const codeBlockCount = [...content.matchAll(/^```/gmu)].length / 2;
 
   return {
+    schemaVersion: 1,
     status: 'ok',
     filePath,
     headings,
@@ -399,6 +406,7 @@ export const outlineDocument = async (filePath: string): Promise<DocumentOutline
   const content = await readTextDocument(filePath);
 
   return {
+    schemaVersion: 1,
     status: 'ok',
     filePath,
     outline: getOutline(content),
@@ -431,6 +439,7 @@ export const searchDocument = async (
     .filter((match) => match.text.toLowerCase().includes(lowerKeyword));
 
   return {
+    schemaVersion: 1,
     status: 'ok',
     filePath,
     keyword: trimmedKeyword,
@@ -471,6 +480,7 @@ export const convertDocument = async (
   }
 
   return {
+    schemaVersion: 1,
     status: options.outputPath && !options.yes ? 'preview' : 'ok',
     inputPath,
     outputPath: options.outputPath,

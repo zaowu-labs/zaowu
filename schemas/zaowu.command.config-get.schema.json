@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.zaowu.dev/zaowu.command.config-get.schema.json",
+  "title": "ZaoWu Config Get Result",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "status", "filePath", "key", "value"],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "status": {
+      "const": "ok"
+    },
+    "filePath": {
+      "type": "string"
+    },
+    "key": {
+      "enum": [
+        "version",
+        "project.name",
+        "ai.provider",
+        "defaults.output",
+        "paths.workspace",
+        "paths.cache"
+      ]
+    },
+    "value": {
+      "type": ["string", "null"]
+    }
+  }
+}
