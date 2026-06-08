@@ -90,6 +90,7 @@ registry.
 | ----------------------------- | ------------------------------------------- |
 | `TEACH_INPUT_REQUIRED`        | A teaching topic or input is required.      |
 | `WEB_FETCH_UNAVAILABLE`       | The runtime cannot perform web requests.    |
+| `WEB_REQUEST_FAILED`          | A confirmed web request failed.             |
 | `WEB_URL_INVALID`             | The target URL is invalid.                  |
 | `WORKFLOW_FORMAT_UNSUPPORTED` | The workflow file extension is unsupported. |
 | `WORKFLOW_PARSE_FAILED`       | A workflow file could not be parsed.        |

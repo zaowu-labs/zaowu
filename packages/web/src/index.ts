@@ -31,6 +31,9 @@ export interface WebFetchResult {
   statusCode?: number;
   statusText?: string;
   body?: string;
+  bodyLength?: number;
+  bodyTruncated?: boolean;
+  maxBodyLength?: number;
 }
 
 export const WEB_DOMAIN: DomainDefinition = {
@@ -56,6 +59,11 @@ export const WEB_DOMAIN: DomainDefinition = {
 };
 
 const DEFAULT_MAX_BODY_LENGTH = 4000;
+
+const normalizeMaxBodyLength = (value: number | undefined): number =>
+  Number.isFinite(value) && value !== undefined && value >= 0
+    ? Math.floor(value)
+    : DEFAULT_MAX_BODY_LENGTH;
 
 const assertWebUrl = (url: string): string => {
   try {
@@ -93,6 +101,27 @@ const getFetcher = (fetcher?: WebFetcher): WebFetcher => {
   return globalThis.fetch as unknown as WebFetcher;
 };
 
+const requestWebTarget = async (
+  url: string,
+  method: string,
+  fetcher: WebFetcher | undefined
+): Promise<WebResponseLike> => {
+  try {
+    return await getFetcher(fetcher)(url, { method });
+  } catch (error) {
+    if (error instanceof ZaoWuError) {
+      throw error;
+    }
+
+    throw new ZaoWuError({
+      code: 'WEB_REQUEST_FAILED',
+      message: 'Web request failed.',
+      why: `ZaoWu tried to send a ${method} request to \`${url}\`, but the request failed before a usable response was available.`,
+      fix: 'Check the URL, network connection, DNS, TLS, and proxy settings, then run the command again.',
+    });
+  }
+};
+
 export const inspectWebTarget = async (
   url: string,
   options: { yes?: boolean; fetcher?: WebFetcher } = {}
@@ -107,7 +136,7 @@ export const inspectWebTarget = async (
     };
   }
 
-  const response = await getFetcher(options.fetcher)(normalizedUrl, { method: 'HEAD' });
+  const response = await requestWebTarget(normalizedUrl, 'HEAD', options.fetcher);
   const headers: Record<string, string> = {};
 
   response.headers?.forEach((value, key) => {
@@ -136,14 +165,31 @@ export const fetchWebTarget = async (
     };
   }
 
-  const response = await getFetcher(options.fetcher)(normalizedUrl);
-  const body = await response.text();
+  const response = await requestWebTarget(normalizedUrl, 'GET', options.fetcher);
+  let body: string;
+
+  try {
+    body = await response.text();
+  } catch {
+    throw new ZaoWuError({
+      code: 'WEB_REQUEST_FAILED',
+      message: 'Web request failed.',
+      why: `ZaoWu received a response from \`${normalizedUrl}\`, but could not read the response body.`,
+      fix: 'Try `zw web inspect <url> --yes` first, then retry fetch or inspect the server response outside ZaoWu.',
+    });
+  }
+
+  const maxBodyLength = normalizeMaxBodyLength(options.maxBodyLength);
+  const bodyTruncated = body.length > maxBodyLength;
 
   return {
     status: 'ok',
     url: normalizedUrl,
     statusCode: response.status,
     statusText: response.statusText,
-    body: body.slice(0, options.maxBodyLength ?? DEFAULT_MAX_BODY_LENGTH),
+    body: body.slice(0, maxBodyLength),
+    bodyLength: body.length,
+    bodyTruncated,
+    maxBodyLength,
   };
 };

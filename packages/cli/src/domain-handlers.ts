@@ -953,10 +953,13 @@ const handleWebFetch: DomainActionHandler = async (args, context) => {
     fetched.statusCode
       ? `HTTP: ${fetched.statusCode} ${fetched.statusText ?? ''}`
       : 'HTTP: not requested',
+    fetched.status === 'ok'
+      ? `Body: ${fetched.bodyLength ?? 0} characters${fetched.bodyTruncated ? ` (truncated to ${fetched.maxBodyLength ?? 0})` : ''}`
+      : 'Body: not requested',
     '',
     formatOperationPlan(operationPlan),
     '',
-    fetched.body ?? 'Body: not requested',
+    fetched.body ?? '',
   ].join('\n');
 
   return result(context, withOperationPlan(fetched, operationPlan), human);

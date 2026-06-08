@@ -57,6 +57,7 @@
             "UNKNOWN_COMMAND",
             "UNKNOWN_DOMAIN_ACTION",
             "WEB_FETCH_UNAVAILABLE",
+            "WEB_REQUEST_FAILED",
             "WEB_URL_INVALID",
             "WORKFLOW_FORMAT_UNSUPPORTED",
             "WORKFLOW_PARSE_FAILED",

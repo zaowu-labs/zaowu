@@ -7,4 +7,5 @@
   `zw dev commit`, and `zw dev status`.
 - Hardened document/data/AI/automation boundary coverage and release-readiness
   checks.
+- Hardened web request failures and bounded fetch response reporting.
 - No public npm package has been released yet.

@@ -10,3 +10,5 @@ Safety:
 - Network requests preview by default.
 - Confirmed requests require `--yes` through the CLI path.
 - Output should make the target URL and request status clear.
+- Request failures use structured ZaoWu errors instead of raw network errors.
+- Fetched response bodies are bounded and report whether truncation happened.
