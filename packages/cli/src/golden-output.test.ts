@@ -110,6 +110,39 @@ describe('golden command output contracts', () => {
     expect(result.stdout).toContain('No provider request was sent.');
   });
 
+  it('keeps dev review findings prioritized in human output', async () => {
+    const result = await executeCli(['dev', 'review', '--staged'], {
+      commandRunner: (_command, args) => {
+        if (args.join(' ') === 'diff --cached --name-only') {
+          return 'packages/dev/src/index.ts\npackages/dev/src/index.test.ts';
+        }
+
+        if (args.join(' ') === 'diff --cached --numstat') {
+          return '1\t0\tpackages/dev/src/index.ts\n1\t0\tpackages/dev/src/index.test.ts';
+        }
+
+        if (args.join(' ') === 'diff --cached --unified=0') {
+          return [
+            'diff --git a/packages/dev/src/index.ts b/packages/dev/src/index.ts',
+            '@@ -10,0 +11 @@',
+            '+execFileSync("git", ["status"])',
+          ].join('\n');
+        }
+
+        throw new Error('unexpected command');
+      },
+    });
+
+    const lines = getStableLines(result.stdout);
+
+    expect(result.exitCode).toBe(0);
+    expect(lines).toContain('Findings:');
+    expect(lines).toContain('- info/low/summary: Change size - 2 file(s), +2/-0.');
+    expect(lines).toContain(
+      '- warning/high/execution: Shell execution added (packages/dev/src/index.ts @@ -10,0 +11 @@) - Added code appears to run shell commands; confirm preview or confirmation behavior.'
+    );
+  });
+
   it('keeps JSON errors machine-readable and stack-free', async () => {
     const result = await executeCli(['doc', 'search', 'missing.md', '', '--json']);
 

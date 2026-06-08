@@ -110,18 +110,26 @@ describe('dev domain', () => {
       findings: [
         {
           severity: 'info',
+          priority: 'low',
+          category: 'summary',
           title: 'Change size',
         },
         {
           severity: 'warning',
+          priority: 'medium',
+          category: 'test',
           title: 'Tests not detected',
         },
         {
           severity: 'warning',
+          priority: 'medium',
+          category: 'test',
           title: 'Package tests not detected',
         },
         {
           severity: 'warning',
+          priority: 'medium',
+          category: 'filesystem',
           title: 'File mutation added',
           filePath: 'packages/dev/src/index.ts',
         },
@@ -172,10 +180,14 @@ describe('dev domain', () => {
       findings: [
         {
           severity: 'info',
+          priority: 'low',
+          category: 'summary',
           title: 'Change size',
         },
         {
           severity: 'warning',
+          priority: 'medium',
+          category: 'git',
           title: 'Untracked files detected',
         },
       ],
@@ -299,6 +311,48 @@ describe('dev domain', () => {
         expect.objectContaining({
           severity: 'warning',
           title: 'Package manifest without lockfile',
+        }),
+      ])
+    );
+  });
+
+  it('prioritizes secret-like literals and destructive Git commands', () => {
+    const runner: DevCommandRunner = (_command, args) => {
+      if (args.join(' ') === 'diff --cached --name-only') {
+        return 'packages/dev/src/index.ts';
+      }
+
+      if (args.join(' ') === 'diff --cached --numstat') {
+        return '2\t0\tpackages/dev/src/index.ts';
+      }
+
+      if (args.join(' ') === 'diff --cached --unified=0') {
+        return [
+          'diff --git a/packages/dev/src/index.ts b/packages/dev/src/index.ts',
+          '@@ -1,0 +1,2 @@',
+          '+const token = "ghp_abcdefghijklmnopqrstuvwxyz123456";',
+          '+execFileSync("git", ["reset", "--hard"])',
+        ].join('\n');
+      }
+
+      throw new Error('unexpected git command');
+    };
+
+    expect(reviewDevChanges(runner, { mode: 'staged' }).findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          severity: 'warning',
+          priority: 'high',
+          category: 'security',
+          title: 'Secret-like literal added',
+          filePath: 'packages/dev/src/index.ts',
+        }),
+        expect.objectContaining({
+          severity: 'warning',
+          priority: 'high',
+          category: 'git',
+          title: 'Destructive Git command added',
+          filePath: 'packages/dev/src/index.ts',
         }),
       ])
     );
