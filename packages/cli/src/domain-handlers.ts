@@ -164,6 +164,7 @@ const parsePositiveInteger = (value: string | undefined, fallback: number): numb
 const handleConfigPath: DomainActionHandler = async (_args, context) => {
   const filePath = await findConfigPathOrThrow(context.cwd);
   const payload = {
+    schemaVersion: 1,
     status: 'ok',
     path: filePath,
   };
@@ -174,6 +175,7 @@ const handleConfigPath: DomainActionHandler = async (_args, context) => {
 const handleConfigShow: DomainActionHandler = async (_args, context) => {
   const resolved = await loadResolvedConfig(context.cwd);
   const payload = {
+    schemaVersion: resolved.schemaVersion,
     status: 'ok',
     filePath: resolved.filePath,
     config: resolved.config,

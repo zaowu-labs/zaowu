@@ -23,12 +23,14 @@ export interface PluginSourceManifest {
 }
 
 export interface PluginListResult {
+  schemaVersion: 1;
   status: 'ok';
   pluginDir: string;
   plugins: PluginManifest[];
 }
 
 export interface PluginChangeResult {
+  schemaVersion: 1;
   status: 'ok' | 'preview';
   pluginDir: string;
   plugin: PluginManifest;
@@ -37,6 +39,7 @@ export interface PluginChangeResult {
 }
 
 export interface PluginValidationResult {
+  schemaVersion: 1;
   status: 'ok' | 'warning';
   target: string;
   manifestPath?: string;
@@ -203,6 +206,7 @@ export const validatePluginSource = async (target: string): Promise<PluginValida
       assertPluginId(target);
 
       return {
+        schemaVersion: 1,
         status: 'warning',
         target,
         warnings: ['No local manifest was read; target was treated as a plugin id.'],
@@ -211,6 +215,7 @@ export const validatePluginSource = async (target: string): Promise<PluginValida
     }
 
     return {
+      schemaVersion: 1,
       status: 'warning',
       target,
       warnings: [],
@@ -223,6 +228,7 @@ export const validatePluginSource = async (target: string): Promise<PluginValida
     const errors = validateSourceManifest(manifest);
 
     return {
+      schemaVersion: 1,
       status: errors.length > 0 ? 'warning' : 'ok',
       target,
       manifestPath,
@@ -232,6 +238,7 @@ export const validatePluginSource = async (target: string): Promise<PluginValida
     };
   } catch {
     return {
+      schemaVersion: 1,
       status: 'warning',
       target,
       manifestPath,
@@ -250,6 +257,7 @@ export const listPlugins = async (options: { cwd?: string } = {}): Promise<Plugi
     entries = await readdir(pluginDir);
   } catch {
     return {
+      schemaVersion: 1,
       status: 'ok',
       pluginDir,
       plugins: [],
@@ -273,6 +281,7 @@ export const listPlugins = async (options: { cwd?: string } = {}): Promise<Plugi
   }
 
   return {
+    schemaVersion: 1,
     status: 'ok',
     pluginDir,
     plugins,
@@ -347,6 +356,7 @@ export const installPlugin = async (
   }
 
   return {
+    schemaVersion: 1,
     status: options.yes ? 'ok' : 'preview',
     pluginDir,
     plugin,
@@ -383,6 +393,7 @@ export const removePlugin = async (
   }
 
   return {
+    schemaVersion: 1,
     status: options.yes ? 'ok' : 'preview',
     pluginDir,
     plugin,

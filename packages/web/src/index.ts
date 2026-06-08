@@ -19,6 +19,7 @@ export type WebFetcher = (
 ) => Promise<WebResponseLike>;
 
 export interface WebInspectResult {
+  schemaVersion: 1;
   status: 'ok' | 'preview';
   url: string;
   statusCode?: number;
@@ -27,6 +28,7 @@ export interface WebInspectResult {
 }
 
 export interface WebFetchResult {
+  schemaVersion: 1;
   status: 'ok' | 'preview';
   url: string;
   statusCode?: number;
@@ -190,6 +192,7 @@ export const inspectWebTarget = async (
 
   if (!options.yes) {
     return {
+      schemaVersion: 1,
       status: 'preview',
       url: normalizedUrl,
       headers: {},
@@ -204,6 +207,7 @@ export const inspectWebTarget = async (
   });
 
   return {
+    schemaVersion: 1,
     status: 'ok',
     url: normalizedUrl,
     statusCode: response.status,
@@ -221,6 +225,7 @@ export const fetchWebTarget = async (
 
   if (!options.yes) {
     return {
+      schemaVersion: 1,
       status: 'preview',
       url: normalizedUrl,
     };
@@ -256,6 +261,7 @@ export const fetchWebTarget = async (
   const bodyTruncated = body.length > maxBodyLength;
 
   return {
+    schemaVersion: 1,
     status: 'ok',
     url: normalizedUrl,
     statusCode: response.status,

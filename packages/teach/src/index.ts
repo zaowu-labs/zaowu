@@ -3,12 +3,14 @@ import { createCapabilityLedger, type DomainDefinition } from '@zaowu/core';
 import { ZaoWuError } from '@zaowu/core';
 
 export interface TeachPlanResult {
+  schemaVersion: 1;
   status: 'ok';
   topic: string;
   outline: string[];
 }
 
 export interface TeachQuizResult {
+  schemaVersion: 1;
   status: 'ok';
   topic: string;
   questions: string[];
@@ -71,6 +73,7 @@ export const createTeachingPlan = async (input: string): Promise<TeachPlanResult
   const topic = getTopic(content);
 
   return {
+    schemaVersion: 1,
     status: 'ok',
     topic,
     outline: [
@@ -89,6 +92,7 @@ export const createTeachingQuiz = async (input: string): Promise<TeachQuizResult
   const sentences = getSentences(content).slice(0, 3);
 
   return {
+    schemaVersion: 1,
     status: 'ok',
     topic,
     questions:

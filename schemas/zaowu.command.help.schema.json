@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.zaowu.dev/zaowu.command.help.schema.json",
+  "title": "ZaoWu Help Result",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "status", "help"],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "status": {
+      "const": "ok"
+    },
+    "help": {
+      "type": "string"
+    },
+    "domain": {
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "additionalProperties": true
+        }
+      ]
+    },
+    "action": {
+      "type": "string"
+    }
+  }
+}

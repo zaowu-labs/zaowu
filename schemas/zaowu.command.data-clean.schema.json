@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.zaowu.dev/zaowu.command.data-clean.schema.json",
+  "title": "ZaoWu Data Clean Result",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schemaVersion",
+    "status",
+    "inputPath",
+    "content",
+    "wroteFile",
+    "removedEmptyRows",
+    "trimmedCells",
+    "missingByColumn"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "status": {
+      "enum": ["ok", "preview"]
+    },
+    "inputPath": {
+      "type": "string"
+    },
+    "sheetName": {
+      "type": "string"
+    },
+    "outputPath": {
+      "type": "string"
+    },
+    "content": {
+      "type": "string"
+    },
+    "wroteFile": {
+      "type": "boolean"
+    },
+    "removedEmptyRows": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "trimmedCells": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "missingByColumn": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "operationPlan": {
+      "$ref": "https://schemas.zaowu.dev/zaowu.command.shared.schema.json#/$defs/operationPlan"
+    }
+  }
+}

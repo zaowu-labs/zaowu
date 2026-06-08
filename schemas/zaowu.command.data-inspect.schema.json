@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.zaowu.dev/zaowu.command.data-inspect.schema.json",
+  "title": "ZaoWu Data Inspect Result",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schemaVersion",
+    "status",
+    "filePath",
+    "rowCount",
+    "columnCount",
+    "columns",
+    "missingByColumn"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "status": {
+      "const": "ok"
+    },
+    "filePath": {
+      "type": "string"
+    },
+    "sheetName": {
+      "type": "string"
+    },
+    "rowCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "columnCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "columns": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "missingByColumn": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    }
+  }
+}

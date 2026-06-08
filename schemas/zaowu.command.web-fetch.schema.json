@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.zaowu.dev/zaowu.command.web-fetch.schema.json",
+  "title": "ZaoWu Web Fetch Result",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "status", "url"],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "status": {
+      "enum": ["ok", "preview"]
+    },
+    "url": {
+      "type": "string"
+    },
+    "statusCode": {
+      "type": "integer",
+      "minimum": 100,
+      "maximum": 599
+    },
+    "statusText": {
+      "type": "string"
+    },
+    "body": {
+      "type": "string"
+    },
+    "bodyLength": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "bodyTruncated": {
+      "type": "boolean"
+    },
+    "maxBodyLength": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "operationPlan": {
+      "$ref": "https://schemas.zaowu.dev/zaowu.command.shared.schema.json#/$defs/operationPlan"
+    }
+  }
+}

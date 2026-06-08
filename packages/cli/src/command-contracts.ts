@@ -5,7 +5,11 @@ export interface CommandContract {
   helpIncludes: readonly string[];
   json: boolean;
   sensitive: boolean;
+  schemaFile?: string;
 }
+
+const commandSchemaFile = (id: string): string =>
+  `schemas/zaowu.command.${id.replace('.', '-')}.schema.json`;
 
 export const COMMAND_CONTRACTS: readonly CommandContract[] = [
   {
@@ -23,6 +27,7 @@ export const COMMAND_CONTRACTS: readonly CommandContract[] = [
     helpIncludes: ['ZaoWu Init', 'zw init --yes'],
     json: true,
     sensitive: true,
+    schemaFile: commandSchemaFile('init'),
   },
   {
     id: 'doctor',
@@ -31,6 +36,7 @@ export const COMMAND_CONTRACTS: readonly CommandContract[] = [
     helpIncludes: ['ZaoWu Doctor', 'zw doctor --json'],
     json: true,
     sensitive: false,
+    schemaFile: commandSchemaFile('doctor'),
   },
   ...[
     ['ai', 'ask', 'ZaoWu AI Ask', true],
@@ -72,5 +78,6 @@ export const COMMAND_CONTRACTS: readonly CommandContract[] = [
     helpIncludes: [title as string, `zw ${domain} ${action}`],
     json: true,
     sensitive: sensitive as boolean,
+    schemaFile: commandSchemaFile(`${domain}.${action}`),
   })),
 ];

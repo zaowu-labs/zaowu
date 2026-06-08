@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.zaowu.dev/zaowu.command.doc-convert.schema.json",
+  "title": "ZaoWu Doc Convert Result",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "status", "inputPath", "format", "content", "wroteFile"],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "status": {
+      "enum": ["ok", "preview"]
+    },
+    "inputPath": {
+      "type": "string"
+    },
+    "outputPath": {
+      "type": "string"
+    },
+    "format": {
+      "enum": ["markdown", "text"]
+    },
+    "content": {
+      "type": "string"
+    },
+    "wroteFile": {
+      "type": "boolean"
+    },
+    "operationPlan": {
+      "$ref": "https://schemas.zaowu.dev/zaowu.command.shared.schema.json#/$defs/operationPlan"
+    }
+  }
+}

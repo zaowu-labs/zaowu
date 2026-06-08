@@ -9,6 +9,7 @@ describe('web domain', () => {
 
   it('previews inspection without network access by default', async () => {
     await expect(inspectWebTarget('https://example.com')).resolves.toEqual({
+      schemaVersion: 1,
       status: 'preview',
       url: 'https://example.com/',
       headers: {},
@@ -36,6 +37,7 @@ describe('web domain', () => {
     });
 
     await expect(inspectWebTarget('https://example.com', { yes: true, fetcher })).resolves.toEqual({
+      schemaVersion: 1,
       status: 'ok',
       url: 'https://example.com/',
       statusCode: 200,

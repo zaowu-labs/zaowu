@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.zaowu.dev/zaowu.command.doc-summary.schema.json",
+  "title": "ZaoWu Doc Summary Result",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "status", "filePath", "title", "lineCount", "wordCount", "summary"],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "status": {
+      "const": "ok"
+    },
+    "filePath": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "lineCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "wordCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "summary": {
+      "type": "string"
+    }
+  }
+}

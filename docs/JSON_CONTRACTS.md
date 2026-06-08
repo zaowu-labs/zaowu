@@ -48,6 +48,18 @@ The error code enum must stay synchronized with
 `packages/core/src/error-codes.ts`. Expected error JSON is written to stderr and
 must not include stack traces or extra fields.
 
+### Root Help And Version JSON
+
+Current result schema: `schemaVersion: 1`.
+
+Schema files:
+
+- `schemas/zaowu.command.help.schema.json`
+- `schemas/zaowu.command.version.schema.json`
+
+Help JSON keeps a stable envelope around the rendered help text. Version JSON
+returns the CLI version without changing the human `zw --version` output.
+
 ### `zw init --json`
 
 Current result schema: `schemaVersion: 1`.
@@ -142,6 +154,20 @@ Stable fields:
 `zw config migrate` previews rewrites when a legacy config needs canonicalizing.
 If the config is already canonical, it returns `status: "ok"` and no write is
 planned.
+
+### Config Read Commands
+
+Current result schema: `schemaVersion: 1`.
+
+Schema files:
+
+- `schemas/zaowu.command.config-path.schema.json`
+- `schemas/zaowu.command.config-show.schema.json`
+- `schemas/zaowu.command.config-get.schema.json`
+
+`config path` returns the resolved path, `config show` returns the resolved
+public config, and `config get` returns one supported key and value. Secrets are
+not supported config keys.
 
 ### `zw ai ask --json`
 
@@ -296,6 +322,55 @@ Stable fields:
 In the foundation version, `message` steps can execute after confirmation.
 Shell steps remain blocked even when workflow permissions request `prompt`.
 
+### Document Commands
+
+Current result schema: `schemaVersion: 1`.
+
+Schema files: `schemas/zaowu.command.doc-*.schema.json`.
+
+Summary, extract, outline, and search are read-only. Convert reports its input,
+format, content, output path, and write state. CLI conversion adds the shared
+`operationPlan`; writes remain preview-first when `--output` is used.
+
+### Data Commands
+
+Current result schema: `schemaVersion: 1`.
+
+Schema files: `schemas/zaowu.command.data-*.schema.json`.
+
+Inspect, analyze, schema, and sample expose normalized tabular results. Clean
+reports content and cleanup counts, and adds the shared `operationPlan` through
+the CLI when a write may occur.
+
+### Plugin Commands
+
+Current result schema: `schemaVersion: 1`.
+
+Schema files: `schemas/zaowu.command.plugin-*.schema.json`.
+
+List and validate are read-only. Install and remove expose local manifest
+changes and use the shared `operationPlan` in CLI output. Preview results never
+claim a file was written or removed.
+
+### Teaching Commands
+
+Current result schema: `schemaVersion: 1`.
+
+Schema files: `schemas/zaowu.command.teach-*.schema.json`.
+
+Plan and quiz return deterministic local results. They do not imply network or
+external AI access.
+
+### Web Commands
+
+Current result schema: `schemaVersion: 1`.
+
+Schema files: `schemas/zaowu.command.web-*.schema.json`.
+
+Inspect and fetch preview without network access by default. CLI output includes
+the shared `operationPlan`, including the normalized URL and confirmation
+requirement.
+
 ## Verification
 
 The full gate runs:
@@ -304,13 +379,12 @@ The full gate runs:
 corepack pnpm verify:json-contracts
 ```
 
-This imports the built package outputs and executes the real built CLI for the
-versioned `init`, `doctor`, `config validate`, `config set`, `config migrate`,
-`ai ask`, `ai providers`, `dev status`, `dev commit`, `dev review`,
-`auto validate`, `auto plan`, and `auto run` contracts. Both layers must
-validate against the same schemas. The same gate also validates representative
-real CLI expected-error JSON against the shared error schema. Shared command
-schema fragments such as `operationPlan`, AI provider/input metadata, dev change
+This imports built package outputs and executes the real built CLI across every
+runnable domain command. Package and CLI layers must validate against the same
+schemas. The same gate validates representative expected-error JSON, checks
+that every registered runnable JSON command declares a loaded schema file, and
+checks shared fragments instead of accepting copied definitions.
+
+Shared fragments such as `operationPlan`, AI provider/input metadata, dev change
 summaries, automation `policy`, and automation `sandbox` live in
-`schemas/zaowu.command.shared.schema.json`; the same gate checks that command
-schemas reference those definitions instead of copying them.
+`schemas/zaowu.command.shared.schema.json`.

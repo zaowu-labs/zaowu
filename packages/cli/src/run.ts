@@ -940,14 +940,16 @@ export const executeCli = async (
     if (wantsVersion || command === 'version') {
       return createResult(
         0,
-        json ? JSON.stringify({ status: 'ok', version: ZAOWU_CLI_VERSION }) : ZAOWU_CLI_VERSION
+        json
+          ? JSON.stringify({ schemaVersion: 1, status: 'ok', version: ZAOWU_CLI_VERSION })
+          : ZAOWU_CLI_VERSION
       );
     }
 
     if (!command || command === 'help') {
       return createResult(
         0,
-        json ? JSON.stringify({ status: 'ok', help: formatHelp() }) : formatHelp()
+        json ? JSON.stringify({ schemaVersion: 1, status: 'ok', help: formatHelp() }) : formatHelp()
       );
     }
 
@@ -955,14 +957,18 @@ export const executeCli = async (
       if (command === 'init') {
         return createResult(
           0,
-          json ? JSON.stringify({ status: 'ok', help: formatInitHelp() }) : formatInitHelp()
+          json
+            ? JSON.stringify({ schemaVersion: 1, status: 'ok', help: formatInitHelp() })
+            : formatInitHelp()
         );
       }
 
       if (command === 'doctor') {
         return createResult(
           0,
-          json ? JSON.stringify({ status: 'ok', help: formatDoctorHelp() }) : formatDoctorHelp()
+          json
+            ? JSON.stringify({ schemaVersion: 1, status: 'ok', help: formatDoctorHelp() })
+            : formatDoctorHelp()
         );
       }
 
@@ -985,6 +991,7 @@ export const executeCli = async (
             0,
             json
               ? JSON.stringify({
+                  schemaVersion: 1,
                   status: 'ok',
                   domain: domain.name,
                   action,
@@ -997,7 +1004,12 @@ export const executeCli = async (
         return createResult(
           0,
           json
-            ? JSON.stringify({ status: 'ok', domain, help: formatDomainHelp(domain) })
+            ? JSON.stringify({
+                schemaVersion: 1,
+                status: 'ok',
+                domain,
+                help: formatDomainHelp(domain),
+              })
             : formatDomainHelp(domain)
         );
       }
@@ -1019,7 +1031,12 @@ export const executeCli = async (
         return createResult(
           0,
           json
-            ? JSON.stringify({ status: 'ok', domain, help: formatDomainHelp(domain) })
+            ? JSON.stringify({
+                schemaVersion: 1,
+                status: 'ok',
+                domain,
+                help: formatDomainHelp(domain),
+              })
             : formatDomainHelp(domain)
         );
       }
