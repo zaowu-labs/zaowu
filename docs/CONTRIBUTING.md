@@ -112,9 +112,11 @@ Destructive actions should require confirmation by default.
 Do not silently overwrite user files.
 
 Sensitive JSON output should include an `operationPlan` when practical. The plan
-should make schema version, reads, writes, deletes, execution, network requests,
-secrets, risk, and confirmation requirements visible before the command performs
-sensitive work.
+should make schema version, subjects, reads, writes, deletes, execution, network
+requests, secrets, risk, confirmation requirements, and the plan fingerprint
+visible before the command performs sensitive work. Confirmed sensitive commands
+that accept `--plan-fingerprint` must compare it before writing files, deleting
+files, sending network requests, or running execution.
 
 ## Output Rules
 

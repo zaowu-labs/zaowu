@@ -140,6 +140,18 @@ const assertJsonEqual = (left, right, message) => {
 const assertSchemaFragmentsStayAligned = () => {
   const ref = (definitionName) =>
     `https://schemas.zaowu.dev/zaowu.command.shared.schema.json#/$defs/${definitionName}`;
+  const operationPlan = schemas.shared.$defs.operationPlan;
+
+  for (const field of ['subjects', 'fingerprintAlgorithm', 'fingerprint']) {
+    assert(
+      operationPlan.required.includes(field),
+      `shared operationPlan must require ${field}.`
+    );
+  }
+  assert(
+    operationPlan.properties.fingerprintAlgorithm.const === 'sha256-v1',
+    'shared operationPlan fingerprint algorithm must be sha256-v1.'
+  );
 
   assertJsonEqual(
     schemas.aiAsk.properties.provider,
@@ -719,7 +731,15 @@ const cliWebFetch = runCliJson(['web', 'fetch', 'https://example.com']);
 
 try {
   const cliInitPreview = runCliJson(['init'], { cwd: cliInitFixture });
-  const cliInitCreated = runCliJson(['init', '--yes'], { cwd: cliInitFixture });
+  const cliInitMismatch = runCliErrorJson(
+    ['init', '--yes', '--plan-fingerprint', '0'.repeat(64)],
+    'OPERATION_PLAN_MISMATCH',
+    { cwd: cliInitFixture }
+  );
+  const cliInitCreated = runCliJson(
+    ['init', '--yes', '--plan-fingerprint', cliInitPreview.operationPlan.fingerprint],
+    { cwd: cliInitFixture }
+  );
   const cliConfigPath = runCliJson(['config', 'path'], { cwd: cliInitFixture });
   const cliConfigShow = runCliJson(['config', 'show'], { cwd: cliInitFixture });
   const cliConfigGet = runCliJson(['config', 'get', 'project.name'], {
@@ -755,10 +775,26 @@ try {
     cliInitPreview.operationPlan?.confirmationRequired === true,
     'CLI init preview should require confirmation.'
   );
+  assert(
+    /^[a-f0-9]{64}$/.test(cliInitPreview.operationPlan?.fingerprint ?? ''),
+    'CLI init preview should expose a sha256 operation plan fingerprint.'
+  );
+  assert(
+    cliInitPreview.operationPlan?.fingerprintAlgorithm === 'sha256-v1',
+    'CLI init preview should expose the operation plan fingerprint algorithm.'
+  );
+  assert(
+    cliInitMismatch.error.code === 'OPERATION_PLAN_MISMATCH',
+    'CLI init should reject mismatched operation plan fingerprints.'
+  );
   assert(cliInitCreated.schemaVersion === 1, 'CLI init created schemaVersion must be 1.');
   assert(
     cliInitCreated.operationPlan?.confirmationRequired === false,
     'CLI init created output should not require further confirmation.'
+  );
+  assert(
+    cliInitCreated.operationPlan?.fingerprint === cliInitPreview.operationPlan?.fingerprint,
+    'CLI init confirmation should preserve the preview operation plan fingerprint.'
   );
   assert(
     cliConfigValidation.schemaVersion === 1,
@@ -769,6 +805,10 @@ try {
   assert(
     cliConfigSet.operationPlan?.confirmationRequired === true,
     'CLI config set preview should require confirmation.'
+  );
+  assert(
+    /^[a-f0-9]{64}$/.test(cliConfigSet.operationPlan?.fingerprint ?? ''),
+    'CLI config set preview should expose an operation plan fingerprint.'
   );
   assert(cliConfigMigration.schemaVersion === 1, 'CLI config migrate schemaVersion must be 1.');
   assert(

@@ -9,6 +9,7 @@ const FLAGS_WITH_VALUES = new Set([
   '--format',
   '--model',
   '--output',
+  '--plan-fingerprint',
   '--provider',
   '--rows',
   '--sheet',

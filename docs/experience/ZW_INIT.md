@@ -45,11 +45,12 @@ To create this file, run:
 zw init [options]
 ```
 
-| Option      | Meaning                          | Required? |
-| ----------- | -------------------------------- | --------- |
-| `--json`    | Output machine-readable JSON     | No        |
-| `--dry-run` | Preview without applying changes | No        |
-| `--yes`     | Create the config file           | No        |
+| Option                      | Meaning                                       | Required? |
+| --------------------------- | --------------------------------------------- | --------- |
+| `--json`                    | Output machine-readable JSON                  | No        |
+| `--dry-run`                 | Preview without applying changes              | No        |
+| `--yes`                     | Create the config file                        | No        |
+| `--plan-fingerprint <hash>` | Require confirmed creation to match a preview | No        |
 
 ## 6. Input Rules
 

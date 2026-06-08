@@ -39,10 +39,21 @@ try {
   assert(initPreview.schemaVersion === 1, 'init preview should expose result schema version');
   assert(initPreview.status === 'ok', 'init preview should be ok');
   assert(initPreview.operationPlan?.writes?.length === 1, 'init should expose planned write');
+  assert(
+    /^[a-f0-9]{64}$/.test(initPreview.operationPlan?.fingerprint ?? ''),
+    'init preview should expose a stable operation plan fingerprint'
+  );
 
-  const init = run(['init', '--yes', '--json'], { json: true });
+  const init = run(
+    ['init', '--yes', '--plan-fingerprint', initPreview.operationPlan.fingerprint, '--json'],
+    { json: true }
+  );
   assert(init.schemaVersion === 1, 'confirmed init should expose result schema version');
   assert(init.status === 'ok', 'confirmed init should be ok');
+  assert(
+    init.operationPlan?.fingerprint === initPreview.operationPlan.fingerprint,
+    'confirmed init should preserve the preview operation plan fingerprint'
+  );
 
   const configValidation = run(['config', 'validate', '--json'], { json: true });
   assert(

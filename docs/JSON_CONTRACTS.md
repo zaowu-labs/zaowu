@@ -78,6 +78,13 @@ content that would be written, with `operationPlan.confirmationRequired: true`.
 The confirmed `--yes` JSON reports the created file and sets the operation plan
 confirmation flag to `false`.
 
+Every operation plan includes `subjects`, `fingerprintAlgorithm`, and
+`fingerprint`. The fingerprint is stable across preview and confirmation when
+the planned subject, reads, writes, deletes, execution, network, secrets, notes,
+and risk are unchanged. Automation can pass
+`--plan-fingerprint <operationPlan.fingerprint>` with `--yes` to reject stale or
+changed plans before any sensitive work is performed.
+
 ### `zw doctor --json`
 
 Current result schema: `schemaVersion: 1`.

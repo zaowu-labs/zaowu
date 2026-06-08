@@ -167,8 +167,11 @@ before installation from a local source.
 - Git commands do not commit, push, reset, or checkout.
 - Config rejects secret-like keys such as `token`, `password`, and `apiKey`.
 - Sensitive JSON outputs include a schema-versioned `operationPlan` that lists
-  reads, writes, deletes, network requests, secrets, execution, and confirmation
-  requirements.
+  subjects, reads, writes, deletes, network requests, secrets, execution,
+  confirmation requirements, and a stable fingerprint.
+- For stricter automation, preview first and confirm with
+  `--yes --plan-fingerprint <operationPlan.fingerprint>` so changed plans fail
+  before writing files or sending network requests.
 - Versioned JSON contracts are documented in `docs/JSON_CONTRACTS.md`; public
   machine output should evolve additively unless the schema version changes.
 
