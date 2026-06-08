@@ -19,7 +19,7 @@ import { DOC_DOMAIN } from '@zaowu/doc';
 import { PLUGIN_DOMAIN } from '@zaowu/plugin';
 import { TEACH_DOMAIN } from '@zaowu/teach';
 import { WEB_DOMAIN } from '@zaowu/web';
-import { hasFlag as hasParsedFlag, parseArgs } from './args.js';
+import { getValue, hasFlag as hasParsedFlag, parseArgs } from './args.js';
 import { getDomainActionHandler } from './domain-handlers.js';
 import { createResult, formatRows } from './output.js';
 import type { CliExecutionOptions, CliResult, CommandRunner } from './types.js';
@@ -94,6 +94,33 @@ const runSystemCommand: CommandRunner = (command, args, options) => {
 };
 
 const hasFlag = (args: readonly string[], flag: string): boolean => args.includes(flag);
+
+const assertOperationPlanFingerprint = (
+  expectedFingerprint: string | undefined,
+  operationPlan: OperationPlan,
+  shouldCheck: boolean
+): void => {
+  if (!shouldCheck || !expectedFingerprint) {
+    return;
+  }
+
+  const expected = expectedFingerprint.trim().toLowerCase();
+
+  if (expected === operationPlan.fingerprint) {
+    return;
+  }
+
+  throw new ZaoWuError({
+    code: 'OPERATION_PLAN_MISMATCH',
+    message: 'Operation plan fingerprint does not match.',
+    why:
+      `The confirmed operation expected plan fingerprint \`${expected}\`, ` +
+      `but the current operation plan is \`${operationPlan.fingerprint}\`.`,
+    fix:
+      'Re-run the command without `--yes` to preview the current operation plan, ' +
+      'then confirm with the new `operationPlan.fingerprint`.',
+  });
+};
 
 const findDomain = (name: string): DomainDefinition | undefined =>
   DOMAIN_DEFINITIONS.find((domain) => domain.name === name);
@@ -331,6 +358,8 @@ Global options:
   --json             Output machine-readable JSON
   --dry-run          Preview without applying changes
   --yes              Apply a safe confirmed action
+  --plan-fingerprint <hash>
+                     Require confirmed actions to match a previewed plan
 
 Examples:
   zw doctor
@@ -805,6 +834,8 @@ const formatInlineOperationPlan = (plan: OperationPlan): string =>
     'Operation plan:',
     `Risk: ${plan.risk}`,
     `Confirmation required: ${plan.confirmationRequired ? 'yes' : 'no'}`,
+    `Fingerprint: ${plan.fingerprint}`,
+    `Subjects: ${plan.subjects.length > 0 ? plan.subjects.join(', ') : 'none'}`,
     `Writes: ${plan.writes.length > 0 ? plan.writes.join(', ') : 'none'}`,
     `Deletes: ${plan.deletes.length > 0 ? plan.deletes.join(', ') : 'none'}`,
   ].join('\n');
@@ -845,6 +876,7 @@ const handleInit = async (
   const operationPlan = createOperationPlan({
     risk: 'medium',
     confirmationRequired: !yes || dryRun,
+    subjects: [`init:${configPath}`],
     writes: [configPath],
     notes: ['Init creates a config file only when --yes is provided and --dry-run is absent.'],
   });
@@ -873,6 +905,12 @@ const handleInit = async (
       json ? JSON.stringify(payload) : formatInitPreview(configPath, content, operationPlan)
     );
   }
+
+  assertOperationPlanFingerprint(
+    getValue(parseArgs(args), '--plan-fingerprint'),
+    operationPlan,
+    yes && !dryRun
+  );
 
   try {
     await writeFile(configPath, content, { encoding: 'utf8', flag: 'wx' });
@@ -1072,6 +1110,7 @@ export const executeCli = async (
           commandRunner,
           cwd,
           dryRun: hasParsedFlag(parsed, '--dry-run'),
+          expectedPlanFingerprint: getValue(parsed, '--plan-fingerprint'),
           json,
           parsed,
           yes: hasParsedFlag(parsed, '--yes') && !hasParsedFlag(parsed, '--dry-run'),

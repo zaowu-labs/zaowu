@@ -29,6 +29,7 @@ export interface DomainHandlerContext {
   cwd: string;
   json: boolean;
   dryRun: boolean;
+  expectedPlanFingerprint?: string;
   yes: boolean;
   parsed: ParsedArgs;
   commandRunner: CommandRunner;
@@ -82,6 +83,32 @@ const withOperationPlan = <T extends object>(
   operationPlan,
 });
 
+const assertOperationPlanFingerprint = (
+  context: DomainHandlerContext,
+  operationPlan: OperationPlan
+): void => {
+  if (!context.yes || !context.expectedPlanFingerprint) {
+    return;
+  }
+
+  const expected = context.expectedPlanFingerprint.trim().toLowerCase();
+
+  if (expected === operationPlan.fingerprint) {
+    return;
+  }
+
+  throw new ZaoWuError({
+    code: 'OPERATION_PLAN_MISMATCH',
+    message: 'Operation plan fingerprint does not match.',
+    why:
+      `The confirmed operation expected plan fingerprint \`${expected}\`, ` +
+      `but the current operation plan is \`${operationPlan.fingerprint}\`.`,
+    fix:
+      'Re-run the command without `--yes` to preview the current operation plan, ' +
+      'then confirm with the new `operationPlan.fingerprint`.',
+  });
+};
+
 const formatList = (items: readonly string[]): string =>
   items.length > 0 ? items.map((item) => `- ${item}`).join('\n') : '- none';
 
@@ -132,6 +159,10 @@ const formatOperationPlan = (plan: OperationPlan): string =>
     'Operation plan:',
     `Risk: ${plan.risk}`,
     `Confirmation required: ${plan.confirmationRequired ? 'yes' : 'no'}`,
+    `Fingerprint: ${plan.fingerprint}`,
+    '',
+    'Subjects:',
+    formatList(plan.subjects),
     '',
     'Read:',
     formatList(plan.reads),
@@ -226,17 +257,25 @@ const handleConfigGet: DomainActionHandler = async (args, context) => {
 const handleConfigSet: DomainActionHandler = async (args, context) => {
   const key = requireTarget(args, 'zw config set');
   const value = requireSecondTarget(args, 'zw config set', 'value');
-  const updated = await setResolvedConfigValue(key, value, {
+  const preview = await setResolvedConfigValue(key, value, {
     cwd: context.cwd,
-    yes: context.yes,
   });
   const operationPlan = createOperationPlan({
     risk: 'medium',
     confirmationRequired: !context.yes,
-    reads: [updated.filePath],
-    writes: [updated.filePath],
+    subjects: [`config:${preview.key}`],
+    reads: [preview.filePath],
+    writes: [preview.filePath],
     notes: ['Config writes are previewed unless --yes is provided.'],
   });
+  assertOperationPlanFingerprint(context, operationPlan);
+
+  const updated = context.yes
+    ? await setResolvedConfigValue(key, value, {
+        cwd: context.cwd,
+        yes: true,
+      })
+    : preview;
   const human = [
     'ZaoWu Config Set',
     '',
@@ -256,17 +295,26 @@ const handleConfigSet: DomainActionHandler = async (args, context) => {
 };
 
 const handleConfigMigrate: DomainActionHandler = async (_args, context) => {
-  const migrated = await migrateResolvedConfig({
+  const preview = await migrateResolvedConfig({
     cwd: context.cwd,
-    yes: context.yes,
   });
   const operationPlan = createOperationPlan({
     risk: 'medium',
-    confirmationRequired: migrated.changed && !context.yes,
-    reads: [migrated.filePath],
-    writes: migrated.changed ? [migrated.filePath] : [],
+    confirmationRequired: preview.changed && !context.yes,
+    subjects: [`config:${preview.filePath}`],
+    reads: [preview.filePath],
+    writes: preview.changed ? [preview.filePath] : [],
     notes: ['Config migrations are previewed unless --yes is provided.'],
   });
+  assertOperationPlanFingerprint(context, operationPlan);
+
+  const migrated =
+    context.yes && preview.changed
+      ? await migrateResolvedConfig({
+          cwd: context.cwd,
+          yes: true,
+        })
+      : preview;
   const human = [
     'ZaoWu Config Migrate',
     '',
@@ -295,6 +343,10 @@ const handleAiAsk: DomainActionHandler = async (args, context) => {
   const operationPlan = createOperationPlan({
     risk: provider.network ? 'medium' : 'low',
     confirmationRequired: provider.network && !context.yes,
+    subjects: [
+      `ai:${provider.id}`,
+      `model:${requestedModel ?? provider.defaultModel ?? 'default'}`,
+    ],
     reads: filePath ? [filePath] : [],
     network: provider.network ? [provider.id] : [],
     secrets: provider.requiredEnv,
@@ -335,6 +387,8 @@ const handleAiAsk: DomainActionHandler = async (args, context) => {
 
     return result(context, withOperationPlan(payload, operationPlan), human);
   }
+
+  assertOperationPlanFingerprint(context, operationPlan);
 
   const response = await askAI({
     prompt,
@@ -571,18 +625,28 @@ const handleDocConvert: DomainActionHandler = async (args, context) => {
   const target = requireTarget(args, 'zw doc convert');
   const outputPath = getValue(context.parsed, '--output');
   const format = getValue(context.parsed, '--format');
-  const converted = await convertDocument(target, {
+  const preview = await convertDocument(target, {
     outputPath,
     format: format === 'text' ? 'text' : format === 'markdown' ? 'markdown' : undefined,
-    yes: context.yes,
   });
   const operationPlan = createOperationPlan({
-    risk: converted.outputPath ? 'medium' : 'low',
-    confirmationRequired: Boolean(converted.outputPath && !context.yes),
-    reads: [converted.inputPath],
-    writes: converted.outputPath ? [converted.outputPath] : [],
+    risk: preview.outputPath ? 'medium' : 'low',
+    confirmationRequired: Boolean(preview.outputPath && !context.yes),
+    subjects: [`doc:${preview.inputPath}`, `format:${preview.format}`],
+    reads: [preview.inputPath],
+    writes: preview.outputPath ? [preview.outputPath] : [],
     notes: ['Document conversion writes require --yes when --output is used.'],
   });
+  assertOperationPlanFingerprint(context, operationPlan);
+
+  const converted =
+    context.yes && preview.outputPath
+      ? await convertDocument(target, {
+          outputPath,
+          format: format === 'text' ? 'text' : format === 'markdown' ? 'markdown' : undefined,
+          yes: true,
+        })
+      : preview;
   const human = [
     'ZaoWu Doc Convert',
     '',
@@ -639,18 +703,31 @@ const handleDataAnalyze: DomainActionHandler = async (args, context) => {
 
 const handleDataClean: DomainActionHandler = async (args, context) => {
   const target = requireTarget(args, 'zw data clean');
-  const cleaned = await cleanData(target, {
+  const preview = await cleanData(target, {
     outputPath: getValue(context.parsed, '--output'),
     sheet: getValue(context.parsed, '--sheet'),
-    yes: context.yes,
   });
   const operationPlan = createOperationPlan({
-    risk: cleaned.outputPath ? 'medium' : 'low',
-    confirmationRequired: Boolean(cleaned.outputPath && !context.yes),
-    reads: [cleaned.inputPath],
-    writes: cleaned.outputPath ? [cleaned.outputPath] : [],
+    risk: preview.outputPath ? 'medium' : 'low',
+    confirmationRequired: Boolean(preview.outputPath && !context.yes),
+    subjects: [
+      `data:${preview.inputPath}`,
+      ...(preview.sheetName ? [`sheet:${preview.sheetName}`] : []),
+    ],
+    reads: [preview.inputPath],
+    writes: preview.outputPath ? [preview.outputPath] : [],
     notes: ['Data cleaning writes require --yes when --output is used.'],
   });
+  assertOperationPlanFingerprint(context, operationPlan);
+
+  const cleaned =
+    context.yes && preview.outputPath
+      ? await cleanData(target, {
+          outputPath: getValue(context.parsed, '--output'),
+          sheet: getValue(context.parsed, '--sheet'),
+          yes: true,
+        })
+      : preview;
   const human = [
     'ZaoWu Data Clean',
     '',
@@ -731,7 +808,6 @@ const handleAutoValidate: DomainActionHandler = async (args, context) => {
 const handleAutoRun: DomainActionHandler = async (args, context) => {
   const target = requireTarget(args, 'zw auto run');
   const plan = await planWorkflowFile(target);
-  const run = await runWorkflowFile(target, { yes: context.yes });
   const readyMessageSteps = plan.steps
     .filter((step) => step.action === 'message' && !step.blocked)
     .map((step) => step.name);
@@ -741,7 +817,8 @@ const handleAutoRun: DomainActionHandler = async (args, context) => {
   const operationPlan = createOperationPlan({
     risk: 'medium',
     confirmationRequired: !context.yes,
-    reads: [run.filePath],
+    subjects: [`workflow:${plan.filePath}`],
+    reads: [plan.filePath],
     notes: [
       'Workflow runs preview by default.',
       `Policy shell: ${plan.policy.shell}.`,
@@ -751,6 +828,9 @@ const handleAutoRun: DomainActionHandler = async (args, context) => {
       'Shell steps are not executed in this foundation version.',
     ],
   });
+  assertOperationPlanFingerprint(context, operationPlan);
+
+  const run = await runWorkflowFile(target, { yes: context.yes });
   const human = [
     'ZaoWu Auto Run',
     '',
@@ -819,18 +899,27 @@ const handlePluginList: DomainActionHandler = async (_args, context) => {
 
 const handlePluginInstall: DomainActionHandler = async (args, context) => {
   const id = requireTarget(args, 'zw plugin install');
-  const installed = await installPlugin(id, {
+  const preview = await installPlugin(id, {
     cwd: context.cwd,
     source: getValue(context.parsed, '--source'),
-    yes: context.yes,
   });
   const operationPlan = createOperationPlan({
     risk: 'medium',
     confirmationRequired: !context.yes,
-    reads: installed.plugin.source === installed.plugin.id ? [] : [installed.plugin.source],
-    writes: [`${installed.pluginDir}/${installed.plugin.id}.json`],
+    subjects: [`plugin:${preview.plugin.id}`, `source:${preview.plugin.source}`],
+    reads: preview.plugin.source === preview.plugin.id ? [] : [preview.plugin.source],
+    writes: [`${preview.pluginDir}/${preview.plugin.id}.json`],
     notes: ['Plugin installation writes a local manifest only when --yes is provided.'],
   });
+  assertOperationPlanFingerprint(context, operationPlan);
+
+  const installed = context.yes
+    ? await installPlugin(id, {
+        cwd: context.cwd,
+        source: getValue(context.parsed, '--source'),
+        yes: true,
+      })
+    : preview;
   const human = [
     'ZaoWu Plugin Install',
     '',
@@ -847,16 +936,24 @@ const handlePluginInstall: DomainActionHandler = async (args, context) => {
 
 const handlePluginRemove: DomainActionHandler = async (args, context) => {
   const id = requireTarget(args, 'zw plugin remove');
-  const removed = await removePlugin(id, {
+  const preview = await removePlugin(id, {
     cwd: context.cwd,
-    yes: context.yes,
   });
   const operationPlan = createOperationPlan({
     risk: 'medium',
     confirmationRequired: !context.yes,
-    deletes: [`${removed.pluginDir}/${removed.plugin.id}.json`],
+    subjects: [`plugin:${preview.plugin.id}`],
+    deletes: [`${preview.pluginDir}/${preview.plugin.id}.json`],
     notes: ['Plugin removal deletes a local manifest only when --yes is provided.'],
   });
+  assertOperationPlanFingerprint(context, operationPlan);
+
+  const removed = context.yes
+    ? await removePlugin(id, {
+        cwd: context.cwd,
+        yes: true,
+      })
+    : preview;
   const human = [
     'ZaoWu Plugin Remove',
     '',
@@ -914,13 +1011,17 @@ const handleTeachQuiz: DomainActionHandler = async (args, context) => {
 
 const handleWebInspect: DomainActionHandler = async (args, context) => {
   const target = requireTarget(args, 'zw web inspect');
-  const inspected = await inspectWebTarget(target, { yes: context.yes });
+  const preview = await inspectWebTarget(target);
   const operationPlan = createOperationPlan({
     risk: 'medium',
     confirmationRequired: !context.yes,
-    network: [inspected.url],
+    subjects: [`web:${preview.url}`],
+    network: [preview.url],
     notes: ['Web inspect sends a HEAD request only when --yes is provided.'],
   });
+  assertOperationPlanFingerprint(context, operationPlan);
+
+  const inspected = context.yes ? await inspectWebTarget(target, { yes: true }) : preview;
   const human = [
     'ZaoWu Web Inspect',
     '',
@@ -940,13 +1041,17 @@ const handleWebInspect: DomainActionHandler = async (args, context) => {
 
 const handleWebFetch: DomainActionHandler = async (args, context) => {
   const target = requireTarget(args, 'zw web fetch');
-  const fetched = await fetchWebTarget(target, { yes: context.yes });
+  const preview = await fetchWebTarget(target);
   const operationPlan = createOperationPlan({
     risk: 'medium',
     confirmationRequired: !context.yes,
-    network: [fetched.url],
+    subjects: [`web:${preview.url}`],
+    network: [preview.url],
     notes: ['Web fetch sends a GET request only when --yes is provided.'],
   });
+  assertOperationPlanFingerprint(context, operationPlan);
+
+  const fetched = context.yes ? await fetchWebTarget(target, { yes: true }) : preview;
   const human = [
     'ZaoWu Web Fetch',
     '',

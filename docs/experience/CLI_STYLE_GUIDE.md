@@ -137,18 +137,19 @@ zw gentest
 
 Use these option names consistently:
 
-| Option            | Meaning                          |
-| ----------------- | -------------------------------- |
-| `--help`          | Show help                        |
-| `--version`       | Show version                     |
-| `--json`          | Output machine-readable JSON     |
-| `--verbose`       | Show more details                |
-| `--quiet`         | Show less output                 |
-| `--dry-run`       | Preview without applying changes |
-| `--yes`           | Skip confirmation where safe     |
-| `--config <path>` | Use a specific config file       |
-| `--model <model>` | Use a specific AI model          |
-| `--lang <lang>`   | Choose output language           |
+| Option                      | Meaning                                       |
+| --------------------------- | --------------------------------------------- |
+| `--help`                    | Show help                                     |
+| `--version`                 | Show version                                  |
+| `--json`                    | Output machine-readable JSON                  |
+| `--verbose`                 | Show more details                             |
+| `--quiet`                   | Show less output                              |
+| `--dry-run`                 | Preview without applying changes              |
+| `--yes`                     | Skip confirmation where safe                  |
+| `--plan-fingerprint <hash>` | Require the confirmed plan to match a preview |
+| `--config <path>`           | Use a specific config file                    |
+| `--model <model>`           | Use a specific AI model                       |
+| `--lang <lang>`             | Choose output language                        |
 
 Avoid duplicate option names such as:
 

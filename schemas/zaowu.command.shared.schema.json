@@ -11,13 +11,16 @@
         "schemaVersion",
         "risk",
         "confirmationRequired",
+        "subjects",
         "reads",
         "writes",
         "deletes",
         "executes",
         "network",
         "secrets",
-        "notes"
+        "notes",
+        "fingerprintAlgorithm",
+        "fingerprint"
       ],
       "properties": {
         "schemaVersion": {
@@ -28,6 +31,12 @@
         },
         "confirmationRequired": {
           "type": "boolean"
+        },
+        "subjects": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         },
         "reads": {
           "type": "array",
@@ -70,6 +79,13 @@
           "items": {
             "type": "string"
           }
+        },
+        "fingerprintAlgorithm": {
+          "const": "sha256-v1"
+        },
+        "fingerprint": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
         }
       }
     },

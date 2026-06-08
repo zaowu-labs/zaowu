@@ -345,6 +345,70 @@ describe('executeCli', () => {
     }
   });
 
+  it('rejects confirmed config set when the preview fingerprint does not match', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
+
+    try {
+      await executeCli(['init', '--yes'], { cwd: root });
+      const result = await executeCli(
+        [
+          'config',
+          'set',
+          'project.name',
+          'blocked',
+          '--yes',
+          '--plan-fingerprint',
+          '0'.repeat(64),
+          '--json',
+        ],
+        { cwd: root }
+      );
+      const payload = JSON.parse(result.stderr);
+      const config = await readFile(path.join(root, DEFAULT_CONFIG_FILE_NAME), 'utf8');
+
+      expect(result.exitCode).toBe(1);
+      expect(payload.error.code).toBe('OPERATION_PLAN_MISMATCH');
+      expect(config).toContain('name: zaowu-project');
+      expect(config).not.toContain('blocked');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('applies config set when confirmation matches the preview fingerprint', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
+
+    try {
+      await executeCli(['init', '--yes'], { cwd: root });
+      const preview = await executeCli(['config', 'set', 'project.name', 'allowed', '--json'], {
+        cwd: root,
+      });
+      const previewPayload = JSON.parse(preview.stdout);
+      const result = await executeCli(
+        [
+          'config',
+          'set',
+          'project.name',
+          'allowed',
+          '--yes',
+          '--plan-fingerprint',
+          previewPayload.operationPlan.fingerprint,
+          '--json',
+        ],
+        { cwd: root }
+      );
+      const payload = JSON.parse(result.stdout);
+      const config = await readFile(path.join(root, DEFAULT_CONFIG_FILE_NAME), 'utf8');
+
+      expect(result.exitCode).toBe(0);
+      expect(payload.operationPlan.fingerprint).toBe(previewPayload.operationPlan.fingerprint);
+      expect(payload.wroteFile).toBe(true);
+      expect(config).toContain('name: allowed');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('runs dev status from CLI', async () => {
     const result = await executeCli(['dev', 'status', '--json'], {
       commandRunner: (_command, args) => {
@@ -899,9 +963,55 @@ describe('executeCli', () => {
         schemaVersion: 1,
         risk: 'medium',
         confirmationRequired: true,
+        subjects: [`init:${path.join(root, DEFAULT_CONFIG_FILE_NAME)}`],
         writes: [path.join(root, DEFAULT_CONFIG_FILE_NAME)],
+        fingerprintAlgorithm: 'sha256-v1',
+        fingerprint: expect.stringMatching(/^[a-f0-9]{64}$/),
       });
       await expect(readFile(path.join(root, DEFAULT_CONFIG_FILE_NAME), 'utf8')).rejects.toThrow();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects confirmed init when the preview fingerprint does not match', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
+
+    try {
+      const result = await executeCli(
+        ['init', '--yes', '--plan-fingerprint', '0'.repeat(64), '--json'],
+        { cwd: root }
+      );
+      const payload = JSON.parse(result.stderr);
+
+      expect(result.exitCode).toBe(1);
+      expect(payload.error).toMatchObject({
+        code: 'OPERATION_PLAN_MISMATCH',
+      });
+      await expect(readFile(path.join(root, DEFAULT_CONFIG_FILE_NAME), 'utf8')).rejects.toThrow();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('creates config when confirmed init matches the preview fingerprint', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
+
+    try {
+      const preview = await executeCli(['init', '--json'], { cwd: root });
+      const previewPayload = JSON.parse(preview.stdout);
+      const result = await executeCli(
+        ['init', '--yes', '--plan-fingerprint', previewPayload.operationPlan.fingerprint, '--json'],
+        { cwd: root }
+      );
+      const payload = JSON.parse(result.stdout);
+
+      expect(result.exitCode).toBe(0);
+      expect(payload.operationPlan.fingerprint).toBe(previewPayload.operationPlan.fingerprint);
+      expect(payload.operationPlan.confirmationRequired).toBe(false);
+      await expect(readFile(path.join(root, DEFAULT_CONFIG_FILE_NAME), 'utf8')).resolves.toContain(
+        'version: 1'
+      );
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -948,7 +1058,10 @@ describe('executeCli', () => {
           schemaVersion: 1,
           risk: 'medium',
           confirmationRequired: false,
+          subjects: [`init:${path.join(root, DEFAULT_CONFIG_FILE_NAME)}`],
           writes: [path.join(root, DEFAULT_CONFIG_FILE_NAME)],
+          fingerprintAlgorithm: 'sha256-v1',
+          fingerprint: expect.stringMatching(/^[a-f0-9]{64}$/),
         },
       });
       await expect(readFile(path.join(root, DEFAULT_CONFIG_FILE_NAME), 'utf8')).resolves.toContain(

@@ -26,6 +26,7 @@ registry.
 | ------------------------- | ---------------------------------------------- |
 | `COMMAND_HANDLER_MISSING` | A known command has no registered handler.     |
 | `COMMAND_NOT_IMPLEMENTED` | A planned command is not runnable yet.         |
+| `OPERATION_PLAN_MISMATCH` | A confirmed operation did not match preview.   |
 | `TARGET_REQUIRED`         | A command target or second argument is absent. |
 | `UNKNOWN_COMMAND`         | The root command is unknown.                   |
 | `UNKNOWN_DOMAIN_ACTION`   | The domain exists but the action is unknown.   |

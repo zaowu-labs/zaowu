@@ -58,8 +58,8 @@ validators.
   envelope
 - `zaowu.command.version.schema.json` - `zw --version --json` result shape
 - `zaowu.command.shared.schema.json` - shared command-output fragments such as
-  `operationPlan`, AI provider/input metadata, dev change summaries, automation
-  `policy`, and automation `sandbox`
+  `operationPlan` with subjects and fingerprint metadata, AI provider/input
+  metadata, dev change summaries, automation `policy`, and automation `sandbox`
 
 Runtime validation still lives in the owning packages. Keep schemas, examples,
 docs, and package validators aligned whenever command contracts change.

@@ -19,7 +19,7 @@ describe('golden command output contracts', () => {
       const lines = getStableLines(result.stdout, root);
 
       expect(result.exitCode).toBe(0);
-      expect(lines.slice(0, 10)).toEqual([
+      expect(lines.slice(0, 12)).toEqual([
         'ZaoWu Init',
         'No files were written.',
         'Would create:',
@@ -27,6 +27,8 @@ describe('golden command output contracts', () => {
         'Operation plan:',
         'Risk: medium',
         'Confirmation required: yes',
+        expect.stringMatching(/^Fingerprint: [a-f0-9]{64}$/),
+        `Subjects: init:<root>${path.sep}zw.yml`,
         `Writes: <root>${path.sep}zw.yml`,
         'Deletes: none',
         'Preview:',
@@ -85,7 +87,7 @@ describe('golden command output contracts', () => {
     const result = await executeCli(['ai', 'ask', 'Explain', 'ZaoWu', '--provider', 'openai']);
 
     expect(result.exitCode).toBe(0);
-    expect(getStableLines(result.stdout).slice(0, 14)).toEqual([
+    expect(getStableLines(result.stdout).slice(0, 18)).toEqual([
       'ZaoWu AI Ask',
       'Status: preview',
       'Provider: openai (OpenAI)',
@@ -93,6 +95,10 @@ describe('golden command output contracts', () => {
       'Operation plan:',
       'Risk: medium',
       'Confirmation required: yes',
+      expect.stringMatching(/^Fingerprint: [a-f0-9]{64}$/),
+      'Subjects:',
+      '- ai:openai',
+      '- model:gpt-4.1-mini',
       'Read:',
       '- none',
       'Write:',

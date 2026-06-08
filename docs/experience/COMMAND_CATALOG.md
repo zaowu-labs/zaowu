@@ -10,9 +10,12 @@ by domain so future work does not mix unrelated tools.
 - Use `--help` on root, domains, and actions.
 - Sensitive commands preview by default or require `--yes` before writing files,
   removing files, or sending network requests.
-- Sensitive JSON output includes `operationPlan` with `schemaVersion`, reads,
-  writes, deletes, execution, network, secrets, risk, and confirmation
-  requirements.
+- Sensitive JSON output includes `operationPlan` with `schemaVersion`, subjects,
+  reads, writes, deletes, execution, network, secrets, risk, confirmation
+  requirements, and a `sha256-v1` fingerprint.
+- `--plan-fingerprint <hash>` can be used with `--yes` to reject a confirmed
+  sensitive action when the current operation plan no longer matches the
+  previewed plan.
 - `--dry-run` forces preview mode when it is used with `--yes`.
 - Unsupported formats return actionable errors instead of pretending to work.
 
