@@ -141,7 +141,7 @@ const createCombinedPrompt = (
   filePath: string | undefined,
   fileContent: string | undefined
 ): string =>
-  [prompt, fileContent === undefined ? undefined : `Input file: ${filePath}\n${fileContent}`]
+  [prompt, fileContent?.trim() ? `Input file: ${filePath}\n${fileContent}` : undefined]
     .filter((part): part is string => Boolean(part?.trim()))
     .join('\n\n');
 

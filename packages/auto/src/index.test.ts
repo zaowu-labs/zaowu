@@ -238,4 +238,39 @@ describe('auto domain', () => {
       await rm(root, { recursive: true, force: true });
     }
   });
+
+  it('runs confirmed message steps while keeping shell steps blocked', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-auto-'));
+    const filePath = path.join(root, 'workflow.yml');
+
+    await writeFile(
+      filePath,
+      [
+        'name: demo',
+        'steps:',
+        '  - name: hello',
+        '    message: Hello',
+        '  - name: build',
+        '    run: pnpm build',
+        '',
+      ].join('\n'),
+      'utf8'
+    );
+
+    try {
+      await expect(runWorkflowFile(filePath, { yes: true })).resolves.toMatchObject({
+        schemaVersion: 1,
+        status: 'ok',
+        executed: ['hello: Hello'],
+        skipped: ['build: Shell permission is blocked by workflow policy.'],
+        sandbox: {
+          shellCommands: 'blocked',
+          fileWrites: 'blocked',
+          network: 'blocked',
+        },
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });

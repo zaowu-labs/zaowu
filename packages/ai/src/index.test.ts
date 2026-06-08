@@ -154,6 +154,19 @@ describe('AI provider registry', () => {
     ).rejects.toThrow('AI input is too large.');
   });
 
+  it('rejects empty file-only AI input before provider execution', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-ai-'));
+    const filePath = path.join(root, 'empty.md');
+
+    await writeFile(filePath, '', 'utf8');
+
+    try {
+      await expect(askAI({ prompt: '', filePath })).rejects.toThrow('AI prompt is required.');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('asks OpenAI through the Responses API with an environment key', async () => {
     const calls: Array<{
       url: string;
@@ -300,6 +313,35 @@ describe('AI provider registry', () => {
     ).rejects.toThrow('AI provider request failed.');
   });
 
+  it('includes provider retry-after hints in request failure fixes', async () => {
+    const error = await askAI({
+      provider: 'openai',
+      prompt: 'Explain ZaoWu',
+      allowNetwork: true,
+      env: {
+        OPENAI_API_KEY: 'test-key',
+      },
+      fetcher: async () => ({
+        ok: false,
+        status: 429,
+        statusText: 'Too Many Requests',
+        headers: {
+          get(name: string) {
+            return name.toLowerCase() === 'retry-after' ? '2' : null;
+          },
+        },
+        async json() {
+          return {};
+        },
+      }),
+    }).catch((caught: unknown) => caught);
+
+    expect(error).toMatchObject({
+      message: 'AI provider request failed.',
+      fix: 'Retry later or reduce request frequency/input size. Wait at least 2000ms before retrying.',
+    });
+  });
+
   it('classifies provider HTTP failures for actionable fixes', () => {
     expect(classifyAIProviderHttpFailure('OpenAI', 401, 'Unauthorized')).toEqual({
       kind: 'auth',
@@ -365,6 +407,27 @@ describe('AI provider registry', () => {
           statusText: 'OK',
           async json() {
             return await readOpenAIFixture('openai-no-text-output');
+          },
+        }),
+      })
+    ).rejects.toThrow('AI provider response is invalid.');
+  });
+
+  it('rejects non-object OpenAI responses', async () => {
+    await expect(
+      askAI({
+        provider: 'openai',
+        prompt: 'Explain ZaoWu',
+        allowNetwork: true,
+        env: {
+          OPENAI_API_KEY: 'test-key',
+        },
+        fetcher: async () => ({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          async json() {
+            return 'not an object';
           },
         }),
       })

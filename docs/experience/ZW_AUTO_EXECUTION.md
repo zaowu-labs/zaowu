@@ -29,6 +29,8 @@ blocked until the execution model below is implemented and verified.
    values in files.
 7. Recoverable failure: failed steps should report what ran, what did not run,
    and what can be retried.
+8. Bounded output: executed steps must capture output with explicit byte and
+   line limits so logs cannot flood the terminal or JSON output.
 
 ## Required Before Shell Execution
 
@@ -37,11 +39,14 @@ Do not enable shell commands until all of these exist:
 - command spec update for shell execution
 - workflow schema update for shell step policy
 - execution sandbox implementation with path containment
+- tests proving resolved working directories and declared write paths cannot
+  escape the workflow directory unless a future explicit policy allows it
 - per-step operation plan entries
 - dry-run output that includes resolved commands without executing them
 - confirmation behavior for shell steps
 - tests for blocked, prompted, confirmed, failed, and unsupported shell steps
 - Windows and Unix command invocation tests
+- output capture limits for stdout and stderr
 - docs and command catalog updates
 - CI coverage for the execution path
 
@@ -56,6 +61,8 @@ The first shell execution version, if implemented later, should be narrow:
 - no network unless the plan declares targets
 - timeout required
 - output captured and bounded
+- structured result for each executed step with status, started/skipped reason,
+  exit code when applicable, bounded stdout, bounded stderr, and retry guidance
 
 ## Acceptance Criteria
 
@@ -63,5 +70,7 @@ The first shell execution version, if implemented later, should be narrow:
 - `zw auto plan --json` remains schema-versioned.
 - `zw auto plan --json` includes per-step operation plans.
 - `zw auto run` never executes a step that was absent from the plan.
+- Confirmed `zw auto run --yes` may execute message steps, but shell steps stay
+  blocked until every requirement above is met.
 - Human output explains blocked, ready, executed, and skipped steps.
 - Expected failures use structured ZaoWu errors and no raw stack traces.

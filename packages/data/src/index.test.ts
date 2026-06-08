@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import * as XLSX from 'xlsx';
@@ -62,6 +62,60 @@ describe('data domain', () => {
     }
   });
 
+  it('handles quoted CSV values with commas and escaped quotes', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-data-'));
+    const filePath = path.join(root, 'quoted.csv');
+
+    await writeFile(filePath, 'name,note\nA,"hello, world"\nB,"said ""hi"""\n', 'utf8');
+
+    try {
+      await expect(sampleData(filePath, { rows: 2 })).resolves.toMatchObject({
+        rows: [
+          {
+            name: 'A',
+            note: 'hello, world',
+          },
+          {
+            name: 'B',
+            note: 'said "hi"',
+          },
+        ],
+      });
+      await expect(cleanData(filePath)).resolves.toMatchObject({
+        content: 'name,note\nA,"hello, world"\nB,"said ""hi"""\n',
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('inspects empty CSV files as empty datasets', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-data-'));
+    const filePath = path.join(root, 'empty.csv');
+
+    await writeFile(filePath, '', 'utf8');
+
+    try {
+      await expect(inspectData(filePath)).resolves.toEqual({
+        status: 'ok',
+        filePath,
+        rowCount: 0,
+        columnCount: 0,
+        columns: [],
+        missingByColumn: {},
+      });
+      await expect(sampleData(filePath)).resolves.toMatchObject({
+        rowCount: 0,
+        rows: [],
+      });
+      await expect(inferDataSchema(filePath)).resolves.toMatchObject({
+        columns: [],
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('analyzes numeric columns', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-data-'));
     const filePath = path.join(root, 'sales.csv');
@@ -108,6 +162,27 @@ describe('data domain', () => {
           amount: 0,
         },
       });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('writes cleaned CSV output only after confirmation', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-data-'));
+    const inputPath = path.join(root, 'sales.csv');
+    const outputPath = path.join(root, 'clean.csv');
+
+    await writeFile(inputPath, ' name , amount \n A , 10 \n', 'utf8');
+
+    try {
+      await expect(cleanData(inputPath, { outputPath, yes: true })).resolves.toMatchObject({
+        status: 'ok',
+        inputPath,
+        outputPath,
+        content: 'name,amount\nA,10\n',
+        wroteFile: true,
+      });
+      await expect(readFile(outputPath, 'utf8')).resolves.toBe('name,amount\nA,10\n');
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -335,6 +410,19 @@ describe('data domain', () => {
       await expect(inspectData(filePath, { sheet: 'Missing' })).rejects.toThrow(
         'XLSX sheet was not found.'
       );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects damaged XLSX workbooks with an actionable read error', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-data-'));
+    const filePath = path.join(root, 'damaged.xlsx');
+
+    await writeFile(filePath, 'not a workbook', 'utf8');
+
+    try {
+      await expect(inspectData(filePath)).rejects.toThrow('Could not read data file.');
     } finally {
       await rm(root, { recursive: true, force: true });
     }

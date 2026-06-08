@@ -46,6 +46,18 @@ that must be true before the first publish and every publish after that.
 - Release artifacts must be built from the exact commit tagged for the release.
 - The workflow must run the same release gates documented in this repository
   before publishing.
+- Prefer npm Trusted Publishing through GitHub Actions OIDC over long-lived npm
+  tokens when the first publish workflow is intentionally enabled.
+- Trusted publishing setup must be tied to this repository, the release
+  workflow name, and the `@zaowu/*` package scope. Do not reuse credentials or
+  trust relationships from a personal fork.
+
+References:
+
+- npm Trusted Publishing:
+  <https://docs.npmjs.com/trusted-publishers/>
+- GitHub Actions OIDC:
+  <https://docs.github.com/en/actions/concepts/security/openid-connect>
 
 ## Publish Permissions
 
@@ -53,8 +65,40 @@ that must be true before the first publish and every publish after that.
   the organization, not an individual workstation.
 - GitHub release workflow permissions must be least-privilege and limited to the
   publish job that needs them.
+- The publish job must not run on pull requests, forks, or unreviewed branches.
 - Manual local publish is blocked until the release workflow, permissions, and
   rollback procedure are documented and tested.
+
+## Release Workflow Requirements
+
+Do not add or enable a publishing workflow until all of these are true:
+
+- The workflow is triggered only by reviewed release tags from `main`.
+- The workflow checks out the exact tagged commit.
+- The workflow uses the pinned Node.js and pnpm policy from `package.json`.
+- The workflow runs `corepack pnpm install --frozen-lockfile`.
+- The workflow runs `corepack pnpm verify`.
+- The workflow performs package dry-run and packed CLI install smoke before any
+  publish step.
+- The workflow publishes only `@zaowu/*` workspace packages and never publishes
+  the private root package.
+- The workflow uses Trusted Publishing or another reviewed provenance mechanism
+  instead of storing a long-lived npm token in the repository.
+- The workflow records package names, versions, tag, commit SHA, and CI run URL
+  in release notes.
+
+## Rollback
+
+A rollback plan must exist before first publish:
+
+- Identify the affected package version and the exact release commit.
+- Stop any in-progress publish workflow before making changes.
+- Prefer a new patch release that reverts the bad change when users may already
+  have installed the package.
+- Deprecate a broken npm version with a clear replacement version when
+  appropriate.
+- Document the incident in `CHANGELOG.md` and release notes.
+- Re-run the full release gate before publishing a corrective version.
 
 ## Preflight
 

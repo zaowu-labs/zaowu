@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import JSZip from 'jszip';
@@ -135,6 +135,26 @@ describe('doc domain', () => {
     }
   });
 
+  it('summarizes empty supported documents without failing', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-doc-'));
+    const filePath = path.join(root, 'empty.txt');
+
+    await writeFile(filePath, '', 'utf8');
+
+    try {
+      await expect(summarizeDocument(filePath)).resolves.toEqual({
+        status: 'ok',
+        filePath,
+        title: 'empty.txt',
+        lineCount: 1,
+        wordCount: 0,
+        summary: 'No summary text found.',
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('extracts headings and links', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-doc-'));
     const filePath = path.join(root, 'note.md');
@@ -208,6 +228,19 @@ describe('doc domain', () => {
           },
         ],
       });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects empty document search keywords', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-doc-'));
+    const filePath = path.join(root, 'note.md');
+
+    await writeFile(filePath, '# Title\n\nInstall ZaoWu locally.\n', 'utf8');
+
+    try {
+      await expect(searchDocument(filePath, '   ')).rejects.toThrow('Search keyword is required.');
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -289,6 +322,27 @@ describe('doc domain', () => {
         wroteFile: false,
         content: 'Title\n\nSee docs.\n',
       });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('writes converted documents only after confirmation', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-doc-'));
+    const filePath = path.join(root, 'note.md');
+    const outputPath = path.join(root, 'note.txt');
+
+    await writeFile(filePath, '# Title\n\nSee [docs](https://example.com).\n', 'utf8');
+
+    try {
+      await expect(convertDocument(filePath, { outputPath, yes: true })).resolves.toMatchObject({
+        status: 'ok',
+        outputPath,
+        format: 'text',
+        wroteFile: true,
+        content: 'Title\n\nSee docs.\n',
+      });
+      await expect(readFile(outputPath, 'utf8')).resolves.toBe('Title\n\nSee docs.\n');
     } finally {
       await rm(root, { recursive: true, force: true });
     }
