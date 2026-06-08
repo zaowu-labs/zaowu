@@ -1,0 +1,29 @@
+{
+  "name": "@zaowu/core",
+  "version": "0.0.1",
+  "description": "ZaoWu core types and error handling",
+  "type": "module",
+  "license": "Apache-2.0",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b --pretty false",
+    "typecheck": "tsc -b --pretty false",
+    "dev": "tsc -b --watch"
+  },
+  "keywords": [
+    "zaowu",
+    "core",
+    "types"
+  ]
+}

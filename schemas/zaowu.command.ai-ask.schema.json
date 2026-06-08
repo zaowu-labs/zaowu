@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.zaowu.dev/zaowu.command.ai-ask.schema.json",
+  "title": "ZaoWu AI Ask Result",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "status", "provider", "model", "input", "output"],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "status": {
+      "enum": ["ok", "preview"]
+    },
+    "provider": {
+      "$ref": "https://schemas.zaowu.dev/zaowu.command.shared.schema.json#/$defs/aiProviderDescriptor"
+    },
+    "model": {
+      "type": "string"
+    },
+    "input": {
+      "$ref": "https://schemas.zaowu.dev/zaowu.command.shared.schema.json#/$defs/aiInput"
+    },
+    "output": {
+      "type": ["string", "null"]
+    },
+    "validation": {
+      "$ref": "https://schemas.zaowu.dev/zaowu.command.shared.schema.json#/$defs/aiProviderValidation"
+    },
+    "operationPlan": {
+      "$ref": "https://schemas.zaowu.dev/zaowu.command.shared.schema.json#/$defs/operationPlan"
+    }
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.zaowu.dev/zaowu.command.auto-run.schema.json",
+  "title": "ZaoWu Auto Run Result",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schemaVersion",
+    "status",
+    "filePath",
+    "workflow",
+    "policy",
+    "sandbox",
+    "executed",
+    "skipped"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "status": {
+      "enum": ["ok", "preview"]
+    },
+    "filePath": {
+      "type": "string"
+    },
+    "workflow": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["version", "name", "variables", "permissions", "steps"]
+    },
+    "policy": {
+      "$ref": "https://schemas.zaowu.dev/zaowu.command.shared.schema.json#/$defs/autoPolicy"
+    },
+    "sandbox": {
+      "$ref": "https://schemas.zaowu.dev/zaowu.command.shared.schema.json#/$defs/autoSandbox"
+    },
+    "executed": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "skipped": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "operationPlan": {
+      "$ref": "https://schemas.zaowu.dev/zaowu.command.shared.schema.json#/$defs/operationPlan"
+    }
+  }
+}

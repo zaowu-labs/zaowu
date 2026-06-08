@@ -1,0 +1,9 @@
+version: 1
+name: blocked-shell
+vars:
+  target: ZaoWu
+permissions:
+  shell: prompt
+steps:
+  - name: shell-preview
+    run: echo {{target}}

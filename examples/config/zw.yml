@@ -1,0 +1,14 @@
+version: 1
+
+project:
+  name: zaowu-example
+
+ai:
+  provider: echo
+
+defaults:
+  output: human
+
+paths:
+  workspace: .
+  cache: .zaowu/cache

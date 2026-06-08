@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.zaowu.dev/zaowu.command.auto-plan.schema.json",
+  "title": "ZaoWu Auto Plan Result",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schemaVersion",
+    "status",
+    "filePath",
+    "workflow",
+    "policy",
+    "sandbox",
+    "steps",
+    "warnings"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "status": {
+      "const": "ok"
+    },
+    "filePath": {
+      "type": "string"
+    },
+    "workflow": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["version", "name", "variables", "permissions", "steps"],
+      "properties": {
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "name": {
+          "type": "string"
+        },
+        "variables": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "permissions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["shell", "fileWrites", "network"],
+          "properties": {
+            "shell": {
+              "enum": ["blocked", "prompt"]
+            },
+            "fileWrites": {
+              "enum": ["blocked", "prompt"]
+            },
+            "network": {
+              "enum": ["blocked", "prompt"]
+            }
+          }
+        },
+        "steps": {
+          "type": "array"
+        }
+      }
+    },
+    "policy": {
+      "$ref": "https://schemas.zaowu.dev/zaowu.command.shared.schema.json#/$defs/autoPolicy"
+    },
+    "sandbox": {
+      "$ref": "https://schemas.zaowu.dev/zaowu.command.shared.schema.json#/$defs/autoSandbox"
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "index",
+          "name",
+          "action",
+          "preview",
+          "blocked",
+          "policyDecision",
+          "operationPlan"
+        ],
+        "properties": {
+          "index": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "name": {
+            "type": "string"
+          },
+          "action": {
+            "enum": ["message", "shell", "unsupported"]
+          },
+          "preview": {
+            "type": "string"
+          },
+          "blocked": {
+            "type": "boolean"
+          },
+          "requiredPermission": {
+            "enum": ["shell", "fileWrites", "network"]
+          },
+          "policyDecision": {
+            "enum": ["allowed", "blocked"]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "operationPlan": {
+            "$ref": "https://schemas.zaowu.dev/zaowu.command.shared.schema.json#/$defs/operationPlan"
+          }
+        }
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

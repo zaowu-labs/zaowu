@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: ${{ matrix.os }} / Node ${{ matrix.node-version }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-2025-vs2026
+        node-version:
+          - 20.19.0
+          - 24.x
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install dependencies
+        run: corepack pnpm install --frozen-lockfile
+
+      - name: Build
+        run: corepack pnpm build
+
+      - name: Check schemas and examples
+        run: corepack pnpm verify:schemas
+
+      - name: Check rich fixtures
+        run: corepack pnpm verify:fixtures
+
+      - name: Check JSON contracts
+        run: corepack pnpm verify:json-contracts
+
+      - name: Check release readiness
+        run: corepack pnpm verify:release
+
+      - name: Check package contents
+        run: corepack pnpm pack:check
+
+      - name: Smoke test packed CLI install
+        run: corepack pnpm verify:pack-install
+
+      - name: Smoke test CLI
+        run: corepack pnpm verify:smoke
+
+      - name: Test
+        run: corepack pnpm test
+
+      - name: Lint
+        run: corepack pnpm lint
+
+      - name: Check formatting
+        run: corepack pnpm format:check

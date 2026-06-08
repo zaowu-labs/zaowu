@@ -1,0 +1,4 @@
+region,amount,owner
+north,1200,alice
+south,950,bob
+east,1325,carol

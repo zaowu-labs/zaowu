@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.zaowu.dev/zaowu.command.config-set.schema.json",
+  "title": "ZaoWu Config Set Result",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schemaVersion",
+    "status",
+    "filePath",
+    "key",
+    "oldValue",
+    "newValue",
+    "content",
+    "wroteFile"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "status": {
+      "enum": ["ok", "preview"]
+    },
+    "filePath": {
+      "type": "string"
+    },
+    "key": {
+      "enum": [
+        "version",
+        "project.name",
+        "ai.provider",
+        "defaults.output",
+        "paths.workspace",
+        "paths.cache"
+      ]
+    },
+    "oldValue": {
+      "type": ["string", "null"]
+    },
+    "newValue": {
+      "type": ["string", "null"]
+    },
+    "content": {
+      "type": "string"
+    },
+    "wroteFile": {
+      "type": "boolean"
+    },
+    "operationPlan": {
+      "$ref": "https://schemas.zaowu.dev/zaowu.command.shared.schema.json#/$defs/operationPlan"
+    }
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.zaowu.dev/zaowu.command.dev-status.schema.json",
+  "title": "ZaoWu Dev Status Result",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "status", "branch", "clean", "staged", "unstaged", "untracked"],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "status": {
+      "const": "ok"
+    },
+    "branch": {
+      "type": "string"
+    },
+    "clean": {
+      "type": "boolean"
+    },
+    "staged": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "unstaged": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "untracked": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "operationPlan": {
+      "$ref": "https://schemas.zaowu.dev/zaowu.command.shared.schema.json#/$defs/operationPlan"
+    }
+  }
+}
