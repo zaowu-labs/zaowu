@@ -281,6 +281,27 @@ const OPENAI_PROVIDER_DESCRIPTOR: Omit<AIProviderDescriptor, 'configured'> = {
   defaultModel: 'gpt-4.1-mini',
 };
 
+const getPreviewModel = (
+  provider: AIProviderDescriptor,
+  request: AIAskRequest,
+  env: NodeJS.ProcessEnv
+): string => {
+  const requestedModel = request.model?.trim();
+
+  if (requestedModel) {
+    return requestedModel;
+  }
+
+  if (provider.id === OPENAI_PROVIDER_DESCRIPTOR.id && env.OPENAI_MODEL?.trim()) {
+    return env.OPENAI_MODEL.trim();
+  }
+
+  return provider.defaultModel ?? 'echo-local';
+};
+
+const getOpenAIModel = (request: AIAskRequest, env: NodeJS.ProcessEnv): string =>
+  getPreviewModel(createProviderDescriptor(OPENAI_PROVIDER_DESCRIPTOR, env), request, env);
+
 const MAX_PROVIDER_STATUS_TEXT_CHARACTERS = 80;
 
 const sanitizeProviderStatusText = (statusText: string): string => {
@@ -449,6 +470,19 @@ const extractOpenAIOutputText = (payload: unknown): string => {
   });
 };
 
+const parseOpenAIJsonResponse = async (response: AIFetchResponse): Promise<unknown> => {
+  try {
+    return await response.json();
+  } catch {
+    throw new ZaoWuError({
+      code: 'AI_PROVIDER_RESPONSE_INVALID',
+      message: 'AI provider response is invalid.',
+      why: 'OpenAI returned a successful HTTP response, but the response body was not valid JSON.',
+      fix: 'Retry the request. If it repeats, check provider status or update the OpenAI adapter parser.',
+    });
+  }
+};
+
 const OPENAI_PROVIDER: AIProvider = {
   descriptor: createProviderDescriptor(OPENAI_PROVIDER_DESCRIPTOR),
   async ask(request) {
@@ -475,11 +509,7 @@ const OPENAI_PROVIDER: AIProvider = {
 
     const prepared = await prepareAIInput(request);
 
-    const model =
-      request.model ??
-      env.OPENAI_MODEL ??
-      OPENAI_PROVIDER_DESCRIPTOR.defaultModel ??
-      'gpt-4.1-mini';
+    const model = getOpenAIModel(request, env);
     const controller = new AbortController();
     const timeout = setTimeout(
       () => controller.abort(),
@@ -529,7 +559,7 @@ const OPENAI_PROVIDER: AIProvider = {
       });
     }
 
-    const output = extractOpenAIOutputText(await response.json());
+    const output = extractOpenAIOutputText(await parseOpenAIJsonResponse(response));
     const descriptor = createProviderDescriptor(OPENAI_PROVIDER_DESCRIPTOR, env);
 
     return {
@@ -600,22 +630,6 @@ export const validateAIProviderConfig = (
     provider,
     warnings,
   };
-};
-
-const getPreviewModel = (
-  provider: AIProviderDescriptor,
-  request: AIAskRequest,
-  env: NodeJS.ProcessEnv
-): string => {
-  if (request.model) {
-    return request.model;
-  }
-
-  if (provider.id === OPENAI_PROVIDER_DESCRIPTOR.id && env.OPENAI_MODEL?.trim()) {
-    return env.OPENAI_MODEL.trim();
-  }
-
-  return provider.defaultModel ?? 'echo-local';
 };
 
 export const previewAIRequest = async (request: AIAskRequest): Promise<AIAskPreview> => {

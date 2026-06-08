@@ -229,6 +229,90 @@ describe('AI provider registry', () => {
     ]);
   });
 
+  it('uses the same trimmed model resolution for preview and confirmed OpenAI requests', async () => {
+    let requestBody: unknown;
+
+    const preview = await previewAIRequest({
+      provider: 'openai',
+      prompt: 'Explain ZaoWu',
+      model: '  custom-model  ',
+      env: {
+        OPENAI_API_KEY: 'test-key',
+        OPENAI_MODEL: '  env-model  ',
+      },
+    });
+
+    const response = await askAI({
+      provider: 'openai',
+      prompt: 'Explain ZaoWu',
+      model: '  custom-model  ',
+      allowNetwork: true,
+      env: {
+        OPENAI_API_KEY: 'test-key',
+        OPENAI_MODEL: '  env-model  ',
+      },
+      fetcher: async (_url, init) => {
+        requestBody = JSON.parse(init.body);
+
+        return {
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          async json() {
+            return await readOpenAIFixture('openai-output-text');
+          },
+        };
+      },
+    });
+
+    expect(preview.model).toBe('custom-model');
+    expect(response.model).toBe('custom-model');
+    expect(requestBody).toMatchObject({
+      model: 'custom-model',
+    });
+  });
+
+  it('uses trimmed OPENAI_MODEL when no request model is provided', async () => {
+    let requestBody: unknown;
+
+    const preview = await previewAIRequest({
+      provider: 'openai',
+      prompt: 'Explain ZaoWu',
+      env: {
+        OPENAI_API_KEY: 'test-key',
+        OPENAI_MODEL: '  env-model  ',
+      },
+    });
+
+    const response = await askAI({
+      provider: 'openai',
+      prompt: 'Explain ZaoWu',
+      allowNetwork: true,
+      env: {
+        OPENAI_API_KEY: 'test-key',
+        OPENAI_MODEL: '  env-model  ',
+      },
+      fetcher: async (_url, init) => {
+        requestBody = JSON.parse(init.body);
+
+        return {
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          async json() {
+            return await readOpenAIFixture('openai-output-text');
+          },
+        };
+      },
+    });
+
+    expect(preview.model).toBe('env-model');
+    expect(response.model).toBe('env-model');
+    expect(requestBody).toMatchObject({
+      model: 'env-model',
+    });
+  });
+
   it('extracts nested OpenAI text output', async () => {
     await expect(
       askAI({
@@ -432,6 +516,31 @@ describe('AI provider registry', () => {
         }),
       })
     ).rejects.toThrow('AI provider response is invalid.');
+  });
+
+  it('maps invalid OpenAI JSON bodies to stable provider response errors', async () => {
+    const error = await askAI({
+      provider: 'openai',
+      prompt: 'Explain ZaoWu',
+      allowNetwork: true,
+      env: {
+        OPENAI_API_KEY: 'test-key',
+      },
+      fetcher: async () => ({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        async json() {
+          throw new SyntaxError('Unexpected token');
+        },
+      }),
+    }).catch((caught: unknown) => caught);
+
+    expect(error).toMatchObject({
+      code: 'AI_PROVIDER_RESPONSE_INVALID',
+      message: 'AI provider response is invalid.',
+      why: 'OpenAI returned a successful HTTP response, but the response body was not valid JSON.',
+    });
   });
 
   it('rejects unknown providers', () => {
