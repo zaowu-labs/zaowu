@@ -31,7 +31,7 @@ Files: 1
 Changes: +3/-1
 
 Findings:
-- info: Change size - 1 file(s), +3/-1.
+- info/low/summary: Change size - 1 file(s), +3/-1.
 
 Diff hunks:
 - packages/dev/src/index.ts @@ -10,0 +11 @@: +1/-0
@@ -76,7 +76,9 @@ JSON output includes stable top-level keys:
 ```
 
 `diffHunks` reports file path, hunk header, added line count, and removed line
-count. It does not include raw diff text by default.
+count. It does not include raw diff text by default. Each finding includes the
+legacy `severity` plus `priority` and `category` so human output stays readable
+and JSON output can be grouped by risk.
 
 ## Safety Rules
 
@@ -96,6 +98,9 @@ The first foundation version flags:
 - newly added shell execution
 - newly added file mutation
 - newly added network access
+- secret-like literals such as provider keys or tokens
+- destructive Git commands such as hard reset, clean, checkout overwrite, or
+  force push
 - focused test markers such as `it.only`
 
 Shell, file mutation, and network scanning applies only to call-like additions

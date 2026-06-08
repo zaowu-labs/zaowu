@@ -47,6 +47,17 @@ export interface DevStatusResult {
 
 export interface DevReviewFinding {
   severity: 'info' | 'warning';
+  priority: 'low' | 'medium' | 'high';
+  category:
+    | 'summary'
+    | 'test'
+    | 'dependency'
+    | 'quality'
+    | 'execution'
+    | 'filesystem'
+    | 'network'
+    | 'security'
+    | 'git';
   title: string;
   detail: string;
   filePath?: string;
@@ -456,6 +467,24 @@ const hasFileMutationAdded = (line: string): boolean =>
 
 const hasNetworkAccessAdded = (line: string): boolean => /\bfetch\s*\(/.test(line);
 
+const hasSecretLikeLiteralAdded = (line: string): boolean =>
+  /\b(?:sk-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9_]{20,}|xox[baprs]-[A-Za-z0-9-]{20,})\b/.test(
+    line
+  ) ||
+  /\b(?:api[_-]?key|token|secret|password)\b\s*[:=]\s*['"](?!(?:test|example|dummy|placeholder|redacted|set|missing)[\w-]*['"])[^'"]{16,}['"]/i.test(
+    line
+  );
+
+const hasDestructiveGitCommandAdded = (line: string): boolean =>
+  /\bgit\s+(?:reset\s+--hard|push\s+--force(?:-with-lease)?|clean\s+-[A-Za-z]*[fd][A-Za-z]*|checkout\s+--)\b/.test(
+    line
+  ) ||
+  (/\bgit\b/.test(line) &&
+    (/[`'"]reset[`'"]\s*,\s*[`'"]--hard[`'"]/.test(line) ||
+      /[`'"]push[`'"]\s*,\s*[`'"]--force(?:-with-lease)?[`'"]/.test(line) ||
+      /[`'"]clean[`'"]\s*,\s*[`'"]-[A-Za-z]*[fd][A-Za-z]*[`'"]/.test(line) ||
+      /[`'"]checkout[`'"]\s*,\s*[`'"]--[`'"]/.test(line)));
+
 const addDiffHeuristicFindings = (
   findings: DevReviewFinding[],
   hunks: readonly ParsedDiffHunk[]
@@ -466,6 +495,8 @@ const addDiffHeuristicFindings = (
     if (hunk.addedLines + hunk.removedLines > 80) {
       addFindingOnce(findings, {
         severity: 'warning',
+        priority: 'medium',
+        category: 'quality',
         title: 'Large diff hunk',
         detail:
           'This hunk is large enough to hide review risk; consider splitting it before merge.',
@@ -477,6 +508,8 @@ const addDiffHeuristicFindings = (
     if (shouldScanSensitiveText && hunk.addedText.some(hasShellExecutionAdded)) {
       addFindingOnce(findings, {
         severity: 'warning',
+        priority: 'high',
+        category: 'execution',
         title: 'Shell execution added',
         detail:
           'Added code appears to run shell commands; confirm preview or confirmation behavior.',
@@ -488,6 +521,8 @@ const addDiffHeuristicFindings = (
     if (shouldScanSensitiveText && hunk.addedText.some(hasFileMutationAdded)) {
       addFindingOnce(findings, {
         severity: 'warning',
+        priority: 'medium',
+        category: 'filesystem',
         title: 'File mutation added',
         detail:
           'Added code appears to write or delete files; confirm it cannot silently overwrite user data.',
@@ -499,6 +534,8 @@ const addDiffHeuristicFindings = (
     if (shouldScanSensitiveText && hunk.addedText.some(hasNetworkAccessAdded)) {
       addFindingOnce(findings, {
         severity: 'warning',
+        priority: 'medium',
+        category: 'network',
         title: 'Network access added',
         detail:
           'Added code appears to access the network; confirm preview and user consent behavior.',
@@ -510,8 +547,36 @@ const addDiffHeuristicFindings = (
     if (hunk.addedText.some((line) => /\b(?:it|describe|test)\.only\s*\(/.test(line))) {
       addFindingOnce(findings, {
         severity: 'warning',
+        priority: 'high',
+        category: 'test',
         title: 'Focused test committed',
         detail: 'A focused test marker was added and would narrow the test run.',
+        filePath: hunk.filePath,
+        hunkHeader: hunk.header,
+      });
+    }
+
+    if (shouldScanSensitiveText && hunk.addedText.some(hasSecretLikeLiteralAdded)) {
+      addFindingOnce(findings, {
+        severity: 'warning',
+        priority: 'high',
+        category: 'security',
+        title: 'Secret-like literal added',
+        detail:
+          'Added code appears to contain a credential-like literal; move secrets to environment variables and rotate any exposed value.',
+        filePath: hunk.filePath,
+        hunkHeader: hunk.header,
+      });
+    }
+
+    if (shouldScanSensitiveText && hunk.addedText.some(hasDestructiveGitCommandAdded)) {
+      addFindingOnce(findings, {
+        severity: 'warning',
+        priority: 'high',
+        category: 'git',
+        title: 'Destructive Git command added',
+        detail:
+          'Added code appears to run a destructive Git command; confirm it cannot reset, clean, or force-push user work without explicit consent.',
         filePath: hunk.filePath,
         hunkHeader: hunk.header,
       });
@@ -531,6 +596,8 @@ const addDependencyConsistencyFindings = (
   if (hasPackageManifest && !hasLockfile) {
     findings.push({
       severity: 'warning',
+      priority: 'medium',
+      category: 'dependency',
       title: 'Package manifest without lockfile',
       detail:
         'A package manifest changed without pnpm-lock.yaml; confirm dependency resolution did not change or run a frozen install.',
@@ -540,6 +607,8 @@ const addDependencyConsistencyFindings = (
   if (hasLockfile && !hasPackageManifest) {
     findings.push({
       severity: 'warning',
+      priority: 'medium',
+      category: 'dependency',
       title: 'Lockfile without package manifest',
       detail:
         'pnpm-lock.yaml changed without a package manifest; confirm the lockfile change is intentional.',
@@ -591,6 +660,8 @@ const addPackageTestCoverageFindings = (
 
   findings.push({
     severity: 'warning',
+    priority: 'medium',
+    category: 'test',
     title: 'Package tests not detected',
     detail: `Source changed in package(s) ${missingPackageTests.join(', ')}, but no matching package test file changed in this diff.`,
   });
@@ -710,6 +781,8 @@ export const reviewDevChanges = (
   const findings: DevReviewFinding[] = [
     {
       severity: 'info',
+      priority: 'low',
+      category: 'summary',
       title: 'Change size',
       detail: `${summary.files.length} file(s), +${summary.additions}/-${summary.deletions}.`,
     },
@@ -718,6 +791,8 @@ export const reviewDevChanges = (
   if (summary.untrackedFiles.length > 0) {
     findings.push({
       severity: 'warning',
+      priority: 'medium',
+      category: 'git',
       title: 'Untracked files detected',
       detail: `${summary.untrackedFiles.length} untracked file(s) are listed by name only; stage them to include full diff context.`,
     });
@@ -729,6 +804,8 @@ export const reviewDevChanges = (
   ) {
     findings.push({
       severity: 'warning',
+      priority: 'medium',
+      category: 'test',
       title: 'Tests not detected',
       detail: 'Source files changed, but no test file changed in this diff.',
     });
@@ -739,6 +816,8 @@ export const reviewDevChanges = (
   ) {
     findings.push({
       severity: 'warning',
+      priority: 'medium',
+      category: 'dependency',
       title: 'Dependency metadata changed',
       detail: 'Run a frozen install, build, and tests before merging.',
     });

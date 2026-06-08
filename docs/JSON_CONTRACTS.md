@@ -248,6 +248,8 @@ Stable fields:
 
 `diffHunks` intentionally reports only file path, hunk header, and line counts.
 It does not expose raw diff text by default.
+Each finding includes `severity`, `priority`, `category`, `title`, and `detail`;
+optional `filePath` and `hunkHeader` fields locate hunk-level risks.
 
 ### `zw dev status --json`
 

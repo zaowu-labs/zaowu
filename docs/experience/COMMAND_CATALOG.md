@@ -107,7 +107,10 @@ Safety:
 - Review and commit previews include change categories and recommended checks so
   users know whether build, test, lint, format, or frozen install is relevant.
 - Review output includes diff hunk summaries and deterministic risk signals for
-  large hunks, shell execution, file mutation, network access, and focused tests.
+  large hunks, shell execution, file mutation, network access, secret-like
+  literals, destructive Git commands, and focused tests.
+- Review findings keep `severity` and add `priority` plus `category` for
+  automation-friendly grouping.
 - Worktree review lists untracked files by name; stage them when full Git diff
   context is required.
 

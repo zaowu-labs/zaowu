@@ -144,14 +144,17 @@ const formatSandbox = (sandbox: {
 
 const formatFinding = (finding: {
   severity: string;
+  priority?: string;
+  category?: string;
   title: string;
   detail: string;
   filePath?: string;
   hunkHeader?: string;
 }): string => {
   const location = [finding.filePath, finding.hunkHeader].filter(Boolean).join(' ');
+  const risk = [finding.severity, finding.priority, finding.category].filter(Boolean).join('/');
 
-  return `- ${finding.severity}: ${finding.title}${location ? ` (${location})` : ''} - ${finding.detail}`;
+  return `- ${risk}: ${finding.title}${location ? ` (${location})` : ''} - ${finding.detail}`;
 };
 
 const formatOperationPlan = (plan: OperationPlan): string =>

@@ -55,10 +55,26 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["severity", "title", "detail"],
+        "required": ["severity", "priority", "category", "title", "detail"],
         "properties": {
           "severity": {
             "enum": ["info", "warning"]
+          },
+          "priority": {
+            "enum": ["low", "medium", "high"]
+          },
+          "category": {
+            "enum": [
+              "summary",
+              "test",
+              "dependency",
+              "quality",
+              "execution",
+              "filesystem",
+              "network",
+              "security",
+              "git"
+            ]
           },
           "title": {
             "type": "string"
