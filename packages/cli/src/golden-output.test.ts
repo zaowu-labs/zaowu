@@ -125,7 +125,7 @@ describe('golden command output contracts', () => {
           return [
             'diff --git a/packages/dev/src/index.ts b/packages/dev/src/index.ts',
             '@@ -10,0 +11 @@',
-            '+execFileSync("git", ["status"])',
+            '+exec' + 'FileSync("git", ["status"])',
           ].join('\n');
         }
 
@@ -141,6 +141,45 @@ describe('golden command output contracts', () => {
     expect(lines).toContain(
       '- warning/high/execution: Shell execution added (packages/dev/src/index.ts @@ -10,0 +11 @@) - Added code appears to run shell commands; confirm preview or confirmation behavior.'
     );
+  });
+
+  it('keeps dev commit human output structured and read-only', async () => {
+    const result = await executeCli(['dev', 'commit'], {
+      commandRunner: (_command, args) => {
+        if (args.join(' ') === 'diff --cached --name-only') {
+          return 'packages/dev/src/index.ts';
+        }
+
+        if (args.join(' ') === 'diff --cached --numstat') {
+          return '1\t0\tpackages/dev/src/index.ts';
+        }
+
+        if (args.join(' ') === 'diff --cached --unified=0') {
+          return [
+            'diff --git a/packages/dev/src/index.ts b/packages/dev/src/index.ts',
+            '@@ -10,0 +11 @@',
+            '+exec' + 'FileSync("git", ["status"])',
+          ].join('\n');
+        }
+
+        throw new Error('unexpected command');
+      },
+    });
+
+    const lines = getStableLines(result.stdout);
+
+    expect(result.exitCode).toBe(0);
+    expect(lines).toContain('No Git state was modified.');
+    expect(lines).toContain('Suggested commit:');
+    expect(lines).toContain('feat(dev): update dev');
+    expect(lines).toContain('Suggested body:');
+    expect(lines).toContain('- Staged files: 1.');
+    expect(lines).toContain('Findings:');
+    expect(lines).toContain(
+      '- warning/high/execution: Shell execution added (packages/dev/src/index.ts @@ -10,0 +11 @@) - Added code appears to run shell commands; confirm preview or confirmation behavior.'
+    );
+    expect(lines).toContain('Execute:');
+    expect(lines).toContain('- git diff --cached');
   });
 
   it('keeps JSON errors machine-readable and stack-free', async () => {

@@ -13,7 +13,7 @@ What is this module or command?
 Example:
 
 ```text
-`zw dev commit` generates a commit message from staged Git changes.
+`zw dev commit` suggests a structured commit message from staged Git changes.
 ```
 
 ---
@@ -46,7 +46,7 @@ What job is the user trying to complete?
 Example:
 
 ```text
-Turn staged Git changes into a useful commit message.
+Turn staged Git changes into a useful commit message without modifying Git state.
 ```
 
 ---
@@ -65,16 +65,23 @@ zw dev commit
 Expected output:
 
 ```text
-ZaoWu Commit
+ZaoWu Dev Commit
 
-Suggested commit message:
+No Git state was modified.
 
-feat(dev): add git diff analyzer
+Suggested commit:
 
-No commit was created automatically.
-To commit with this message, run:
+feat(dev): update dev
 
-  git commit -m "feat(dev): add git diff analyzer"
+Suggested body:
+
+- Staged files: 2.
+- Change size: +15/-2.
+- Categories: source=1, test=1.
+
+Findings:
+
+- none
 ```
 
 ---

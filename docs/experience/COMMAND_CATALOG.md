@@ -97,19 +97,20 @@ Common failures:
 | --------------- | -------------------------------------------- | ------------------------ |
 | `zw dev status` | Show branch, staged, unstaged, and untracked | `zw dev status`          |
 | `zw dev review` | Review staged or working-tree changes        | `zw dev review --staged` |
-| `zw dev commit` | Suggest a commit message from staged changes | `zw dev commit`          |
+| `zw dev commit` | Suggest a structured commit preview          | `zw dev commit`          |
 
 Safety:
 
 - No Git state is modified.
 - `zw dev commit` reads staged changes only.
 - `zw dev review --staged` and `zw dev review --worktree` keep sources explicit.
-- Review and commit previews include change categories and recommended checks so
-  users know whether build, test, lint, format, or frozen install is relevant.
+- Commit previews include a structured Conventional Commit suggestion, suggested
+  body lines, staged risk findings, change categories, and recommended checks so
+  users know what to review before copying the message.
 - Review output includes diff hunk summaries and deterministic risk signals for
   large hunks, shell execution, file mutation, network access, secret-like
   literals, destructive Git commands, and focused tests.
-- Review findings keep `severity` and add `priority` plus `category` for
+- Review and commit findings keep `severity`, `priority`, and `category` for
   automation-friendly grouping.
 - Worktree review lists untracked files by name; stage them when full Git diff
   context is required.

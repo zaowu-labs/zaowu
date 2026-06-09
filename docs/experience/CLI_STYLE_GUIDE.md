@@ -349,7 +349,7 @@ Usage:
   zw dev commit [options]
 
 Description:
-  Generate a commit message from staged Git changes.
+  Suggest a structured commit message from staged Git changes and report staged risk findings.
 
 Options:
   --lang <lang>    Output language: en or zh
@@ -418,7 +418,7 @@ Done.
 Good:
 
 ```text
-Generated a commit message from staged Git diff.
+Generated a structured commit message from staged Git diff.
 No commit was created automatically.
 ```
 

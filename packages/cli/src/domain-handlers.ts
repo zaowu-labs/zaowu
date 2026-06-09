@@ -450,7 +450,8 @@ const handleDevCommit: DomainActionHandler = async (_args, context) => {
   const preview = previewDevCommit(context.commandRunner, { cwd: context.cwd });
   const operationPlan = createOperationPlan({
     risk: 'low',
-    reads: ['staged git diff'],
+    reads: ['staged git diff', 'staged git diff hunks'],
+    executes: ['git diff --cached'],
     notes: ['No Git state is modified.'],
   });
   const human = [
@@ -464,13 +465,21 @@ const handleDevCommit: DomainActionHandler = async (_args, context) => {
     'Categories:',
     formatCounts(preview.summary.categories),
     '',
+    'Suggested commit:',
+    preview.message,
+    '',
+    'Suggested body:',
+    formatList(preview.suggestion.body),
+    '',
+    'Findings:',
+    ...(preview.findings.length > 0
+      ? preview.findings.map((finding) => formatFinding(finding))
+      : ['- none']),
+    '',
     'Recommended checks:',
     formatList(preview.recommendedChecks),
     '',
     formatOperationPlan(operationPlan),
-    '',
-    'Suggested message:',
-    preview.message,
   ].join('\n');
 
   return result(context, withOperationPlan(preview, operationPlan), human);

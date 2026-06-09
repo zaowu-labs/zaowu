@@ -27,6 +27,10 @@ describe('dev domain', () => {
         return '10\t2\tpackages/dev/src/index.ts\n5\t0\tpackages/dev/src/index.test.ts';
       }
 
+      if (args.join(' ') === 'diff --cached --unified=0') {
+        return '';
+      }
+
       throw new Error('unexpected git command');
     };
 
@@ -34,8 +38,6 @@ describe('dev domain', () => {
       schemaVersion: 1,
       status: 'ok',
       source: 'staged',
-      message: 'test: update dev',
-      recommendedChecks: ['corepack pnpm build', 'corepack pnpm test'],
       summary: {
         files: ['packages/dev/src/index.ts', 'packages/dev/src/index.test.ts'],
         untrackedFiles: [],
@@ -51,6 +53,64 @@ describe('dev domain', () => {
           other: 0,
         },
       },
+      suggestion: {
+        type: 'feat',
+        scope: 'dev',
+        subject: 'update dev',
+        title: 'feat(dev): update dev',
+        body: ['Staged files: 2.', 'Change size: +15/-2.', 'Categories: source=1, test=1.'],
+      },
+      message: 'feat(dev): update dev',
+      findings: [],
+      recommendedChecks: ['corepack pnpm build', 'corepack pnpm test'],
+    });
+  });
+
+  it('includes staged risk findings in commit preview', () => {
+    const runner: DevCommandRunner = (_command, args) => {
+      if (args.join(' ') === 'diff --cached --name-only') {
+        return 'packages/dev/src/index.ts\ndist/cli.js';
+      }
+
+      if (args.join(' ') === 'diff --cached --numstat') {
+        return '1\t0\tpackages/dev/src/index.ts\n1\t0\tdist/cli.js';
+      }
+
+      if (args.join(' ') === 'diff --cached --unified=0') {
+        return [
+          'diff --git a/packages/dev/src/index.ts b/packages/dev/src/index.ts',
+          '@@ -1,0 +1 @@',
+          '+const token = "ghp_' + 'abcdefghijklmnopqrstuvwxyz123456";',
+        ].join('\n');
+      }
+
+      throw new Error('unexpected git command');
+    };
+
+    expect(previewDevCommit(runner)).toMatchObject({
+      message: 'feat(dev): update dev',
+      findings: expect.arrayContaining([
+        expect.objectContaining({
+          severity: 'warning',
+          priority: 'medium',
+          category: 'test',
+          title: 'Tests not detected',
+        }),
+        expect.objectContaining({
+          severity: 'warning',
+          priority: 'high',
+          category: 'quality',
+          title: 'Generated artifact staged',
+          filePath: 'dist/cli.js',
+        }),
+        expect.objectContaining({
+          severity: 'warning',
+          priority: 'high',
+          category: 'security',
+          title: 'Secret-like literal added',
+          filePath: 'packages/dev/src/index.ts',
+        }),
+      ]),
     });
   });
 
@@ -330,7 +390,7 @@ describe('dev domain', () => {
         return [
           'diff --git a/packages/dev/src/index.ts b/packages/dev/src/index.ts',
           '@@ -1,0 +1,2 @@',
-          '+const token = "ghp_abcdefghijklmnopqrstuvwxyz123456";',
+          '+const token = "ghp_' + 'abcdefghijklmnopqrstuvwxyz123456";',
           '+execFileSync("git", ["reset", "--hard"])',
         ].join('\n');
       }

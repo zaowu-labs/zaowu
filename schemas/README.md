@@ -31,7 +31,7 @@ validators.
 - `zaowu.command.ai-providers.schema.json` - versioned
   `zw ai providers --json` provider inventory and validation result shape
 - `zaowu.command.dev-commit.schema.json` - versioned `zw dev commit --json`
-  commit-message preview result shape
+  structured commit suggestion and staged finding result shape
 - `zaowu.command.dev-review.schema.json` - versioned `zw dev review --json`
   result shape
 - `zaowu.command.dev-status.schema.json` - versioned `zw dev status --json`

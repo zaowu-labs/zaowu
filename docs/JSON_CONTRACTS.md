@@ -223,12 +223,19 @@ Stable fields:
 - `status`
 - `source`
 - `summary`
+- `suggestion`
 - `message`
+- `findings`
 - `recommendedChecks`
 - `operationPlan` when routed through the CLI
 
 `zw dev commit` reads staged changes only and does not modify Git state. The
-suggested message is deterministic in the foundation version.
+suggested message is deterministic in the foundation version. `message` is kept
+as the copyable commit title, while `suggestion` exposes the inferred type,
+scope, subject, title, and suggested body lines. `findings` reuses the dev
+review finding shape for staged commit risks such as missing package tests,
+generated artifacts, secret-like literals, destructive Git commands, and shell
+execution.
 
 ### `zw dev review --json`
 
