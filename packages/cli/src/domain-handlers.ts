@@ -1,4 +1,10 @@
-import { askAI, listAIProviders, previewAIRequest, validateAIProviderConfig } from '@zaowu/ai';
+import {
+  askAI,
+  listAIProviders,
+  previewAIRequest,
+  resolveAIModel,
+  validateAIProviderConfig,
+} from '@zaowu/ai';
 import { planWorkflowFile, runWorkflowFile, validateWorkflowFile } from '@zaowu/auto';
 import {
   findConfigPathOrThrow,
@@ -343,13 +349,11 @@ const handleAiAsk: DomainActionHandler = async (args, context) => {
   const requestedModel = getValue(context.parsed, '--model');
   const providerValidation = validateAIProviderConfig(requestedProvider);
   const provider = providerValidation.provider;
+  const resolvedModel = resolveAIModel(provider, { model: requestedModel });
   const operationPlan = createOperationPlan({
     risk: provider.network ? 'medium' : 'low',
     confirmationRequired: provider.network && !context.yes,
-    subjects: [
-      `ai:${provider.id}`,
-      `model:${requestedModel ?? provider.defaultModel ?? 'default'}`,
-    ],
+    subjects: [`ai:${provider.id}`, `model:${resolvedModel}`],
     reads: filePath ? [filePath] : [],
     network: provider.network ? [provider.id] : [],
     secrets: provider.requiredEnv,

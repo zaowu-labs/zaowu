@@ -281,12 +281,12 @@ const OPENAI_PROVIDER_DESCRIPTOR: Omit<AIProviderDescriptor, 'configured'> = {
   defaultModel: 'gpt-4.1-mini',
 };
 
-const getPreviewModel = (
+export const resolveAIModel = (
   provider: AIProviderDescriptor,
-  request: AIAskRequest,
-  env: NodeJS.ProcessEnv
+  options: { model?: string; env?: NodeJS.ProcessEnv } = {}
 ): string => {
-  const requestedModel = request.model?.trim();
+  const env = options.env ?? process.env;
+  const requestedModel = options.model?.trim();
 
   if (requestedModel) {
     return requestedModel;
@@ -298,6 +298,12 @@ const getPreviewModel = (
 
   return provider.defaultModel ?? 'echo-local';
 };
+
+const getPreviewModel = (
+  provider: AIProviderDescriptor,
+  request: AIAskRequest,
+  env: NodeJS.ProcessEnv
+): string => resolveAIModel(provider, { model: request.model, env });
 
 const getOpenAIModel = (request: AIAskRequest, env: NodeJS.ProcessEnv): string =>
   getPreviewModel(createProviderDescriptor(OPENAI_PROVIDER_DESCRIPTOR, env), request, env);

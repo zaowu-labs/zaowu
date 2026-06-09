@@ -73,7 +73,9 @@ First-version behavior:
 - Uses the local `echo` provider by default.
 - `zw ai ask --file README.md` includes a readable file as explicit input.
 - The OpenAI provider uses the Responses API when `OPENAI_API_KEY` is set.
-- `OPENAI_MODEL` or `--model` can override the default model.
+- `--model` or `OPENAI_MODEL` can override the default model. Preview output,
+  operation-plan subjects, fingerprints, and confirmed requests use the same
+  resolved model.
 - API keys must come from environment variables, not from `zw.yml`.
 - Network providers preview by default; use `--yes` to send the request.
 - Network providers require explicit confirmation in the AI package API, not only

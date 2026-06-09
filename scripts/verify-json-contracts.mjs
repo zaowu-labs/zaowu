@@ -721,6 +721,12 @@ const cliAIPreview = runCliJson([
   '--provider',
   'openai',
 ]);
+const cliAIPreviewEnvModel = runCliJson(['ai', 'ask', 'Summarize', '--provider', 'openai'], {
+  env: {
+    ...process.env,
+    OPENAI_MODEL: 'contract-env-model',
+  },
+});
 const cliValidation = runCliJson(['auto', 'validate', cliWorkflowPath]);
 const cliPlan = runCliJson(['auto', 'plan', cliWorkflowPath]);
 const cliRun = runCliJson(['auto', 'run', cliWorkflowPath]);
@@ -867,6 +873,15 @@ assert(cliAIPreview.output === null, 'CLI network ai preview should not expose p
 assert(
   cliAIPreview.operationPlan?.confirmationRequired === true,
   'CLI network ai preview should require confirmation.'
+);
+assertValid('aiAsk', cliAIPreviewEnvModel);
+assert(
+  cliAIPreviewEnvModel.model === 'contract-env-model',
+  'CLI network ai preview should use OPENAI_MODEL when --model is absent.'
+);
+assert(
+  cliAIPreviewEnvModel.operationPlan?.subjects?.includes('model:contract-env-model'),
+  'CLI network ai operation plan should disclose the resolved env model.'
 );
 assert(
   cliDoctor.operationPlan?.executes?.includes('corepack pnpm --version'),

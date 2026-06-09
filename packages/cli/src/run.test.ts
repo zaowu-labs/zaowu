@@ -267,6 +267,37 @@ describe('executeCli', () => {
     });
   });
 
+  it('uses the resolved AI model in operation plan subjects', async () => {
+    const previousModel = process.env.OPENAI_MODEL;
+    process.env.OPENAI_MODEL = '  env-model  ';
+
+    try {
+      const result = await executeCli([
+        'ai',
+        'ask',
+        'Explain',
+        'ZaoWu',
+        '--provider',
+        'openai',
+        '--json',
+      ]);
+
+      expect(result.exitCode).toBe(0);
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        model: 'env-model',
+        operationPlan: {
+          subjects: ['ai:openai', 'model:env-model'],
+        },
+      });
+    } finally {
+      if (previousModel === undefined) {
+        delete process.env.OPENAI_MODEL;
+      } else {
+        process.env.OPENAI_MODEL = previousModel;
+      }
+    }
+  });
+
   it('lists AI providers and reads file input for AI ask', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
     const filePath = path.join(root, 'note.md');

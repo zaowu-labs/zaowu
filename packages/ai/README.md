@@ -17,3 +17,6 @@ Safety:
   not exposed in user-facing fixes.
 - Retryable provider failures can carry retry-delay metadata when providers send
   `Retry-After`.
+- Model resolution is shared across preview, operation-plan subjects, and
+  confirmed provider requests: explicit `--model` wins, then `OPENAI_MODEL`,
+  then the provider default.
