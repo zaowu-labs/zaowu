@@ -230,6 +230,44 @@
         }
       }
     },
+    "devReviewFinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["severity", "priority", "category", "title", "detail"],
+      "properties": {
+        "severity": {
+          "enum": ["info", "warning"]
+        },
+        "priority": {
+          "enum": ["low", "medium", "high"]
+        },
+        "category": {
+          "enum": [
+            "summary",
+            "test",
+            "dependency",
+            "quality",
+            "execution",
+            "filesystem",
+            "network",
+            "security",
+            "git"
+          ]
+        },
+        "title": {
+          "type": "string"
+        },
+        "detail": {
+          "type": "string"
+        },
+        "filePath": {
+          "type": "string"
+        },
+        "hunkHeader": {
+          "type": "string"
+        }
+      }
+    },
     "autoPolicy": {
       "type": "object",
       "additionalProperties": false,

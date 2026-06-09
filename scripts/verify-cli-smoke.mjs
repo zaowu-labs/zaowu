@@ -120,6 +120,8 @@ try {
   const devCommit = run(['dev', 'commit', '--json'], { cwd: devRoot, json: true });
   assert(devCommit.schemaVersion === 1, 'dev commit should expose result schema version');
   assert(devCommit.source === 'staged', 'dev commit should read staged changes');
+  assert(devCommit.suggestion?.title === devCommit.message, 'dev commit should expose suggestion');
+  assert(Array.isArray(devCommit.findings), 'dev commit should expose findings');
 
   const docSummary = run(['doc', 'summary', notePath, '--json'], { json: true });
   assert(docSummary.schemaVersion === 1, 'doc summary should expose result schema version');

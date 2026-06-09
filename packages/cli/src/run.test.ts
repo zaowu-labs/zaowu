@@ -185,6 +185,10 @@ describe('executeCli', () => {
           return '3\t1\tpackages/dev/src/index.ts';
         }
 
+        if (args.join(' ') === 'diff --cached --unified=0') {
+          return '';
+        }
+
         throw new Error('unexpected command');
       },
     });
@@ -194,7 +198,11 @@ describe('executeCli', () => {
       schemaVersion: 1,
       status: 'ok',
       source: 'staged',
-      message: 'feat: update dev',
+      message: 'feat(dev): update dev',
+      suggestion: {
+        type: 'feat',
+        scope: 'dev',
+      },
     });
   });
 

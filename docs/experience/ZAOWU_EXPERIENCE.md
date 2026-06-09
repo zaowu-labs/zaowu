@@ -325,16 +325,23 @@ zw dev commit
 Expected behavior:
 
 ```text
-ZaoWu Commit
+ZaoWu Dev Commit
 
-Suggested commit message:
+No Git state was modified.
 
-feat(dev): add git diff analyzer
+Suggested commit:
 
-No commit was created automatically.
-To commit with this message, run:
+feat(dev): update dev
 
-  git commit -m "feat(dev): add git diff analyzer"
+Suggested body:
+
+- Staged files: 2.
+- Change size: +15/-2.
+- Categories: source=1, test=1.
+
+Findings:
+
+- none
 ```
 
 The Golden Path should be documented before implementation.

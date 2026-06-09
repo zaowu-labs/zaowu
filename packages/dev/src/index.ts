@@ -26,12 +26,22 @@ export interface GitChangeSummary {
   categories: DevChangeCategories;
 }
 
+export interface DevCommitSuggestion {
+  type: string;
+  scope: string;
+  subject: string;
+  title: string;
+  body: string[];
+}
+
 export interface DevCommitResult {
   schemaVersion: 1;
   status: 'ok';
   source: 'staged';
   summary: GitChangeSummary;
+  suggestion: DevCommitSuggestion;
   message: string;
+  findings: DevReviewFinding[];
   recommendedChecks: string[];
 }
 
@@ -331,16 +341,16 @@ const inferCommitType = (files: readonly string[]): string => {
     return 'docs';
   }
 
-  if (files.some((file) => file.includes('.test.') || file.includes('.spec.'))) {
-    return 'test';
-  }
-
   if (files.some((file) => file.endsWith('package.json') || file.endsWith('pnpm-lock.yaml'))) {
     return 'chore';
   }
 
   if (files.some((file) => file.startsWith('packages/') && file.includes('/src/'))) {
     return 'feat';
+  }
+
+  if (files.some((file) => file.includes('.test.') || file.includes('.spec.'))) {
+    return 'test';
   }
 
   return 'chore';
@@ -359,7 +369,92 @@ const inferScope = (files: readonly string[]): string => {
     return 'docs';
   }
 
+  if (
+    files.some(
+      (file) =>
+        file === 'package.json' || file === 'pnpm-lock.yaml' || file.endsWith('/package.json')
+    )
+  ) {
+    return 'deps';
+  }
+
+  if (files.some((file) => file.startsWith('.github/workflows/') || file.startsWith('scripts/'))) {
+    return 'workflow';
+  }
+
+  if (
+    files.some(
+      (file) =>
+        file === 'tsconfig.json' ||
+        file === 'eslint.config.js' ||
+        file === '.prettierrc' ||
+        file.startsWith('.changeset/')
+    )
+  ) {
+    return 'config';
+  }
+
   return 'project';
+};
+
+const normalizeCommitScope = (scope: string): string =>
+  scope
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'project';
+
+const inferCommitSubject = (summary: GitChangeSummary, scope: string): string => {
+  if (summary.categories.dependency > 0) {
+    return 'update dependency metadata';
+  }
+
+  if (
+    summary.categories.docs > 0 &&
+    summary.files.every((file) => getFileCategory(file) === 'docs')
+  ) {
+    return 'update documentation';
+  }
+
+  if (summary.categories.test > 0 && summary.categories.source === 0) {
+    return 'update tests';
+  }
+
+  if (summary.categories.workflow > 0 && summary.categories.source === 0) {
+    return 'update workflows';
+  }
+
+  if (summary.categories.config > 0 && summary.categories.source === 0) {
+    return 'update configuration';
+  }
+
+  return `update ${scope}`;
+};
+
+const describeCommitCategories = (categories: DevChangeCategories): string => {
+  const entries = Object.entries(categories)
+    .filter(([, count]) => count > 0)
+    .map(([name, count]) => `${name}=${count}`);
+
+  return entries.length > 0 ? entries.join(', ') : 'none';
+};
+
+const createCommitSuggestion = (summary: GitChangeSummary): DevCommitSuggestion => {
+  const type = inferCommitType(summary.files);
+  const scope = normalizeCommitScope(inferScope(summary.files));
+  const subject = inferCommitSubject(summary, scope);
+  const title = `${type}(${scope}): ${subject}`;
+
+  return {
+    type,
+    scope,
+    subject,
+    title,
+    body: [
+      `Staged files: ${summary.files.length}.`,
+      `Change size: +${summary.additions}/-${summary.deletions}.`,
+      `Categories: ${describeCommitCategories(summary.categories)}.`,
+    ],
+  };
 };
 
 const getRecommendedChecks = (summary: GitChangeSummary): string[] => {
@@ -616,6 +711,41 @@ const addDependencyConsistencyFindings = (
   }
 };
 
+const isGeneratedArtifactFile = (filePath: string): boolean => {
+  const normalized = filePath.replaceAll('\\', '/');
+  const fileName = normalized.split('/').pop() ?? normalized;
+
+  return (
+    normalized.includes('/dist/') ||
+    normalized.startsWith('dist/') ||
+    normalized.includes('/coverage/') ||
+    normalized.startsWith('coverage/') ||
+    normalized.includes('/node_modules/') ||
+    normalized.startsWith('node_modules/') ||
+    normalized.includes('/.turbo/') ||
+    normalized.startsWith('.turbo/') ||
+    fileName.endsWith('.tsbuildinfo') ||
+    fileName.endsWith('.tgz')
+  );
+};
+
+const addGeneratedArtifactFindings = (
+  findings: DevReviewFinding[],
+  files: readonly string[]
+): void => {
+  for (const file of files.filter(isGeneratedArtifactFile)) {
+    addFindingOnce(findings, {
+      severity: 'warning',
+      priority: 'high',
+      category: 'quality',
+      title: 'Generated artifact staged',
+      detail:
+        'This path looks like a build, coverage, dependency, or package artifact; confirm it belongs in source control before committing.',
+      filePath: file,
+    });
+  }
+};
+
 const getPackageName = (filePath: string): string | undefined =>
   /^packages\/([^/]+)\//.exec(filePath.replaceAll('\\', '/'))?.[1];
 
@@ -667,6 +797,66 @@ const addPackageTestCoverageFindings = (
   });
 };
 
+const createDevChangeFindings = (
+  summary: GitChangeSummary,
+  diffHunks: readonly ParsedDiffHunk[],
+  options: { includeSummary: boolean; includeUntracked: boolean }
+): DevReviewFinding[] => {
+  const findings: DevReviewFinding[] = [];
+
+  if (options.includeSummary) {
+    findings.push({
+      severity: 'info',
+      priority: 'low',
+      category: 'summary',
+      title: 'Change size',
+      detail: `${summary.files.length} file(s), +${summary.additions}/-${summary.deletions}.`,
+    });
+  }
+
+  if (options.includeUntracked && summary.untrackedFiles.length > 0) {
+    findings.push({
+      severity: 'warning',
+      priority: 'medium',
+      category: 'git',
+      title: 'Untracked files detected',
+      detail: `${summary.untrackedFiles.length} untracked file(s) are listed by name only; stage them to include full diff context.`,
+    });
+  }
+
+  if (
+    summary.files.some((file) => file.startsWith('packages/') && file.includes('/src/')) &&
+    !summary.files.some((file) => file.includes('.test.') || file.includes('.spec.'))
+  ) {
+    findings.push({
+      severity: 'warning',
+      priority: 'medium',
+      category: 'test',
+      title: 'Tests not detected',
+      detail: 'Source files changed, but no test file changed in this diff.',
+    });
+  }
+
+  if (
+    summary.files.some((file) => file.endsWith('package.json') || file.endsWith('pnpm-lock.yaml'))
+  ) {
+    findings.push({
+      severity: 'warning',
+      priority: 'medium',
+      category: 'dependency',
+      title: 'Dependency metadata changed',
+      detail: 'Run a frozen install, build, and tests before merging.',
+    });
+  }
+
+  addDependencyConsistencyFindings(findings, summary.files);
+  addPackageTestCoverageFindings(findings, summary.files);
+  addGeneratedArtifactFindings(findings, summary.files);
+  addDiffHeuristicFindings(findings, diffHunks);
+
+  return findings;
+};
+
 export const previewDevCommit = (
   commandRunner: DevCommandRunner,
   options: { cwd?: string } = {}
@@ -682,15 +872,20 @@ export const previewDevCommit = (
     });
   }
 
-  const type = inferCommitType(summary.files);
-  const scope = inferScope(summary.files);
+  const diffHunks = getReviewDiffHunks(commandRunner, 'staged', options.cwd);
+  const suggestion = createCommitSuggestion(summary);
 
   return {
     schemaVersion: DEV_COMMIT_SCHEMA_VERSION,
     status: 'ok',
     source: 'staged',
     summary,
-    message: `${type}: update ${scope}`,
+    suggestion,
+    message: suggestion.title,
+    findings: createDevChangeFindings(summary, diffHunks, {
+      includeSummary: false,
+      includeUntracked: false,
+    }),
     recommendedChecks: getRecommendedChecks(summary),
   };
 };
@@ -778,54 +973,10 @@ export const reviewDevChanges = (
   }
 
   const diffHunks = getReviewDiffHunks(commandRunner, source, options.cwd);
-  const findings: DevReviewFinding[] = [
-    {
-      severity: 'info',
-      priority: 'low',
-      category: 'summary',
-      title: 'Change size',
-      detail: `${summary.files.length} file(s), +${summary.additions}/-${summary.deletions}.`,
-    },
-  ];
-
-  if (summary.untrackedFiles.length > 0) {
-    findings.push({
-      severity: 'warning',
-      priority: 'medium',
-      category: 'git',
-      title: 'Untracked files detected',
-      detail: `${summary.untrackedFiles.length} untracked file(s) are listed by name only; stage them to include full diff context.`,
-    });
-  }
-
-  if (
-    summary.files.some((file) => file.startsWith('packages/') && file.includes('/src/')) &&
-    !summary.files.some((file) => file.includes('.test.') || file.includes('.spec.'))
-  ) {
-    findings.push({
-      severity: 'warning',
-      priority: 'medium',
-      category: 'test',
-      title: 'Tests not detected',
-      detail: 'Source files changed, but no test file changed in this diff.',
-    });
-  }
-
-  if (
-    summary.files.some((file) => file.endsWith('package.json') || file.endsWith('pnpm-lock.yaml'))
-  ) {
-    findings.push({
-      severity: 'warning',
-      priority: 'medium',
-      category: 'dependency',
-      title: 'Dependency metadata changed',
-      detail: 'Run a frozen install, build, and tests before merging.',
-    });
-  }
-
-  addDependencyConsistencyFindings(findings, summary.files);
-  addPackageTestCoverageFindings(findings, summary.files);
-  addDiffHeuristicFindings(findings, diffHunks);
+  const findings = createDevChangeFindings(summary, diffHunks, {
+    includeSummary: true,
+    includeUntracked: true,
+  });
 
   return {
     schemaVersion: DEV_REVIEW_SCHEMA_VERSION,

@@ -624,7 +624,7 @@ Usage:
   zw dev commit [options]
 
 Description:
-  Suggest a commit message from staged changes without modifying Git state.
+  Suggest a structured commit message from staged changes and report staged risk findings without modifying Git state.
 
 Options:
   --json             Output machine-readable JSON`,

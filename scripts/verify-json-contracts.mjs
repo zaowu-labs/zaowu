@@ -229,6 +229,16 @@ const assertSchemaFragmentsStayAligned = () => {
     'dev review summary schema must reference the shared devChangeSummary fragment.'
   );
   assertJsonEqual(
+    schemas.devCommit.properties.findings.items,
+    { $ref: ref('devReviewFinding') },
+    'dev commit findings schema must reference the shared devReviewFinding fragment.'
+  );
+  assertJsonEqual(
+    schemas.devReview.properties.findings.items,
+    { $ref: ref('devReviewFinding') },
+    'dev review findings schema must reference the shared devReviewFinding fragment.'
+  );
+  assertJsonEqual(
     schemas.devCommit.properties.operationPlan,
     { $ref: ref('operationPlan') },
     'dev commit operationPlan schema must reference the shared operationPlan fragment.'
@@ -679,6 +689,11 @@ const status = dev.getDevStatus(runner);
 
 assert(commit.schemaVersion === 1, 'dev commit result schemaVersion must be 1.');
 assert(commit.source === 'staged', 'dev commit should use staged changes.');
+assert(commit.suggestion?.title === commit.message, 'dev commit suggestion title must match message.');
+assert(
+  commit.findings.some((finding) => finding.title === 'Shell execution added'),
+  'dev commit must expose staged diff risk findings.'
+);
 assertValid('devCommit', commit);
 assert(review.schemaVersion === 1, 'dev review result schemaVersion must be 1.');
 assert(Array.isArray(review.diffHunks), 'dev review diffHunks must be an array.');
@@ -918,8 +933,20 @@ try {
   );
   assert(cliCommit.schemaVersion === 1, 'CLI dev commit schemaVersion must be 1.');
   assert(
+    cliCommit.suggestion?.title === cliCommit.message,
+    'CLI dev commit suggestion title must match message.'
+  );
+  assert(
+    cliCommit.findings.some((finding) => finding.title === 'Shell execution added'),
+    'CLI dev commit should expose deterministic shell-execution findings.'
+  );
+  assert(
     cliCommit.operationPlan?.reads?.includes('staged git diff'),
     'CLI dev commit operation plan should disclose staged diff reads.'
+  );
+  assert(
+    cliCommit.operationPlan?.executes?.includes('git diff --cached'),
+    'CLI dev commit operation plan should disclose git diff execution.'
   );
   assert(
     cliReview.summary.files.includes('packages/dev/src/index.ts'),
