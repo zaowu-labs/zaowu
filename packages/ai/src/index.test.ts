@@ -10,6 +10,7 @@ import {
   listAIProviders,
   parseRetryAfterHeaderMs,
   previewAIRequest,
+  resolveAIModel,
   validateAIProviderConfig,
 } from './index';
 
@@ -99,6 +100,20 @@ describe('AI provider registry', () => {
       },
       warnings: [],
     });
+  });
+
+  it('resolves AI models consistently for preview and provider requests', () => {
+    const openai = listAIProviders({ OPENAI_API_KEY: 'test-key' }).find(
+      (provider) => provider.id === 'openai'
+    );
+    const echo = listAIProviders({}).find((provider) => provider.id === 'echo');
+
+    expect(openai).toBeDefined();
+    expect(echo).toBeDefined();
+    expect(resolveAIModel(openai!, { model: '  request-model  ' })).toBe('request-model');
+    expect(resolveAIModel(openai!, { env: { OPENAI_MODEL: '  env-model  ' } })).toBe('env-model');
+    expect(resolveAIModel(openai!, { env: {} })).toBe('gpt-4.1-mini');
+    expect(resolveAIModel(echo!, { env: {} })).toBe('echo-local');
   });
 
   it('previews network AI input without sending a request', async () => {

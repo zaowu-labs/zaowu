@@ -194,7 +194,10 @@ Stable fields:
 
 Local providers can return `status: "ok"` without network access. Network
 providers preview by default and return `status: "preview"` with `output: null`
-until the user confirms with `--yes`.
+until the user confirms with `--yes`. For provider-backed requests, `model` and
+the `operationPlan.subjects` model entry use the same resolved value: explicit
+`--model`, then provider-specific environment defaults such as `OPENAI_MODEL`,
+then the provider default.
 
 ### `zw ai providers --json`
 
