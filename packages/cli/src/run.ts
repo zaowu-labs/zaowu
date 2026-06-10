@@ -2,9 +2,15 @@ import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { AI_DOMAIN } from '@zaowu/ai';
+import { AI_DOMAIN, validateAIProviderConfig } from '@zaowu/ai';
 import { AUTO_DOMAIN } from '@zaowu/auto';
-import { CONFIG_DOMAIN, findConfigFile, getDefaultConfigContent } from '@zaowu/config';
+import {
+  CONFIG_DOMAIN,
+  findConfigFile,
+  getDefaultConfigContent,
+  loadResolvedConfig,
+  type ResolvedConfig,
+} from '@zaowu/config';
 import {
   createOperationPlan,
   findDomainCommand,
@@ -20,6 +26,7 @@ import { PLUGIN_DOMAIN } from '@zaowu/plugin';
 import { TEACH_DOMAIN } from '@zaowu/teach';
 import { WEB_DOMAIN } from '@zaowu/web';
 import { getValue, hasFlag as hasParsedFlag, parseArgs } from './args.js';
+import { COMMAND_CONTRACTS } from './command-contracts.js';
 import { getDomainActionHandler } from './domain-handlers.js';
 import { createResult, formatRows } from './output.js';
 import type { CliExecutionOptions, CliResult, CommandRunner } from './types.js';
@@ -50,6 +57,7 @@ interface DoctorResult {
 const MINIMUM_NODE_VERSION = '20.19.0';
 const MINIMUM_PNPM_VERSION = '10.34.1';
 const MAXIMUM_PNPM_MAJOR = 11;
+const ADDITIONAL_ROOT_SURFACES_IN_CAPABILITY_MATRIX = 3;
 const PNPM_MISSING_FIX = 'Run `corepack enable` or install pnpm.';
 const PNPM_VERSION_FIX =
   `Use pnpm ${MINIMUM_PNPM_VERSION} through Corepack: ` +
@@ -246,6 +254,96 @@ const checkPnpm = (commandRunner: CommandRunner): DoctorCheck => {
   return corepackPnpmCheck.status !== 'missing' ? corepackPnpmCheck : pnpmCheck;
 };
 
+const getConfigCheck = async (
+  cwd: string
+): Promise<{
+  check: DoctorCheck;
+  resolvedConfig?: ResolvedConfig;
+  checkedInvalidConfig?: boolean;
+}> => {
+  const configFile = await findConfigFile({ cwd });
+
+  if (!configFile) {
+    return {
+      check: {
+        name: 'Config',
+        status: 'missing',
+        fix: 'Run `zw init` to preview config creation, then `zw init --yes` to create it.',
+      },
+      checkedInvalidConfig: false,
+    };
+  }
+
+  try {
+    const resolvedConfig = await loadResolvedConfig(cwd);
+
+    return {
+      check: {
+        name: 'Config',
+        status: 'ok',
+        details: path.relative(cwd, resolvedConfig.filePath) || DEFAULT_CONFIG_FILE_NAME,
+      },
+      resolvedConfig,
+      checkedInvalidConfig: false,
+    };
+  } catch (error) {
+    return {
+      check: {
+        name: 'Config',
+        status: 'warning',
+        details: path.relative(cwd, configFile) || DEFAULT_CONFIG_FILE_NAME,
+        fix: isZaoWuError(error)
+          ? error.fix
+          : 'Run `zw config validate` to inspect and repair the config file.',
+      },
+      checkedInvalidConfig: true,
+    };
+  }
+};
+
+const checkAIProvider = (
+  resolvedConfig: ResolvedConfig | undefined,
+  checkedInvalidConfig: boolean
+): DoctorCheck => {
+  if (!resolvedConfig && checkedInvalidConfig) {
+    return {
+      name: 'AI provider',
+      status: 'warning',
+      details: 'not checked because config is invalid',
+      fix: 'Run `zw config validate` before enabling provider-backed AI commands.',
+    };
+  }
+
+  try {
+    const validation = validateAIProviderConfig(resolvedConfig?.config.ai.provider);
+    const provider = validation.provider;
+    const location = provider.network ? 'network' : 'local';
+    const configStatus = provider.configured ? 'configured' : 'missing config';
+
+    return {
+      name: 'AI provider',
+      status: validation.status,
+      details: `${provider.id} (${location}, ${configStatus})`,
+      fix: validation.warnings[0],
+    };
+  } catch (error) {
+    return {
+      name: 'AI provider',
+      status: 'warning',
+      details: String(resolvedConfig?.config.ai.provider ?? 'default'),
+      fix: isZaoWuError(error)
+        ? error.fix
+        : 'Run `zw ai providers --json` to inspect supported AI providers.',
+    };
+  }
+};
+
+const checkCommandMatrix = (): DoctorCheck => ({
+  name: 'Command matrix',
+  status: 'ok',
+  details: `${COMMAND_CONTRACTS.length + ADDITIONAL_ROOT_SURFACES_IN_CAPABILITY_MATRIX} command surface(s) tracked`,
+});
+
 const buildDoctorResult = async (options: CliExecutionOptions = {}): Promise<DoctorResult> => {
   const cwd = options.cwd ?? process.cwd();
   const nodeVersion = options.nodeVersion ?? process.versions.node;
@@ -272,20 +370,10 @@ const buildDoctorResult = async (options: CliExecutionOptions = {}): Promise<Doc
   );
   checks.push(checkPnpm(commandRunner));
 
-  const configFile = await findConfigFile({ cwd });
-  checks.push(
-    configFile
-      ? {
-          name: 'Config',
-          status: 'ok',
-          details: path.relative(cwd, configFile) || DEFAULT_CONFIG_FILE_NAME,
-        }
-      : {
-          name: 'Config',
-          status: 'missing',
-          fix: 'Run `zw init` to preview config creation, then `zw init --yes` to create it.',
-        }
-  );
+  const config = await getConfigCheck(cwd);
+  checks.push(config.check);
+  checks.push(checkAIProvider(config.resolvedConfig, config.checkedInvalidConfig ?? false));
+  checks.push(checkCommandMatrix());
 
   const nextSteps = checks
     .filter((check) => check.status !== 'ok' && check.fix)
@@ -298,7 +386,12 @@ const buildDoctorResult = async (options: CliExecutionOptions = {}): Promise<Doc
     nextSteps,
     operationPlan: createOperationPlan({
       risk: 'low',
-      reads: ['nearest ZaoWu config path'],
+      reads: [
+        'nearest ZaoWu config path',
+        'resolved ZaoWu config',
+        'AI provider environment variable presence',
+        'command contract registry',
+      ],
       executes: ['git --version', 'pnpm --version', 'corepack pnpm --version'],
       notes: ['Doctor runs fixed local diagnostics and does not write files.'],
     }),

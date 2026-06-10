@@ -23,6 +23,7 @@ ZaoWu is in the first runnable foundation phase. The repository is focused on:
 - safe first-version domain commands
 - command-specific help and JSON output
 - command contract tests
+- command capability matrix checks
 - capability ledgers and operation plans for sensitive commands
 - a local echo AI provider plus preview-first non-streaming OpenAI adapter with
   provider-level confirmation, timeout, and shared preview/input-size guards
@@ -108,7 +109,8 @@ corepack pnpm --silent zw doctor --json
 ```
 
 The doctor command checks Node.js 20.19.0 or newer, Git, pnpm `>=10.34.1 <11`
-or Corepack-provided pnpm, and the nearest ZaoWu config file.
+or Corepack-provided pnpm, the nearest ZaoWu config file, configured AI provider
+readiness, and command contract coverage.
 
 ### Domain Commands
 
@@ -145,9 +147,10 @@ corepack pnpm verify
 
 `corepack pnpm verify` builds the workspace, compiles schemas with Ajv, checks
 examples, generates rich PDF/DOCX/XLSX fixtures for CLI checks, checks versioned
-JSON contracts, runs CLI smoke tests, tests packages, lints, checks formatting,
-verifies release metadata and package README files, verifies package contents,
-and installs the packed CLI into a temporary project before running `zw`.
+JSON contracts, verifies the command capability matrix, runs CLI smoke tests,
+tests packages, lints, checks formatting, verifies release metadata and package
+README files, verifies package contents, and installs the packed CLI into a
+temporary project before running `zw`.
 
 Do not run dependency installation, commits, pushes, or destructive actions unless the user explicitly asks for them.
 
@@ -190,6 +193,7 @@ docs/ROADMAP.md       Preferred phase order for growing ZaoWu
 docs/CONTRIBUTING.md  Development workflow, safety rules, and validation
 docs/ERROR_CODES.md   Stable user-facing error code registry
 docs/FOUNDATION.md    Foundation invariants and future workflow rules
+docs/CAPABILITY_MATRIX.md Command-level reads, writes, execution, network, and safety modes
 docs/JSON_CONTRACTS.md Versioned machine-readable command output contracts
 docs/RELEASE.md       Release-readiness gate and publish boundaries
 docs/RELEASE_POLICY.md Versioning, changelog, tag, and publish preflight rules

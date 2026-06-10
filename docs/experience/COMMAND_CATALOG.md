@@ -13,6 +13,8 @@ by domain so future work does not mix unrelated tools.
 - Sensitive JSON output includes `operationPlan` with `schemaVersion`, subjects,
   reads, writes, deletes, execution, network, secrets, risk, confirmation
   requirements, and a `sha256-v1` fingerprint.
+- Command-level read, write, Git, shell, network, secret, and safety boundaries
+  are tracked in `docs/CAPABILITY_MATRIX.md` and checked by `pnpm verify`.
 - `--plan-fingerprint <hash>` can be used with `--yes` to reject a confirmed
   sensitive action when the current operation plan no longer matches the
   previewed plan.
@@ -28,6 +30,11 @@ by domain so future work does not mix unrelated tools.
 | `zw doctor`     | Check local environment health        | `zw doctor`     |
 | `zw --help`     | Show root help and registered domains | `zw --help`     |
 | `zw --version`  | Show CLI version                      | `zw --version`  |
+
+Aliases:
+
+- `zw help` is equivalent to `zw --help`.
+- `zw version` is equivalent to `zw --version`.
 
 Common failure:
 
@@ -82,7 +89,7 @@ First-version behavior:
   in the CLI layer.
 - Provider requests have a timeout and a bounded combined prompt/file-input
   length.
-- Provider HTTP errors are classified so authentication, rate-limit,
+- Provider HTTP errors are classified so authentication, timeout, rate-limit,
   bad-request, and provider-side failures get clearer fixes.
 - Preview mode reads any `--file` input and reports prompt, file, combined, and
   maximum input character counts without sending a network request.

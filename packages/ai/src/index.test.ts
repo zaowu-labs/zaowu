@@ -441,30 +441,56 @@ describe('AI provider registry', () => {
     });
   });
 
-  it('classifies provider HTTP failures for actionable fixes', () => {
-    expect(classifyAIProviderHttpFailure('OpenAI', 401, 'Unauthorized')).toEqual({
-      kind: 'auth',
-      retryable: false,
-      safeSummary: 'OpenAI returned HTTP 401 Unauthorized.',
-      why: 'OpenAI returned HTTP 401 Unauthorized. Credentials or model access are not accepted.',
-      fix: 'Check the provider API key, model access, and environment variables before retrying.',
-    });
-    expect(classifyAIProviderHttpFailure('OpenAI', 429, 'Too Many Requests', 120000)).toMatchObject(
+  it('keeps the provider HTTP failure classification matrix stable', () => {
+    const matrix = [
+      { status: 401, statusText: 'Unauthorized' },
+      { status: 408, statusText: 'Request Timeout', retryAfterMs: 3000 },
+      { status: 429, statusText: 'Too Many Requests', retryAfterMs: 120000 },
+      { status: 500, statusText: 'Server Error' },
+      { status: 400, statusText: 'Bad Request' },
+    ].map(({ status, statusText, retryAfterMs }) =>
+      classifyAIProviderHttpFailure('OpenAI', status, statusText, retryAfterMs)
+    );
+
+    expect(matrix).toEqual([
+      {
+        kind: 'auth',
+        retryable: false,
+        safeSummary: 'OpenAI returned HTTP 401 Unauthorized.',
+        why: 'OpenAI returned HTTP 401 Unauthorized. Credentials or model access are not accepted.',
+        fix: 'Check the provider API key, model access, and environment variables before retrying.',
+      },
+      {
+        kind: 'timeout',
+        retryable: true,
+        safeSummary: 'OpenAI returned HTTP 408 Request Timeout.',
+        retryAfterMs: 3000,
+        why: 'OpenAI returned HTTP 408 Request Timeout. The provider timed out before completing the request.',
+        fix: 'Retry later, reduce input size, or increase the timeout if the request is expected to take longer. Wait at least 3000ms before retrying.',
+      },
       {
         kind: 'rate-limit',
         retryable: true,
+        safeSummary: 'OpenAI returned HTTP 429 Too Many Requests.',
         retryAfterMs: 120000,
+        why: 'OpenAI returned HTTP 429 Too Many Requests. The request was rate-limited.',
         fix: 'Retry later or reduce request frequency/input size. Wait at least 120000ms before retrying.',
-      }
-    );
-    expect(classifyAIProviderHttpFailure('OpenAI', 500, 'Server Error')).toMatchObject({
-      kind: 'server',
-      retryable: true,
-    });
-    expect(classifyAIProviderHttpFailure('OpenAI', 400, 'Bad Request')).toMatchObject({
-      kind: 'bad-request',
-      retryable: false,
-    });
+      },
+      {
+        kind: 'server',
+        retryable: true,
+        safeSummary: 'OpenAI returned HTTP 500 Server Error.',
+        why: 'OpenAI returned HTTP 500 Server Error. The provider did not complete the request.',
+        fix: 'Check provider status and retry later.',
+      },
+      {
+        kind: 'bad-request',
+        retryable: false,
+        safeSummary: 'OpenAI returned HTTP 400 Bad Request.',
+        why: 'OpenAI returned HTTP 400 Bad Request. The request was rejected.',
+        fix: 'Check the model, input size, and provider request settings before retrying.',
+      },
+    ]);
   });
 
   it('parses Retry-After values and keeps provider summaries safe', () => {

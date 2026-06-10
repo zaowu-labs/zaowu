@@ -386,6 +386,20 @@ export const classifyAIProviderHttpFailure = (
     };
   }
 
+  if (status === 408) {
+    return {
+      kind: 'timeout',
+      retryable: true,
+      safeSummary,
+      retryAfterMs,
+      why: `${safeSummary} The provider timed out before completing the request.`,
+      fix: appendRetryDelay(
+        'Retry later, reduce input size, or increase the timeout if the request is expected to take longer.',
+        retryAfterMs
+      ),
+    };
+  }
+
   if (status >= 500) {
     return {
       kind: 'server',

@@ -31,6 +31,7 @@ Scope:
 - schema/example checks for user-authored config, workflow, and plugin inputs
 - generated rich fixture checks for PDF, DOCX, and XLSX command paths
 - JSON contract checks for versioned machine-readable command output
+- command capability matrix checks for command-level safety boundaries
 - command-output schemas for the first versioned JSON contracts
 - AI and developer command-output contracts for high-risk provider and Git
   preview paths
@@ -62,8 +63,8 @@ Exit criteria:
 - New contributors can see where a new command belongs.
 - First-version commands are safe by default and documented in the command catalog.
 - New users can follow `docs/GETTING_STARTED.md` from install to validation.
-- Error codes, command help, package boundaries, and sensitive operation plans
-  are covered by automated tests.
+- Error codes, command help, package boundaries, command capabilities, and
+  sensitive operation plans are covered by automated tests.
 - Package contents are checked with `pack --dry-run` before release-facing
   changes are considered ready.
 - Release-facing package metadata is checked before package dry-run.

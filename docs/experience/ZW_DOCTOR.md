@@ -30,6 +30,8 @@ Checks:
 - Git: ok 2.44.0
 - pnpm: missing
 - Config: missing
+- AI provider: ok echo (local, configured)
+- Command matrix: ok 38 command surface(s) tracked
 
 Next steps:
 1. Run `corepack enable` or install pnpm.
@@ -53,7 +55,9 @@ Reads:
 - current Node.js version
 - local Git availability
 - local pnpm availability and supported version, including pnpm provided through Corepack
-- nearest ZaoWu config file
+- nearest ZaoWu config path and resolved config, when present
+- AI provider environment variable presence, without printing secret values
+- command contract registry coverage
 
 ## 7. Output Rules
 
@@ -81,12 +85,15 @@ This command does not use AI.
 
 Expected missing prerequisites should be shown as checks, not raw stack traces.
 
-| Error            | Why it happens                  | User-facing fix                         |
-| ---------------- | ------------------------------- | --------------------------------------- |
-| Missing Git      | Git is not on PATH              | Install Git and make sure it is on PATH |
-| Missing pnpm     | pnpm is not on PATH             | Run `corepack enable` or install pnpm   |
-| Unsupported pnpm | pnpm is outside `>=10.34.1 <11` | Use pnpm 10.34.1 through Corepack       |
-| Missing config   | No config file found            | Run `zw init`, then `zw init --yes`     |
+| Error                   | Why it happens                        | User-facing fix                         |
+| ----------------------- | ------------------------------------- | --------------------------------------- |
+| Missing Git             | Git is not on PATH                    | Install Git and make sure it is on PATH |
+| Missing pnpm            | pnpm is not on PATH                   | Run `corepack enable` or install pnpm   |
+| Unsupported pnpm        | pnpm is outside `>=10.34.1 <11`       | Use pnpm 10.34.1 through Corepack       |
+| Missing config          | No config file found                  | Run `zw init`, then `zw init --yes`     |
+| Invalid config          | Config file exists but cannot parse   | Run `zw config validate`                |
+| AI provider not ready   | Provider needs an environment key     | Set the required environment variable   |
+| Command matrix mismatch | Runnable command coverage has drifted | Update `docs/CAPABILITY_MATRIX.md`      |
 
 ## 11. Help Text
 
@@ -109,6 +116,8 @@ Examples:
 - [x] `--json` output
 - [x] versioned `--json` schema contract
 - [x] config discovery
+- [x] AI provider readiness
+- [x] command matrix coverage
 - [x] help output
 
 ## 13. Documentation

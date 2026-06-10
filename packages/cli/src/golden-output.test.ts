@@ -2,6 +2,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { COMMAND_CONTRACTS } from './command-contracts';
 import { executeCli } from './run';
 
 const getStableLines = (value: string, root?: string): string[] =>
@@ -75,6 +76,8 @@ describe('golden command output contracts', () => {
         '- Git: ok 2.44.0',
         '- pnpm: ok 10.34.1',
         '- Config: missing',
+        '- AI provider: ok echo (local, configured)',
+        `- Command matrix: ok ${COMMAND_CONTRACTS.length + 3} command surface(s) tracked`,
         'Next steps:',
         '1. Run `zw init` to preview config creation, then `zw init --yes` to create it.',
       ]);

@@ -888,10 +888,10 @@ assert(
   'CLI doctor operation plan should disclose the Corepack pnpm check.'
 );
 assert(
-  ['Node.js', 'Git', 'pnpm', 'Config'].every((name) =>
+  ['Node.js', 'Git', 'pnpm', 'Config', 'AI provider', 'Command matrix'].every((name) =>
     cliDoctor.checks.some((check) => check.name === name)
   ),
-  'CLI doctor should expose Node.js, Git, pnpm, and Config checks.'
+  'CLI doctor should expose Node.js, Git, pnpm, Config, AI provider, and command matrix checks.'
 );
 assertValid('autoValidate', cliValidation);
 assertValid('autoPlan', cliPlan);

@@ -857,14 +857,125 @@ describe('executeCli', () => {
             status: 'ok',
             details: DEFAULT_CONFIG_FILE_NAME,
           },
+          {
+            name: 'AI provider',
+            status: 'ok',
+            details: 'echo (local, configured)',
+          },
+          {
+            name: 'Command matrix',
+            status: 'ok',
+            details: `${COMMAND_CONTRACTS.length + 3} command surface(s) tracked`,
+          },
         ],
         nextSteps: [],
         operationPlan: {
           schemaVersion: 1,
           risk: 'low',
+          reads: [
+            'nearest ZaoWu config path',
+            'resolved ZaoWu config',
+            'AI provider environment variable presence',
+            'command contract registry',
+          ],
           executes: ['git --version', 'pnpm --version', 'corepack pnpm --version'],
         },
       });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('warns when the configured AI provider is missing environment setup', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
+    const previousKey = process.env.OPENAI_API_KEY;
+
+    try {
+      delete process.env.OPENAI_API_KEY;
+      await executeCli(['init', '--yes'], { cwd: root });
+      await executeCli(['config', 'set', 'ai.provider', 'openai', '--yes'], { cwd: root });
+
+      const result = await executeCli(['doctor', '--json'], {
+        cwd: root,
+        nodeVersion: '20.19.0',
+        commandRunner: (command) => {
+          if (command === 'git') {
+            return 'git version 2.44.0';
+          }
+
+          if (command === 'pnpm') {
+            return '10.34.1';
+          }
+
+          throw new Error('unexpected command');
+        },
+      });
+      const payload = JSON.parse(result.stdout);
+      const aiCheck = payload.checks.find(
+        (check: { name: string }) => check.name === 'AI provider'
+      );
+
+      expect(result.exitCode).toBe(0);
+      expect(payload.status).toBe('warning');
+      expect(aiCheck).toEqual({
+        name: 'AI provider',
+        status: 'warning',
+        details: 'openai (network, missing config)',
+        fix: 'Missing environment variable(s): OPENAI_API_KEY.',
+      });
+      expect(payload.nextSteps).toContain('Missing environment variable(s): OPENAI_API_KEY.');
+    } finally {
+      if (previousKey === undefined) {
+        delete process.env.OPENAI_API_KEY;
+      } else {
+        process.env.OPENAI_API_KEY = previousKey;
+      }
+
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps doctor actionable when config exists but cannot be parsed', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
+
+    try {
+      await writeFile(path.join(root, DEFAULT_CONFIG_FILE_NAME), 'not valid config\n', 'utf8');
+
+      const result = await executeCli(['doctor', '--json'], {
+        cwd: root,
+        nodeVersion: '20.19.0',
+        commandRunner: (command) => {
+          if (command === 'git') {
+            return 'git version 2.44.0';
+          }
+
+          if (command === 'pnpm') {
+            return '10.34.1';
+          }
+
+          throw new Error('unexpected command');
+        },
+      });
+      const payload = JSON.parse(result.stdout);
+
+      expect(result.exitCode).toBe(0);
+      expect(payload.status).toBe('warning');
+      expect(payload.checks).toEqual(
+        expect.arrayContaining([
+          {
+            name: 'Config',
+            status: 'warning',
+            details: DEFAULT_CONFIG_FILE_NAME,
+            fix: 'Use simple key/value YAML or JSON for now.',
+          },
+          {
+            name: 'AI provider',
+            status: 'warning',
+            details: 'not checked because config is invalid',
+            fix: 'Run `zw config validate` before enabling provider-backed AI commands.',
+          },
+        ])
+      );
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -887,6 +998,10 @@ describe('executeCli', () => {
       expect(result.stdout).toContain('- Git: missing');
       expect(result.stdout).toContain('- pnpm: missing');
       expect(result.stdout).toContain('- Config: missing');
+      expect(result.stdout).toContain('- AI provider: ok echo (local, configured)');
+      expect(result.stdout).toContain(
+        `- Command matrix: ok ${COMMAND_CONTRACTS.length + 3} command surface(s) tracked`
+      );
       expect(result.stdout).toContain('Install Node.js 20.19.0 or newer.');
       expect(result.stdout).toContain('Run `corepack enable` or install pnpm.');
     } finally {
