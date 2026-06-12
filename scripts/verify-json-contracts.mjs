@@ -47,6 +47,7 @@ const schemas = {
   devCommit: await readJson('schemas', 'zaowu.command.dev-commit.schema.json'),
   devReview: await readJson('schemas', 'zaowu.command.dev-review.schema.json'),
   devStatus: await readJson('schemas', 'zaowu.command.dev-status.schema.json'),
+  devSync: await readJson('schemas', 'zaowu.command.dev-sync.schema.json'),
   docConvert: await readJson('schemas', 'zaowu.command.doc-convert.schema.json'),
   docExtract: await readJson('schemas', 'zaowu.command.doc-extract.schema.json'),
   docOutline: await readJson('schemas', 'zaowu.command.doc-outline.schema.json'),
@@ -105,6 +106,7 @@ const validators = {
   devCommit: ajv.compile(schemas.devCommit),
   devReview: ajv.compile(schemas.devReview),
   devStatus: ajv.compile(schemas.devStatus),
+  devSync: ajv.compile(schemas.devSync),
   docConvert: ajv.compile(schemas.docConvert),
   docExtract: ajv.compile(schemas.docExtract),
   docOutline: ajv.compile(schemas.docOutline),
@@ -256,6 +258,11 @@ const assertSchemaFragmentsStayAligned = () => {
     'dev status operationPlan schema must reference the shared operationPlan fragment.'
   );
   assertJsonEqual(
+    schemas.devSync.properties.operationPlan,
+    { $ref: ref('operationPlan') },
+    'dev sync operationPlan schema must reference the shared operationPlan fragment.'
+  );
+  assertJsonEqual(
     schemas.doctor.properties.operationPlan,
     { $ref: ref('operationPlan') },
     'doctor operationPlan schema must reference the shared operationPlan fragment.'
@@ -402,6 +409,13 @@ const createDevReviewCliFixture = async () => {
 
   try {
     runGit(fixtureRoot, ['init', '--quiet']);
+    runGit(fixtureRoot, ['config', 'user.email', 'test@example.com']);
+    runGit(fixtureRoot, ['config', 'user.name', 'test']);
+
+    await writeFile(path.join(fixtureRoot, 'README.md'), '# Initial');
+    runGit(fixtureRoot, ['add', 'README.md']);
+    runGit(fixtureRoot, ['commit', '-m', 'initial', '--quiet']);
+
     await mkdir(sourceDir, { recursive: true });
     await writeFile(
       sourceFile,
@@ -684,6 +698,18 @@ const runner = (_command, args) => {
     return '## main\nM  packages/dev/src/index.ts';
   }
 
+  if (key === 'rev-parse HEAD') {
+    return 'commit_hash_123';
+  }
+
+  if (key === 'fetch origin') {
+    return 'fetched';
+  }
+
+  if (key === 'reset --hard origin/main') {
+    return 'reset';
+  }
+
   throw new Error(`Unexpected git command: ${key}`);
 };
 
@@ -710,6 +736,15 @@ assertValid('devReview', review);
 assert(status.schemaVersion === 1, 'dev status result schemaVersion must be 1.');
 assert(status.clean === false, 'dev status should report staged changes.');
 assertValid('devStatus', status);
+
+const devSyncPreview = dev.syncDevRepo(runner);
+const devSync = dev.syncDevRepo(runner, { yes: true });
+
+assert(devSyncPreview.schemaVersion === 1, 'dev sync result schemaVersion must be 1.');
+assert(devSyncPreview.status === 'preview', 'dev sync default mode must preview.');
+assert(devSync.status === 'ok', 'dev sync confirmed mode must succeed.');
+assertValid('devSync', devSyncPreview);
+assertValid('devSync', devSync);
 
 const cliWorkflowPath = 'examples/workflows/message.yml';
 const cliInitFixture = await mkdtemp(path.join(tmpdir(), 'zaowu-init-contract-'));
@@ -943,11 +978,19 @@ try {
   const cliStatus = runCliJson(['dev', 'status'], { cwd: devReviewCliFixture });
   const cliCommit = runCliJson(['dev', 'commit'], { cwd: devReviewCliFixture });
   const cliReview = runCliJson(['dev', 'review', '--staged'], { cwd: devReviewCliFixture });
+  const cliDevSync = runCliJson(['dev', 'sync'], { cwd: devReviewCliFixture });
 
   assertValid('devStatus', cliStatus);
   assertValid('devCommit', cliCommit);
   assertValid('devReview', cliReview);
+  assertValid('devSync', cliDevSync);
   assert(cliStatus.schemaVersion === 1, 'CLI dev status schemaVersion must be 1.');
+  assert(cliDevSync.schemaVersion === 1, 'CLI dev sync schemaVersion must be 1.');
+  assert(cliDevSync.status === 'preview', 'CLI dev sync should preview by default.');
+  assert(
+    cliDevSync.operationPlan?.confirmationRequired === true,
+    'CLI dev sync preview should require confirmation.'
+  );
   assert(
     cliStatus.operationPlan?.executes?.includes('git status --short --branch'),
     'CLI dev status operation plan should disclose git status.'

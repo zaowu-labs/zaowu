@@ -1,4 +1,9 @@
-import { createCapabilityLedger, type DomainDefinition } from '@zaowu/core';
+import {
+  createCapabilityLedger,
+  createOperationPlan,
+  type DomainDefinition,
+  type OperationPlan,
+} from '@zaowu/core';
 import { ZaoWuError } from '@zaowu/core';
 
 export type DevCommandRunner = (
@@ -119,6 +124,12 @@ export const DEV_DOMAIN: DomainDefinition = {
       name: 'status',
       summary: 'Show Git working tree status for the current project',
       status: 'available',
+    },
+    {
+      name: 'sync',
+      summary: 'Synchronize and align local branch with its remote tracking branch',
+      status: 'available',
+      sensitive: true,
     },
   ],
 };
@@ -986,5 +997,79 @@ export const reviewDevChanges = (
     diffHunks: toPublicDiffHunks(diffHunks),
     findings,
     recommendedChecks: getRecommendedChecks(summary),
+  };
+};
+
+export interface DevSyncResult {
+  schemaVersion: 1;
+  status: 'ok' | 'preview';
+  branch: string;
+  previousCommit: string;
+  currentCommit: string;
+  output: string;
+  operationPlan?: OperationPlan;
+}
+
+export const syncDevRepo = (
+  commandRunner: DevCommandRunner,
+  options: { cwd?: string; yes?: boolean } = {}
+): DevSyncResult => {
+  const status = getDevStatus(commandRunner, options);
+
+  if (status.branch === 'unknown') {
+    throw new ZaoWuError({
+      code: 'GIT_COMMAND_FAILED',
+      message: 'Could not determine current branch.',
+      why: 'ZaoWu tried to read the current Git branch, but it is not a valid branch (possibly detached HEAD).',
+      fix: 'Switch to a valid branch (e.g., `git checkout main`) and try again.',
+    });
+  }
+
+  const previousCommit = runGit(commandRunner, ['rev-parse', 'HEAD'], options.cwd).trim();
+
+  const operationPlan = createOperationPlan({
+    risk: 'high',
+    confirmationRequired: !options.yes,
+    subjects: [`git:${status.branch}`],
+    notes: [
+      `This command will fetch remote updates and hard-reset your local \`${status.branch}\` branch to \`origin/${status.branch}\`.`,
+      'WARNING: Any local uncommitted changes or diverged local commits will be discarded.',
+    ],
+  });
+
+  if (!options.yes) {
+    return {
+      schemaVersion: 1,
+      status: 'preview',
+      branch: status.branch,
+      previousCommit,
+      currentCommit: previousCommit,
+      output: `Preview: ZaoWu will run \`git fetch origin\` and \`git reset --hard origin/${status.branch}\`.`,
+      operationPlan,
+    };
+  }
+
+  runGit(commandRunner, ['fetch', 'origin'], options.cwd);
+
+  try {
+    runGit(commandRunner, ['reset', '--hard', `origin/${status.branch}`], options.cwd);
+  } catch {
+    throw new ZaoWuError({
+      code: 'GIT_COMMAND_FAILED',
+      message: 'Git reset failed.',
+      why: `ZaoWu ran \`git reset --hard origin/${status.branch}\`, but origin/${status.branch} does not exist or fetch failed.`,
+      fix: `Verify the remote branch origin/${status.branch} exists and you have internet access.`,
+    });
+  }
+
+  const currentCommit = runGit(commandRunner, ['rev-parse', 'HEAD'], options.cwd).trim();
+
+  return {
+    schemaVersion: 1,
+    status: 'ok',
+    branch: status.branch,
+    previousCommit,
+    currentCommit,
+    output: `Successfully synchronized branch \`${status.branch}\` to \`origin/${status.branch}\`.`,
   };
 };

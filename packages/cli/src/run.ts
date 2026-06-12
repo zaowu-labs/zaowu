@@ -705,6 +705,17 @@ Description:
 
 Options:
   --json             Output machine-readable JSON`,
+    sync: `ZaoWu Dev Sync
+
+Usage:
+  zw dev sync [--yes] [options]
+
+Description:
+  Synchronize and align local branch with its remote tracking branch, fetching updates and hard-resetting.
+
+Options:
+  --yes              Execute the synchronization immediately, discarding any local divergence
+  --json             Output machine-readable JSON`,
   },
   doc: {
     summary: `ZaoWu Doc Summary

@@ -40,6 +40,7 @@ Legend:
 | `zw dev status`      | git status             | none         | read-only | fixed git         | none             | none              | read-only                         |
 | `zw dev review`      | git diff               | none         | read-only | fixed git         | none             | none              | read-only                         |
 | `zw dev commit`      | staged git diff        | none         | read-only | fixed git         | none             | none              | read-only preview                 |
+| `zw dev sync`        | none                   | none         | modifies  | fixed git         | fetch            | none              | preview, `--yes` to sync          |
 | `zw doc summary`     | document file          | none         | none      | none              | none             | none              | read-only                         |
 | `zw doc extract`     | document file          | none         | none      | none              | none             | none              | read-only                         |
 | `zw doc convert`     | document file          | output file  | none      | none              | none             | none              | preview, `--yes` to write         |

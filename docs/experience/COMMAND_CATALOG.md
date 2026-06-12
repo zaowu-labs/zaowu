@@ -102,15 +102,17 @@ Common failures:
 
 ## `zw dev`
 
-| Command         | Description                                  | Example                  |
-| --------------- | -------------------------------------------- | ------------------------ |
-| `zw dev status` | Show branch, staged, unstaged, and untracked | `zw dev status`          |
-| `zw dev review` | Review staged or working-tree changes        | `zw dev review --staged` |
-| `zw dev commit` | Suggest a structured commit preview          | `zw dev commit`          |
+| Command         | Description                                   | Example                  |
+| --------------- | --------------------------------------------- | ------------------------ |
+| `zw dev status` | Show branch, staged, unstaged, and untracked  | `zw dev status`          |
+| `zw dev review` | Review staged or working-tree changes         | `zw dev review --staged` |
+| `zw dev commit` | Suggest a structured commit preview           | `zw dev commit`          |
+| `zw dev sync`   | Synchronize local branch with remote tracking | `zw dev sync`            |
 
 Safety:
 
-- No Git state is modified.
+- `zw dev status`, `zw dev review`, and `zw dev commit` do not modify Git state.
+- `zw dev sync` updates Git state by fetching and performing a hard reset. It runs in preview mode by default, requiring the `--yes` flag or confirmation to execute.
 - `zw dev commit` reads staged changes only.
 - `zw dev review --staged` and `zw dev review --worktree` keep sources explicit.
 - Commit previews include a structured Conventional Commit suggestion, suggested

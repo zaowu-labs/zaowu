@@ -28,7 +28,13 @@ import {
   sampleData,
   listSheets,
 } from '@zaowu/data';
-import { getDevStatus, previewDevCommit, reviewDevChanges, type DevReviewMode } from '@zaowu/dev';
+import {
+  getDevStatus,
+  previewDevCommit,
+  reviewDevChanges,
+  syncDevRepo,
+  type DevReviewMode,
+} from '@zaowu/dev';
 import {
   convertDocument,
   extractDocument,
@@ -813,6 +819,40 @@ const handleDevStatus: DomainActionHandler = async (_args, context) => {
   return result(context, withOperationPlan(status, operationPlan), human);
 };
 
+const handleDevSync: DomainActionHandler = async (_args, context) => {
+  const preview = syncDevRepo(context.commandRunner, { cwd: context.cwd });
+
+  if (!preview.operationPlan) {
+    throw new ZaoWuError({
+      code: 'INTERNAL_ERROR',
+      message: 'Operation plan is required for synchronization preview.',
+      why: 'ZaoWu could not generate an operation plan for the Git synchronization.',
+      fix: 'Verify your Git repository is configured correctly.',
+    });
+  }
+
+  assertOperationPlanFingerprint(context, preview.operationPlan);
+
+  const syncResult = context.yes
+    ? syncDevRepo(context.commandRunner, { cwd: context.cwd, yes: true })
+    : preview;
+
+  const human = [
+    'ZaoWu Dev Sync',
+    '',
+    `Status: ${syncResult.status}`,
+    `Branch: ${syncResult.branch}`,
+    `Previous commit: ${syncResult.previousCommit}`,
+    `Current commit: ${syncResult.currentCommit}`,
+    '',
+    formatOperationPlan(preview.operationPlan),
+    '',
+    syncResult.output,
+  ].join('\n');
+
+  return result(context, withOperationPlan(syncResult, preview.operationPlan), human);
+};
+
 const handleDocSummary: DomainActionHandler = async (args, context) => {
   const target = requireTarget(args, 'zw doc summary');
   const summary = await summarizeDocument(target);
@@ -1397,6 +1437,7 @@ const HANDLERS: Record<string, Record<string, DomainActionHandler>> = {
     commit: handleDevCommit,
     review: handleDevReview,
     status: handleDevStatus,
+    sync: handleDevSync,
   },
   doc: {
     convert: handleDocConvert,

@@ -22,16 +22,16 @@
 
 ZaoWu is structured as a monorepo containing specialized domain modules. Here is an overview of what ZaoWu can do out-of-the-box:
 
-| Domain       | Action                           | Description                                                             | Safety Level                    |
-| :----------- | :------------------------------- | :---------------------------------------------------------------------- | :------------------------------ |
-| **`ai`**     | `providers` / `ask`              | List local LLM providers (Ollama, OpenAI) and prompt models             | Safe (Read-only)                |
-| **`dev`**    | `status` / `review` / `commit`   | Run smart, LLM-assisted code reviews and generate commit messages       | Safe (Preview first)            |
-| **`doc`**    | `convert` / `outline` / `search` | Parse PDF/DOCX into clean Markdown structure; retrieve doc outlines     | Safe (No write without `--yes`) |
-| **`data`**   | `schema` / `sample` / `clean`    | Analyze XLSX/CSV structures and return tabular column definitions       | Safe (Read-only)                |
-| **`auto`**   | `validate` / `plan` / `run`      | Execute versioned automation workflows (supports message & shell steps) | Sensitive (Needs `--yes`)       |
-| **`teach`**  | `plan` / `quiz`                  | Create learning outline tracks and format Canvas quiz exports           | Safe (Read-only)                |
-| **`plugin`** | `validate` / `install`           | Validate local extension manifests and install workspace plugins        | Safe (Local-first)              |
-| **`config`** | `get` / `set` / `validate`       | Manage system-wide options, timeouts, and active LLM models             | Safe (Config directory)         |
+| Domain       | Action                                  | Description                                                             | Safety Level                    |
+| :----------- | :-------------------------------------- | :---------------------------------------------------------------------- | :------------------------------ |
+| **`ai`**     | `providers` / `ask`                     | List local LLM providers (Ollama, OpenAI) and prompt models             | Safe (Read-only)                |
+| **`dev`**    | `status` / `review` / `commit` / `sync` | Run smart code reviews, commit suggestions, and branch synchronizations | Safe (Preview first)            |
+| **`doc`**    | `convert` / `outline` / `search`        | Parse PDF/DOCX into clean Markdown structure; retrieve doc outlines     | Safe (No write without `--yes`) |
+| **`data`**   | `schema` / `sample` / `clean`           | Analyze XLSX/CSV structures and return tabular column definitions       | Safe (Read-only)                |
+| **`auto`**   | `validate` / `plan` / `run`             | Execute versioned automation workflows (supports message & shell steps) | Sensitive (Needs `--yes`)       |
+| **`teach`**  | `plan` / `quiz`                         | Create learning outline tracks and format Canvas quiz exports           | Safe (Read-only)                |
+| **`plugin`** | `validate` / `install`                  | Validate local extension manifests and install workspace plugins        | Safe (Local-first)              |
+| **`config`** | `get` / `set` / `validate`              | Manage system-wide options, timeouts, and active LLM models             | Safe (Config directory)         |
 
 ---
 

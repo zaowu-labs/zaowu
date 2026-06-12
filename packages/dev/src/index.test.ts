@@ -4,6 +4,7 @@ import {
   getDevStatus,
   previewDevCommit,
   reviewDevChanges,
+  syncDevRepo,
   type DevCommandRunner,
 } from './index';
 
@@ -14,6 +15,7 @@ describe('dev domain', () => {
       'commit',
       'review',
       'status',
+      'sync',
     ]);
   });
 
@@ -506,5 +508,41 @@ describe('dev domain', () => {
     const runner: DevCommandRunner = () => '';
 
     expect(() => previewDevCommit(runner)).toThrow('No staged changes found.');
+  });
+
+  it('previews and performs dev sync operations', () => {
+    const runner: DevCommandRunner = (_command, args) => {
+      if (args.join(' ') === 'status --short --branch') {
+        return '## main...origin/main\n';
+      }
+      if (args.join(' ') === 'rev-parse HEAD') {
+        return 'commit_hash_123';
+      }
+      if (args.join(' ') === 'fetch origin') {
+        return 'fetched';
+      }
+      if (args.join(' ') === 'reset --hard origin/main') {
+        return 'reset';
+      }
+      throw new Error('unexpected git command: ' + args.join(' '));
+    };
+
+    expect(syncDevRepo(runner)).toMatchObject({
+      schemaVersion: 1,
+      status: 'preview',
+      branch: 'main',
+      previousCommit: 'commit_hash_123',
+      currentCommit: 'commit_hash_123',
+      output: 'Preview: ZaoWu will run `git fetch origin` and `git reset --hard origin/main`.',
+    });
+
+    expect(syncDevRepo(runner, { yes: true })).toEqual({
+      schemaVersion: 1,
+      status: 'ok',
+      branch: 'main',
+      previousCommit: 'commit_hash_123',
+      currentCommit: 'commit_hash_123',
+      output: 'Successfully synchronized branch `main` to `origin/main`.',
+    });
   });
 });
