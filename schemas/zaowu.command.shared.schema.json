@@ -1,0 +1,323 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.zaowu.dev/zaowu.command.shared.schema.json",
+  "title": "ZaoWu Shared Command Schema Fragments",
+  "type": "object",
+  "$defs": {
+    "operationPlan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "risk",
+        "confirmationRequired",
+        "subjects",
+        "reads",
+        "writes",
+        "deletes",
+        "executes",
+        "network",
+        "secrets",
+        "notes",
+        "fingerprintAlgorithm",
+        "fingerprint"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "risk": {
+          "enum": ["low", "medium", "high"]
+        },
+        "confirmationRequired": {
+          "type": "boolean"
+        },
+        "subjects": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "reads": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "writes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "deletes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "executes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "network": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "secrets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "fingerprintAlgorithm": {
+          "const": "sha256-v1"
+        },
+        "fingerprint": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "aiProviderDescriptor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "network", "configured", "requiredEnv"],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "network": {
+          "type": "boolean"
+        },
+        "configured": {
+          "type": "boolean"
+        },
+        "requiredEnv": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "defaultModel": {
+          "type": "string"
+        }
+      }
+    },
+    "aiInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "promptCharacters", "combinedCharacters", "maxInputCharacters"],
+      "properties": {
+        "source": {
+          "enum": ["prompt", "file", "prompt+file"]
+        },
+        "promptCharacters": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "filePath": {
+          "type": "string"
+        },
+        "fileCharacters": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "combinedCharacters": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxInputCharacters": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "aiProviderValidation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "provider", "warnings"],
+      "properties": {
+        "status": {
+          "enum": ["ok", "warning"]
+        },
+        "provider": {
+          "$ref": "https://schemas.zaowu.dev/zaowu.command.shared.schema.json#/$defs/aiProviderDescriptor"
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "devChangeCategories": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "test", "docs", "dependency", "workflow", "config", "other"],
+      "properties": {
+        "source": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "test": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "docs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "dependency": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "workflow": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "config": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "other": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "devChangeSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["files", "untrackedFiles", "additions", "deletions", "categories"],
+      "properties": {
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "untrackedFiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "additions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "deletions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "categories": {
+          "$ref": "https://schemas.zaowu.dev/zaowu.command.shared.schema.json#/$defs/devChangeCategories"
+        }
+      }
+    },
+    "devReviewFinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["severity", "priority", "category", "title", "detail"],
+      "properties": {
+        "severity": {
+          "enum": ["info", "warning"]
+        },
+        "priority": {
+          "enum": ["low", "medium", "high"]
+        },
+        "category": {
+          "enum": [
+            "summary",
+            "test",
+            "dependency",
+            "quality",
+            "execution",
+            "filesystem",
+            "network",
+            "security",
+            "git"
+          ]
+        },
+        "title": {
+          "type": "string"
+        },
+        "detail": {
+          "type": "string"
+        },
+        "filePath": {
+          "type": "string"
+        },
+        "hunkHeader": {
+          "type": "string"
+        }
+      }
+    },
+    "autoPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "shell", "fileWrites", "network"],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "shell": {
+          "enum": ["blocked", "prompt"]
+        },
+        "fileWrites": {
+          "enum": ["blocked", "prompt"]
+        },
+        "network": {
+          "enum": ["blocked", "prompt"]
+        }
+      }
+    },
+    "autoSandbox": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "root",
+        "workflowDirectory",
+        "shellCommands",
+        "fileWrites",
+        "network"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "root": {
+          "const": "workflow-directory"
+        },
+        "workflowDirectory": {
+          "type": "string"
+        },
+        "shellCommands": {
+          "const": "blocked"
+        },
+        "fileWrites": {
+          "const": "blocked"
+        },
+        "network": {
+          "const": "blocked"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.zaowu.dev/zaowu.command.config-show.schema.json",
+  "title": "ZaoWu Config Show Result",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "status", "filePath", "config"],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "status": {
+      "const": "ok"
+    },
+    "filePath": {
+      "type": "string"
+    },
+    "config": {
+      "$ref": "https://schemas.zaowu.dev/zaowu.config.schema.json"
+    }
+  }
+}

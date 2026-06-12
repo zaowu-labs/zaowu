@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.zaowu.dev/zaowu.command.data-sheets.schema.json",
+  "title": "ZaoWu Data Sheets Result",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "status", "filePath", "sheets"],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "status": {
+      "const": "ok"
+    },
+    "filePath": {
+      "type": "string"
+    },
+    "sheets": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

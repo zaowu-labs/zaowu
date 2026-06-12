@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.zaowu.dev/zaowu.command.web-inspect.schema.json",
+  "title": "ZaoWu Web Inspect Result",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "status", "url", "headers"],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "status": {
+      "enum": ["ok", "preview"]
+    },
+    "url": {
+      "type": "string"
+    },
+    "statusCode": {
+      "type": "integer",
+      "minimum": 100,
+      "maximum": 599
+    },
+    "statusText": {
+      "type": "string"
+    },
+    "headers": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "operationPlan": {
+      "$ref": "https://schemas.zaowu.dev/zaowu.command.shared.schema.json#/$defs/operationPlan"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.zaowu.dev/zaowu.command.teach-plan.schema.json",
+  "title": "ZaoWu Teach Plan Result",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "status", "topic", "outline"],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "status": {
+      "const": "ok"
+    },
+    "topic": {
+      "type": "string"
+    },
+    "outline": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "hello-tools",
+  "name": "Hello Tools",
+  "version": "0.1.0",
+  "commands": [
+    {
+      "name": "hello",
+      "summary": "Print a short greeting preview."
+    }
+  ]
+}

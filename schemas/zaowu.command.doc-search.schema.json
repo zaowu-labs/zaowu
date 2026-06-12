@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.zaowu.dev/zaowu.command.doc-search.schema.json",
+  "title": "ZaoWu Doc Search Result",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "status", "filePath", "keyword", "matches"],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "status": {
+      "const": "ok"
+    },
+    "filePath": {
+      "type": "string"
+    },
+    "keyword": {
+      "type": "string",
+      "minLength": 1
+    },
+    "matches": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["line", "text"],
+        "properties": {
+          "line": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "text": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

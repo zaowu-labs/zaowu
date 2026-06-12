@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.zaowu.dev/zaowu.command.dev-review.schema.json",
+  "title": "ZaoWu Dev Review Result",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schemaVersion",
+    "status",
+    "source",
+    "summary",
+    "diffHunks",
+    "findings",
+    "recommendedChecks"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "status": {
+      "const": "ok"
+    },
+    "source": {
+      "enum": ["staged", "working-tree"]
+    },
+    "summary": {
+      "$ref": "https://schemas.zaowu.dev/zaowu.command.shared.schema.json#/$defs/devChangeSummary"
+    },
+    "diffHunks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["filePath", "header", "addedLines", "removedLines"],
+        "properties": {
+          "filePath": {
+            "type": "string"
+          },
+          "header": {
+            "type": "string"
+          },
+          "addedLines": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "removedLines": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "$ref": "https://schemas.zaowu.dev/zaowu.command.shared.schema.json#/$defs/devReviewFinding"
+      }
+    },
+    "recommendedChecks": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "operationPlan": {
+      "$ref": "https://schemas.zaowu.dev/zaowu.command.shared.schema.json#/$defs/operationPlan"
+    }
+  }
+}

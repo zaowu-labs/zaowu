@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.zaowu.dev/zaowu.command.auto-validate.schema.json",
+  "title": "ZaoWu Auto Validate Result",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "status", "filePath", "workflow", "policy", "sandbox", "warnings"],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "status": {
+      "const": "ok"
+    },
+    "filePath": {
+      "type": "string"
+    },
+    "workflow": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["version", "name", "variables", "permissions", "steps"]
+    },
+    "policy": {
+      "$ref": "https://schemas.zaowu.dev/zaowu.command.shared.schema.json#/$defs/autoPolicy"
+    },
+    "sandbox": {
+      "$ref": "https://schemas.zaowu.dev/zaowu.command.shared.schema.json#/$defs/autoSandbox"
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}
