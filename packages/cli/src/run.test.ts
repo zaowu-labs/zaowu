@@ -238,6 +238,20 @@ describe('executeCli', () => {
     });
   });
 
+  it('prints full output in human mode when the provider does not stream', async () => {
+    const chunks: string[] = [];
+    const result = await executeCli(['ai', 'ask', 'Explain', 'ZaoWu'], {
+      onChunk: (chunk) => {
+        chunks.push(chunk);
+      },
+    });
+
+    expect(result.exitCode).toBe(0);
+    // The echo provider never calls onChunk, so the handler must fall back to
+    // emitting the full response output instead of silently printing nothing.
+    expect(chunks.join('')).toContain('Explain ZaoWu');
+  });
+
   it('previews network AI providers by default', async () => {
     const result = await executeCli([
       'ai',

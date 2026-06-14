@@ -419,14 +419,26 @@ const handleAiAsk: DomainActionHandler = async (args, context) => {
       ].join('\n')
     );
 
+    let streamedAnyChunk = false;
+    const onChunk = context.onChunk;
     const response = await askAI({
       prompt,
       filePath,
       provider: requestedProvider,
       model: requestedModel,
       allowNetwork: context.yes,
-      onChunk: context.onChunk,
+      onChunk: (chunk) => {
+        streamedAnyChunk = true;
+        onChunk(chunk);
+      },
     });
+
+    // Providers that do not support streaming (echo, OpenAI, non-stream paths)
+    // never call onChunk. Print their full output so the human-readable
+    // command does not silently produce an empty result.
+    if (!streamedAnyChunk) {
+      onChunk(response.output);
+    }
 
     console.log();
 

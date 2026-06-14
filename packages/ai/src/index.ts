@@ -11,10 +11,11 @@ export interface AIProviderDescriptor {
   defaultModel?: string;
 }
 
+type AIStreamEventListener = (arg: unknown) => void;
+
 interface AIStreamBody {
   getReader?: () => { read(): Promise<{ done: boolean; value?: Uint8Array }> };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  on?: (event: string, listener: (...args: any[]) => void) => void;
+  on?: (event: string, listener: AIStreamEventListener) => void;
 }
 
 export interface AIFetchResponse {
@@ -712,14 +713,13 @@ const OLLAMA_PROVIDER: AIProvider = {
           }
         }
       } else if (typeof body.on === 'function') {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const bodyWithOn = body as {
-          on: (event: string, listener: (...args: any[]) => void) => void;
+          on: (event: string, listener: AIStreamEventListener) => void;
         };
         await new Promise<void>((resolve, reject) => {
           let buffer = '';
-          bodyWithOn.on('data', (chunk: Buffer | string) => {
-            buffer += chunk.toString();
+          bodyWithOn.on('data', (chunk: unknown) => {
+            buffer += String(chunk);
             const lines = buffer.split('\n');
             buffer = lines.pop() ?? '';
             for (const line of lines) {
@@ -912,14 +912,13 @@ const ANTHROPIC_PROVIDER: AIProvider = {
           }
         }
       } else if (typeof body.on === 'function') {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const bodyWithOn = body as {
-          on: (event: string, listener: (...args: any[]) => void) => void;
+          on: (event: string, listener: AIStreamEventListener) => void;
         };
         await new Promise<void>((resolve, reject) => {
           let buffer = '';
-          bodyWithOn.on('data', (chunk: Buffer | string) => {
-            buffer += chunk.toString();
+          bodyWithOn.on('data', (chunk: unknown) => {
+            buffer += String(chunk);
             const lines = buffer.split('\n');
             buffer = lines.pop() ?? '';
             for (const line of lines) {
@@ -938,7 +937,7 @@ const ANTHROPIC_PROVIDER: AIProvider = {
               }
             }
           });
-          bodyWithOn.on('end', resolve);
+          bodyWithOn.on('end', () => resolve());
           bodyWithOn.on('error', reject);
         });
       }
