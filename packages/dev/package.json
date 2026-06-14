@@ -27,5 +27,12 @@
   "keywords": [
     "zaowu",
     "developer-tools"
-  ]
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zaowu-labs/zaowu.git",
+    "directory": "packages/dev"
+  },
+  "homepage": "https://github.com/zaowu-labs/zaowu",
+  "bugs": "https://github.com/zaowu-labs/zaowu/issues"
 }

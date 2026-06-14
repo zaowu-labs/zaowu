@@ -59,19 +59,22 @@ type OperationPlanFingerprintInput = Omit<
 
 const OPERATION_PLAN_FINGERPRINT_ALGORITHM: OperationPlanFingerprintAlgorithm = 'sha256-v1';
 
-const stableOperationPlanInput = (plan: OperationPlanFingerprintInput): string =>
-  JSON.stringify({
+const stableOperationPlanInput = (plan: OperationPlanFingerprintInput): string => {
+  const sortArray = (arr: readonly string[]): string[] => [...arr].sort();
+
+  return JSON.stringify({
     schemaVersion: plan.schemaVersion,
     risk: plan.risk,
-    subjects: plan.subjects,
-    reads: plan.reads,
-    writes: plan.writes,
-    deletes: plan.deletes,
-    executes: plan.executes,
-    network: plan.network,
-    secrets: plan.secrets,
-    notes: plan.notes,
+    subjects: sortArray(plan.subjects),
+    reads: sortArray(plan.reads),
+    writes: sortArray(plan.writes),
+    deletes: sortArray(plan.deletes),
+    executes: sortArray(plan.executes),
+    network: sortArray(plan.network),
+    secrets: sortArray(plan.secrets),
+    notes: sortArray(plan.notes),
   });
+};
 
 export const fingerprintOperationPlan = (plan: OperationPlanFingerprintInput): string =>
   createHash('sha256').update(stableOperationPlanInput(plan), 'utf8').digest('hex');

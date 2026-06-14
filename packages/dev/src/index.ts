@@ -1,10 +1,11 @@
+import path from 'node:path';
 import {
   createCapabilityLedger,
   createOperationPlan,
+  ZaoWuError,
   type DomainDefinition,
   type OperationPlan,
 } from '@zaowu/core';
-import { ZaoWuError } from '@zaowu/core';
 
 export type DevCommandRunner = (
   command: string,
@@ -68,6 +69,7 @@ export interface DevReviewFinding {
     | 'test'
     | 'dependency'
     | 'quality'
+    | 'performance'
     | 'execution'
     | 'filesystem'
     | 'network'
@@ -280,7 +282,15 @@ interface ParsedDiffHunk extends DevDiffHunk {
   addedText: string[];
 }
 
-const stripDiffPath = (value: string): string => value.replace(/^[ab]\//, '');
+const stripDiffPath = (value: string): string => {
+  let cleaned = value.replace(/^[ab]\//, '');
+
+  if (cleaned.startsWith('"') && cleaned.endsWith('"')) {
+    cleaned = cleaned.slice(1, -1);
+  }
+
+  return cleaned;
+};
 
 const parseDiffHunks = (diff: string): ParsedDiffHunk[] => {
   const hunks: ParsedDiffHunk[] = [];
@@ -549,7 +559,7 @@ const SENSITIVE_REVIEW_FILE_NAMES = new Set([
 
 const isSensitiveReviewFile = (filePath: string): boolean => {
   const normalized = filePath.replaceAll('\\', '/');
-  const fileName = normalized.split('/').pop() ?? normalized;
+  const fileName = path.basename(filePath);
 
   if (SENSITIVE_REVIEW_FILE_NAMES.has(fileName)) {
     return true;
@@ -724,7 +734,7 @@ const addDependencyConsistencyFindings = (
 
 const isGeneratedArtifactFile = (filePath: string): boolean => {
   const normalized = filePath.replaceAll('\\', '/');
-  const fileName = normalized.split('/').pop() ?? normalized;
+  const fileName = path.basename(filePath);
 
   return (
     normalized.includes('/dist/') ||
@@ -917,7 +927,16 @@ export const getDevStatus = (
   for (const line of lines.slice(firstLine.startsWith('##') ? 1 : 0)) {
     const indexStatus = line[0] ?? ' ';
     const worktreeStatus = line[1] ?? ' ';
-    const file = line.slice(3).trim();
+    let file = line.slice(3).trim();
+
+    if (file.includes(' -> ')) {
+      const parts = file.split(' -> ');
+      file = parts[parts.length - 1].trim();
+    }
+
+    if (file.startsWith('"') && file.endsWith('"')) {
+      file = file.slice(1, -1);
+    }
 
     if (!file) {
       continue;

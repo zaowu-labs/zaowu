@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   CONFIG_DOMAIN,
   findConfigFile,
@@ -13,6 +13,9 @@ import {
   parseConfig,
   setResolvedConfigValue,
   validateResolvedConfig,
+  getGlobalConfigPath,
+  loadGlobalConfig,
+  mergeConfigs,
 } from './index';
 
 describe('config utilities', () => {
@@ -73,6 +76,31 @@ describe('config utilities', () => {
 
   it('parses supported YAML config with defaults', () => {
     expect(parseConfig(`project:\n  name: demo\n\nai:\n  provider: echo\n`, 'zw.yml')).toEqual({
+      version: 1,
+      project: {
+        name: 'demo',
+      },
+      ai: {
+        provider: 'echo',
+      },
+      defaults: {
+        output: 'human',
+      },
+      paths: {
+        workspace: '.',
+        cache: '.zaowu/cache',
+      },
+    });
+  });
+
+  it('parses config files with trailing comments after quoted strings', () => {
+    const content = [
+      'project:',
+      '  name: "demo" # project name comment',
+      'ai:',
+      '  provider: "echo" # provider comment',
+    ].join('\n');
+    expect(parseConfig(content, 'zw.yml')).toEqual({
       version: 1,
       project: {
         name: 'demo',
@@ -186,21 +214,7 @@ describe('config utilities', () => {
         key: 'project.name',
         oldValue: 'old',
         newValue: 'new',
-        content:
-          'version: 1\n' +
-          '\n' +
-          'project:\n' +
-          '  name: new\n' +
-          '\n' +
-          'ai:\n' +
-          '  provider: null\n' +
-          '\n' +
-          'defaults:\n' +
-          '  output: human\n' +
-          '\n' +
-          'paths:\n' +
-          '  workspace: .\n' +
-          '  cache: .zaowu/cache\n',
+        content: 'project:\n  name: new\n',
         wroteFile: false,
       });
       await expect(loadResolvedConfig(root)).resolves.toMatchObject({
@@ -237,6 +251,29 @@ describe('config utilities', () => {
             output: 'json',
           },
         },
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('normalizes path separators in config set values', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-config-'));
+
+    await writeFile(path.join(root, 'zaowu.config.json'), '{"project":{"name":"old"}}', 'utf8');
+
+    try {
+      await expect(
+        setResolvedConfigValue('paths.workspace', 'C:\\some\\windows\\path', {
+          cwd: root,
+          yes: true,
+        })
+      ).resolves.toMatchObject({
+        schemaVersion: 1,
+        status: 'ok',
+        key: 'paths.workspace',
+        newValue: 'C:/some/windows/path',
+        wroteFile: true,
       });
     } finally {
       await rm(root, { recursive: true, force: true });
@@ -302,6 +339,87 @@ describe('config utilities', () => {
         'Config value is invalid.'
       );
     } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('correctly resolves global config path based on platform', () => {
+    const originalAppData = process.env.APPDATA;
+    const homedirSpy = vi.spyOn(os, 'homedir').mockReturnValue('/fake/home');
+    try {
+      if (process.platform === 'win32') {
+        process.env.APPDATA = 'C:\\fake\\appdata';
+        expect(getGlobalConfigPath()).toBe('C:\\fake\\appdata\\zaowu\\config.yml');
+      } else {
+        expect(getGlobalConfigPath()).toBe('/fake/home/.config/zaowu/config.yml');
+      }
+    } finally {
+      homedirSpy.mockRestore();
+      if (originalAppData !== undefined) {
+        process.env.APPDATA = originalAppData;
+      } else {
+        delete process.env.APPDATA;
+      }
+    }
+  });
+
+  it('merges global and project config overriding defaults', () => {
+    const globalConfig = parseConfig('project:\n  name: global-name\n', 'config.yml');
+    const projectConfig = parseConfig('project:\n  name: project-name\n', 'zw.yml');
+    const merged = mergeConfigs(globalConfig, projectConfig);
+    expect(merged.project.name).toBe('project-name');
+  });
+
+  it('blocks saving sensitive API keys and tokens', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-config-'));
+    await writeFile(path.join(root, 'zw.yml'), 'project:\n  name: test\n', 'utf8');
+
+    try {
+      // Test OpenAI key sk-
+      await expect(
+        setResolvedConfigValue('ai.provider', 'sk-1234567890123456', { cwd: root })
+      ).rejects.toThrow(/looks like a secret/);
+
+      // Test GitHub key ghp_
+      await expect(
+        setResolvedConfigValue('ai.provider', 'ghp_1234567890123456', { cwd: root })
+      ).rejects.toThrow(/looks like a secret/);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('writes set config to global path when global option is true', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-config-'));
+    const originalAppData = process.env.APPDATA;
+    const homedirSpy = vi.spyOn(os, 'homedir').mockReturnValue(root);
+    if (process.platform === 'win32') {
+      process.env.APPDATA = path.join(root, 'AppData');
+    }
+
+    try {
+      const globalPath = getGlobalConfigPath();
+      await expect(
+        setResolvedConfigValue('project.name', 'global-project', {
+          cwd: root,
+          global: true,
+          yes: true,
+        })
+      ).resolves.toMatchObject({
+        filePath: globalPath,
+        wroteFile: true,
+        newValue: 'global-project',
+      });
+
+      const loaded = await loadConfig(globalPath);
+      expect(loaded.content).toContain('name: global-project');
+    } finally {
+      homedirSpy.mockRestore();
+      if (originalAppData !== undefined) {
+        process.env.APPDATA = originalAppData;
+      } else {
+        delete process.env.APPDATA;
+      }
       await rm(root, { recursive: true, force: true });
     }
   });

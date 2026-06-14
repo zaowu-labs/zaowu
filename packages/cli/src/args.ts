@@ -29,6 +29,17 @@ export const parseArgs = (args: readonly string[]): ParsedArgs => {
       continue;
     }
 
+    if (arg.includes('=')) {
+      const eqIndex = arg.indexOf('=');
+      const key = arg.slice(0, eqIndex);
+      const val = arg.slice(eqIndex + 1);
+
+      if (FLAGS_WITH_VALUES.has(key)) {
+        values.set(key, val);
+        continue;
+      }
+    }
+
     if (FLAGS_WITH_VALUES.has(arg) && args[index + 1] && !args[index + 1].startsWith('--')) {
       values.set(arg, args[index + 1]);
       index += 1;

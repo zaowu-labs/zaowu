@@ -33,4 +33,17 @@ describe('operation plans', () => {
 
     expect(second.fingerprint).not.toBe(first.fingerprint);
   });
+
+  it('keeps the same fingerprint regardless of list element order', () => {
+    const first = createOperationPlan({
+      subjects: ['plugin:readme-gen', 'plugin:test'],
+      reads: ['file-a.txt', 'file-b.txt'],
+    });
+    const second = createOperationPlan({
+      subjects: ['plugin:test', 'plugin:readme-gen'],
+      reads: ['file-b.txt', 'file-a.txt'],
+    });
+
+    expect(second.fingerprint).toBe(first.fingerprint);
+  });
 });

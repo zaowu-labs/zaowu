@@ -2,10 +2,11 @@ import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { getValue, parseArgs } from './args';
 import { COMMAND_CONTRACTS } from './command-contracts';
-import { ACTION_HELP, DEFAULT_CONFIG_FILE_NAME, DOMAIN_DEFINITIONS, executeCli } from './run';
+import { ACTION_HELP } from './help-text';
+import { DEFAULT_CONFIG_FILE_NAME, DOMAIN_DEFINITIONS, executeCli } from './run';
 
 describe('executeCli', () => {
   it('shows help when no command is provided', async () => {
@@ -49,6 +50,14 @@ describe('executeCli', () => {
     expect(parsed.positionals).toEqual(['data', 'sample', 'workbook.xlsx']);
     expect(getValue(parsed, '--sheet')).toBe('Details');
     expect(getValue(parsed, '--rows')).toBe('1');
+  });
+
+  it('parses key-value option syntax using equals sign', () => {
+    const parsed = parseArgs(['data', 'sample', 'workbook.xlsx', '--sheet=Details', '--rows=5']);
+
+    expect(parsed.positionals).toEqual(['data', 'sample', 'workbook.xlsx']);
+    expect(getValue(parsed, '--sheet')).toBe('Details');
+    expect(getValue(parsed, '--rows')).toBe('5');
   });
 
   it('shows command-specific init help', async () => {
@@ -464,6 +473,57 @@ describe('executeCli', () => {
       expect(payload.wroteFile).toBe(true);
       expect(config).toContain('name: allowed');
     } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('applies config set globally when --global option is provided', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
+    const originalAppData = process.env.APPDATA;
+    const homedirSpy = vi.spyOn(os, 'homedir').mockReturnValue(root);
+    if (process.platform === 'win32') {
+      process.env.APPDATA = path.join(root, 'AppData');
+    }
+
+    try {
+      const preview = await executeCli(
+        ['config', 'set', 'project.name', 'global-project', '--global', '--json'],
+        {
+          cwd: root,
+        }
+      );
+      const previewPayload = JSON.parse(preview.stdout);
+      const result = await executeCli(
+        [
+          'config',
+          'set',
+          'project.name',
+          'global-project',
+          '--global',
+          '--yes',
+          '--plan-fingerprint',
+          previewPayload.operationPlan.fingerprint,
+          '--json',
+        ],
+        { cwd: root }
+      );
+      const payload = JSON.parse(result.stdout);
+      expect(result.exitCode).toBe(0);
+      expect(payload.wroteFile).toBe(true);
+
+      const globalPath = payload.filePath;
+      const config = await readFile(globalPath, 'utf8');
+      expect(config).toContain('name: global-project');
+
+      const localYml = path.join(root, DEFAULT_CONFIG_FILE_NAME);
+      await expect(readFile(localYml, 'utf8')).rejects.toThrow();
+    } finally {
+      homedirSpy.mockRestore();
+      if (originalAppData !== undefined) {
+        process.env.APPDATA = originalAppData;
+      } else {
+        delete process.env.APPDATA;
+      }
       await rm(root, { recursive: true, force: true });
     }
   });

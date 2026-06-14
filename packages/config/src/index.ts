@@ -1,6 +1,8 @@
 import { constants } from 'node:fs';
-import { access, readFile, stat, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
+import YAML from 'yaml';
 import {
   createCapabilityLedger,
   stripUtf8Bom,
@@ -133,6 +135,18 @@ export const CONFIG_DOMAIN: DomainDefinition = {
 };
 
 const SECRET_KEY_PATTERN = /(?:secret|token|password|api[_-]?key|private[_-]?key|recovery)/i;
+const SECRET_VALUE_PATTERN = /(?:sk-[a-zA-Z0-9]{12,}|ghp_[a-zA-Z0-9]{12,})/i;
+
+const assertNoSecretValues = (value: string): void => {
+  if (SECRET_VALUE_PATTERN.test(value)) {
+    throw new ZaoWuError({
+      code: 'CONFIG_SECRET_KEY_NOT_ALLOWED',
+      message: 'Config value looks like a secret.',
+      why: 'You attempted to write a sensitive API token or key directly to configuration. This poses a severe security risk.',
+      fix: 'Set this key as an environment variable in your terminal instead (e.g. export OPENAI_API_KEY="your-token").',
+    });
+  }
+};
 const CONFIG_KEYS: readonly ConfigKey[] = [
   'version',
   'project.name',
@@ -184,6 +198,97 @@ const isReadableFile = async (filePath: string): Promise<boolean> => {
   }
 };
 
+export const getGlobalConfigPath = (): string => {
+  const home = os.homedir();
+  if (process.platform === 'win32') {
+    return path.join(
+      process.env.APPDATA || path.join(home, 'AppData', 'Roaming'),
+      'zaowu',
+      'config.yml'
+    );
+  }
+  return path.join(home, '.config', 'zaowu', 'config.yml');
+};
+
+export const loadGlobalConfig = async (): Promise<ZaoWuConfig | null> => {
+  const globalPath = getGlobalConfigPath();
+  if (await isReadableFile(globalPath)) {
+    try {
+      const content = await readFile(globalPath, 'utf8');
+      return parseConfig(content, globalPath);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+};
+
+export const mergeConfigs = (global: ZaoWuConfig, project: ZaoWuConfig): ZaoWuConfig => {
+  return {
+    version: project.version,
+    project: {
+      name: project.project.name || global.project.name,
+    },
+    ai: {
+      provider: project.ai.provider !== null ? project.ai.provider : global.ai.provider,
+    },
+    defaults: {
+      output: project.defaults.output || global.defaults.output,
+    },
+    paths: {
+      workspace: project.paths.workspace || global.paths.workspace,
+      cache: project.paths.cache || global.paths.cache,
+    },
+  };
+};
+
+export const modifyYamlContent = (
+  content: string,
+  key: ConfigKey,
+  value: string | null
+): string => {
+  const lines = content.split(/\r?\n/);
+  const parts = key.split('.');
+
+  if (parts.length === 1) {
+    const searchKey = parts[0];
+    const index = lines.findIndex((l) => new RegExp(`^${searchKey}:\\s*`).test(l.trim()));
+    const formattedValue = value === null ? 'null' : value;
+    if (index !== -1) {
+      lines[index] = `${searchKey}: ${formattedValue}`;
+      return lines.join('\n');
+    }
+  } else if (parts.length === 2) {
+    const section = parts[0];
+    const subKey = parts[1];
+
+    let inSection = false;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const trimmed = line.trim();
+      const indent = line.length - line.trimStart().length;
+
+      if (indent === 0 && trimmed.startsWith(`${section}:`)) {
+        inSection = true;
+        continue;
+      }
+
+      if (inSection && indent === 0 && trimmed && !trimmed.startsWith('#')) {
+        break;
+      }
+
+      if (inSection && indent > 0 && trimmed.startsWith(`${subKey}:`)) {
+        const formattedValue = value === null ? 'null' : value;
+        const leadingIndent = ' '.repeat(indent);
+        lines[i] = `${leadingIndent}${subKey}: ${formattedValue}`;
+        return lines.join('\n');
+      }
+    }
+  }
+
+  return '';
+};
+
 export const findConfigFile = async (
   options: FindConfigFileOptions = {}
 ): Promise<string | null> => {
@@ -219,122 +324,6 @@ export const loadConfig = async (filePath: string): Promise<LoadedConfig> => {
   };
 };
 
-const parseScalar = (value: string): unknown => {
-  const trimmed = value.trim();
-
-  if (trimmed === 'null' || trimmed === '~') return null;
-  if (trimmed === 'true') return true;
-  if (trimmed === 'false') return false;
-
-  // Simple number support (int/float)
-  if (/^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(trimmed)) {
-    const num = Number(trimmed);
-    if (Number.isFinite(num)) return num;
-  }
-
-  // Quoted string
-  if (
-    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
-    (trimmed.startsWith("'") && trimmed.endsWith("'"))
-  ) {
-    let inner = trimmed.slice(1, -1);
-    // Very basic unescape for the common cases we care about
-    if (trimmed.startsWith('"')) {
-      inner = inner.replace(/\\"/g, '"').replace(/\\\\/g, '\\');
-    } else {
-      inner = inner.replace(/''/g, "'");
-    }
-    return inner;
-  }
-
-  return trimmed;
-};
-
-/**
- * A deliberately simple YAML parser for ZaoWu config files.
- *
- * We intentionally do **not** pull in a full YAML library in the foundation
- * phase (see AGENTS.md "small dependencies").
- *
- * Supported subset (what the examples + schemas actually use):
- * - Top-level keys
- * - One level of 2-space indented sections (project:, ai:, defaults:, paths:)
- * - Scalars: string, number, boolean, null
- * - Double and single quoted strings (basic escapes)
- * - Comments starting with # (outside quotes)
- * - BOM is stripped by the caller
- *
- * Anything more complex (lists at top level, deep nesting, anchors, tags,
- * flow style, multi-line scalars, etc.) will produce a clear
- * CONFIG_PARSE_FAILED with actionable advice.
- *
- * If you need richer config in the future, the recommended path is to
- * introduce a small, well-maintained YAML parser (with justification)
- * and update this function + all docs/tests.
- */
-const parseSimpleYaml = (content: string): Record<string, unknown> => {
-  const result: Record<string, unknown> = {};
-  let currentSection: Record<string, unknown> | null = null;
-  let lineNumber = 0;
-
-  for (const rawLine of content.split(/\r?\n/)) {
-    lineNumber += 1;
-
-    // Remove trailing comments, but only if they are not inside simple quotes
-    // (good enough for our supported subset).
-    let line = rawLine;
-    const commentIdx = line.indexOf('#');
-    if (commentIdx !== -1) {
-      const before = line.slice(0, commentIdx);
-      if (!before.includes('"') && !before.includes("'")) {
-        line = before;
-      }
-    }
-
-    if (!line.trim()) continue;
-
-    const match = /^(\s*)([A-Za-z0-9_-]+):(?:\s*(.*))?$/.exec(line);
-
-    if (!match) {
-      throw new ZaoWuError({
-        code: 'CONFIG_PARSE_FAILED',
-        message: 'Could not parse ZaoWu config.',
-        why: `Unsupported or malformed line ${lineNumber}: ${rawLine.trim()}`,
-        fix: 'Use the supported simple subset (top-level keys + one level of 2-space indented sections) or switch to JSON (zaowu.config.json).',
-      });
-    }
-
-    const indent = match[1].length;
-    const key = match[2];
-    const value = match[3] ?? '';
-
-    if (indent === 0) {
-      if (value.trim()) {
-        result[key] = parseScalar(value);
-        currentSection = null;
-      } else {
-        currentSection = {};
-        result[key] = currentSection;
-      }
-      continue;
-    }
-
-    // Be a bit more tolerant than the original strict "must be exactly 2"
-    if (indent < 2 || !currentSection) {
-      throw new ZaoWuError({
-        code: 'CONFIG_PARSE_FAILED',
-        message: 'Could not parse ZaoWu config.',
-        why: `Unsupported indentation on line ${lineNumber}: ${rawLine.trim()}`,
-        fix: 'Use 2-space indentation for sections (project:, ai:, etc.).',
-      });
-    }
-
-    currentSection[key] = parseScalar(value);
-  }
-
-  return result;
-};
-
 const parseConfigObject = (content: string, filePath: string): Record<string, unknown> => {
   const normalizedContent = stripUtf8Bom(content);
   const extension = path.extname(filePath).toLowerCase();
@@ -353,7 +342,23 @@ const parseConfigObject = (content: string, filePath: string): Record<string, un
   }
 
   if (['.yml', '.yaml', ''].includes(extension)) {
-    return parseSimpleYaml(normalizedContent);
+    try {
+      const parsed = YAML.parse(normalizedContent);
+      if (parsed === null || parsed === undefined) {
+        return {};
+      }
+      if (typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error('Config must be a YAML object.');
+      }
+      return parsed as Record<string, unknown>;
+    } catch (error) {
+      throw new ZaoWuError({
+        code: 'CONFIG_PARSE_FAILED',
+        message: 'Could not parse ZaoWu config.',
+        why: error instanceof Error ? error.message : 'The YAML parser rejected the file.',
+        fix: 'Use the supported simple subset (top-level keys + one level of 2-space indented sections) or switch to JSON (zaowu.config.json).',
+      });
+    }
   }
 
   throw new ZaoWuError({
@@ -460,6 +465,10 @@ const normalizeConfigValue = (key: ConfigKey, value: string): string | null => {
       why: `\`${key}\` cannot be empty.`,
       fix: 'Provide a non-empty value.',
     });
+  }
+
+  if (['paths.workspace', 'paths.cache'].includes(key)) {
+    return trimmed.replace(/\\/g, '/');
   }
 
   return trimmed;
@@ -612,11 +621,15 @@ export const findConfigPathOrThrow = async (cwd?: string): Promise<string> => {
 export const loadResolvedConfig = async (cwd?: string): Promise<ResolvedConfig> => {
   const filePath = await findConfigPathOrThrow(cwd);
   const loaded = await loadConfig(filePath);
+  const projectConfig = parseConfig(loaded.content, loaded.filePath);
+
+  const globalConfig = await loadGlobalConfig();
+  const mergedConfig = globalConfig ? mergeConfigs(globalConfig, projectConfig) : projectConfig;
 
   return {
     schemaVersion: 1,
     filePath,
-    config: parseConfig(loaded.content, loaded.filePath),
+    config: mergedConfig,
   };
 };
 
@@ -672,17 +685,43 @@ export const getResolvedConfigValue = async (
 export const setResolvedConfigValue = async (
   key: string,
   value: string,
-  options: { cwd?: string; yes?: boolean } = {}
+  options: { cwd?: string; yes?: boolean; global?: boolean } = {}
 ): Promise<ConfigSetResult> => {
   const configKey = assertConfigKey(key);
   const normalizedValue = normalizeConfigValue(configKey, value);
-  const filePath = await findConfigPathOrThrow(options.cwd);
-  const loaded = await loadConfig(filePath);
-  const currentConfig = parseConfig(loaded.content, loaded.filePath);
+  assertNoSecretValues(normalizedValue ?? '');
+
+  const filePath = options.global
+    ? getGlobalConfigPath()
+    : await findConfigPathOrThrow(options.cwd);
+
+  let loadedContent = '';
+  let currentConfig = createDefaultConfig();
+
+  if (await isReadableFile(filePath)) {
+    const loaded = await loadConfig(filePath);
+    loadedContent = loaded.content;
+    currentConfig = parseConfig(loadedContent, filePath);
+  }
+
   const nextConfig = withConfigValue(currentConfig, configKey, normalizedValue);
-  const content = serializeConfig(nextConfig, filePath);
+
+  let content = '';
+  const extension = path.extname(filePath).toLowerCase();
+
+  if (loadedContent && ['.yml', '.yaml', ''].includes(extension)) {
+    const modified = modifyYamlContent(loadedContent, configKey, normalizedValue);
+    if (modified) {
+      content = modified;
+    }
+  }
+
+  if (!content) {
+    content = serializeConfig(nextConfig, filePath);
+  }
 
   if (options.yes) {
+    await mkdir(path.dirname(filePath), { recursive: true });
     await writeFile(filePath, content, 'utf8');
   }
 

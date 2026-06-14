@@ -1,7 +1,11 @@
 import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { createCapabilityLedger, stripUtf8Bom, type DomainDefinition } from '@zaowu/core';
-import { ZaoWuError } from '@zaowu/core';
+import {
+  createCapabilityLedger,
+  stripUtf8Bom,
+  ZaoWuError,
+  type DomainDefinition,
+} from '@zaowu/core';
 
 export interface PluginManifest {
   id: string;
@@ -344,6 +348,15 @@ export const installPlugin = async (
     } catch (error) {
       if (error instanceof ZaoWuError) {
         throw error;
+      }
+
+      if ((error as { code?: string }).code === 'EEXIST') {
+        throw new ZaoWuError({
+          code: 'PLUGIN_ALREADY_INSTALLED',
+          message: 'Plugin is already installed.',
+          why: `ZaoWu will not silently overwrite \`${pluginPath}\`.`,
+          fix: 'Remove the plugin first with `zw plugin remove <id> --yes`, then install it again.',
+        });
       }
 
       throw new ZaoWuError({

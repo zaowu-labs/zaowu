@@ -1,12 +1,16 @@
 import { constants } from 'node:fs';
 import { access, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { createCapabilityLedger, stripUtf8Bom, type DomainDefinition } from '@zaowu/core';
-import { ZaoWuError } from '@zaowu/core';
+import {
+  createCapabilityLedger,
+  stripUtf8Bom,
+  ZaoWuError,
+  type DomainDefinition,
+} from '@zaowu/core';
 
 export interface DataTable {
   filePath: string;
-  format: 'csv' | 'tsv' | 'xlsx';
+  format: 'csv' | 'tsv' | 'xlsx' | 'json';
   sheetName?: string;
   delimiter: ',' | '\t';
   headers: string[];
@@ -152,11 +156,18 @@ const assertSupportedDataFile = (
     };
   }
 
+  if (extension === '.json') {
+    return {
+      format: 'json',
+      delimiter: ',',
+    };
+  }
+
   throw new ZaoWuError({
     code: 'DATA_FORMAT_UNSUPPORTED',
     message: 'Data format is not supported yet.',
-    why: `ZaoWu can read CSV, TSV, and XLSX files. It cannot parse \`${extension || 'unknown'}\` files yet.`,
-    fix: 'Export the data as `.csv`, `.tsv`, or `.xlsx`, or add a parser inside `packages/data` before using this format.',
+    why: `ZaoWu can read CSV, TSV, XLSX, and JSON files. It cannot parse \`${extension || 'unknown'}\` files yet.`,
+    fix: 'Export the data as `.csv`, `.tsv`, `.xlsx`, or `.json`, or add a parser inside `packages/data` before using this format.',
   });
 };
 
@@ -263,6 +274,72 @@ export const loadDataTable = async (
   const source = assertSupportedDataFile(filePath);
   let content: string;
 
+  if (source.format === 'json') {
+    try {
+      const jsonContent = await readFile(filePath, 'utf8');
+      const parsed = JSON.parse(stripUtf8Bom(jsonContent));
+      let rows: string[][] = [];
+      let headers: string[] = [];
+
+      if (Array.isArray(parsed)) {
+        const uniqueKeys = new Set<string>();
+        for (const item of parsed) {
+          if (item && typeof item === 'object') {
+            for (const key of Object.keys(item)) {
+              uniqueKeys.add(key);
+            }
+          }
+        }
+        headers = normalizeHeaders(Array.from(uniqueKeys));
+
+        for (const item of parsed) {
+          const row: string[] = [];
+          if (item && typeof item === 'object') {
+            const obj = item as Record<string, unknown>;
+            for (const header of headers) {
+              const val = obj[header];
+              row.push(val === undefined || val === null ? '' : String(val).trim());
+            }
+          } else {
+            for (let i = 0; i < headers.length; i++) {
+              row.push(item === undefined || item === null ? '' : String(item).trim());
+            }
+          }
+          rows.push(row);
+        }
+      } else if (parsed && typeof parsed === 'object') {
+        headers = normalizeHeaders(Object.keys(parsed));
+        const row: string[] = [];
+        const obj = parsed as Record<string, unknown>;
+        for (const header of headers) {
+          const val = obj[header];
+          row.push(val === undefined || val === null ? '' : String(val).trim());
+        }
+        rows.push(row);
+      }
+
+      return {
+        filePath,
+        format: 'json',
+        delimiter: ',',
+        headers,
+        rows,
+        emptyLineCount: 0,
+        trimmedCellCount: 0,
+      };
+    } catch (error) {
+      if (error instanceof ZaoWuError) {
+        throw error;
+      }
+      throw new ZaoWuError({
+        code: 'DATA_READ_FAILED',
+        message: 'Could not read data file.',
+        why: `ZaoWu tried to read \`${filePath}\` as JSON, but the file is not valid JSON.`,
+        fix: 'Check the path, file permissions, and JSON structure, then try again.',
+      });
+    }
+  }
+
   if (source.format === 'xlsx') {
     try {
       const workbookBuffer = await readFile(filePath);
@@ -280,6 +357,16 @@ export const loadDataTable = async (
       const workbook = XLSX.read(workbookBuffer, {
         type: 'buffer',
       });
+
+      if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+        throw new ZaoWuError({
+          code: 'DATA_SHEET_NOT_FOUND',
+          message: 'XLSX sheet was not found.',
+          why: `The workbook \`${filePath}\` contains no sheets.`,
+          fix: 'Ensure the spreadsheet has at least one visible worksheet.',
+        });
+      }
+
       const firstSheetName = workbook.SheetNames[0];
       const sheetName = options.sheet?.trim() || firstSheetName;
 
@@ -318,10 +405,11 @@ export const loadDataTable = async (
         throw error;
       }
 
+      const errorMsg = error instanceof Error ? error.message : String(error);
       throw new ZaoWuError({
         code: 'DATA_READ_FAILED',
         message: 'Could not read data file.',
-        why: `ZaoWu tried to read \`${filePath}\` as an XLSX file, but the file was not readable.`,
+        why: `ZaoWu tried to read \`${filePath}\` as an XLSX file, but the file was not readable. Details: ${errorMsg}`,
         fix: 'Check the path, file permissions, and workbook format, then run the command again.',
       });
     }
@@ -477,6 +565,15 @@ export const cleanData = async (
         throw error;
       }
 
+      if ((error as { code?: string }).code === 'EEXIST') {
+        throw new ZaoWuError({
+          code: 'DATA_OUTPUT_CONFLICT',
+          message: 'Data output file already exists.',
+          why: `ZaoWu will not silently overwrite \`${options.outputPath}\`.`,
+          fix: 'Choose a new `--output` path, or remove the existing file yourself first.',
+        });
+      }
+
       throw new ZaoWuError({
         code: 'DATA_WRITE_FAILED',
         message: 'Could not write cleaned data.',
@@ -614,10 +711,11 @@ export const listSheets = async (filePath: string): Promise<DataSheetsResult> =>
         throw error;
       }
 
+      const errorMsg = error instanceof Error ? error.message : String(error);
       throw new ZaoWuError({
         code: 'DATA_READ_FAILED',
         message: 'Could not read data file.',
-        why: `ZaoWu tried to read \`${filePath}\` as an XLSX file, but the file was not readable.`,
+        why: `ZaoWu tried to read \`${filePath}\` as an XLSX file, but the file was not readable. Details: ${errorMsg}`,
         fix: 'Check the path, file permissions, and workbook format, then run the command again.',
       });
     }

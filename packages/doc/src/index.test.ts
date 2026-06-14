@@ -375,4 +375,24 @@ describe('doc domain', () => {
       'Document format is not supported yet.'
     );
   });
+
+  it('converts an HTML document to clean text', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-doc-'));
+    const filePath = path.join(root, 'test.html');
+
+    await writeFile(
+      filePath,
+      '<html><head><title>Test</title><style>body { color: red; }</style></head><body><h1>Hello</h1><p>World &amp; code</p></body></html>',
+      'utf8'
+    );
+
+    try {
+      await expect(convertDocument(filePath)).resolves.toMatchObject({
+        status: 'ok',
+        content: 'Hello\nWorld & code',
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });

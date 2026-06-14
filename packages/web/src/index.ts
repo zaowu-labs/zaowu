@@ -1,5 +1,4 @@
-import { createCapabilityLedger, type DomainDefinition } from '@zaowu/core';
-import { ZaoWuError } from '@zaowu/core';
+import { createCapabilityLedger, ZaoWuError, type DomainDefinition } from '@zaowu/core';
 
 export interface WebResponseLike {
   status: number;
@@ -103,14 +102,17 @@ const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T
 };
 
 const assertWebUrl = (url: string): string => {
-  try {
-    const parsed = new URL(url);
+  let targetUrl = url.trim();
 
-    if (!['http:', 'https:'].includes(parsed.protocol)) {
-      throw new Error('unsupported protocol');
+  if (!/^[a-z0-9+.-]+:\/\//i.test(targetUrl)) {
+    if (targetUrl.includes('.') || targetUrl.includes(':')) {
+      targetUrl = `https://${targetUrl}`;
     }
+  }
 
-    return parsed.toString();
+  let parsed: URL;
+  try {
+    parsed = new URL(targetUrl);
   } catch {
     throw new ZaoWuError({
       code: 'WEB_URL_INVALID',
@@ -119,6 +121,17 @@ const assertWebUrl = (url: string): string => {
       fix: 'Run a command like `zw web inspect https://example.com --yes`.',
     });
   }
+
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    throw new ZaoWuError({
+      code: 'WEB_URL_INVALID',
+      message: 'Web URL is invalid.',
+      why: '`zw web` only accepts explicit http or https URLs.',
+      fix: 'Run a command like `zw web inspect https://example.com --yes`.',
+    });
+  }
+
+  return parsed.toString();
 };
 
 const getFetcher = (fetcher?: WebFetcher): WebFetcher => {

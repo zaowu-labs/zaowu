@@ -1,6 +1,7 @@
 import { execSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import YAML from 'yaml';
 import {
   createCapabilityLedger,
   createOperationPlan,
@@ -302,96 +303,66 @@ const parseWorkflowJson = (content: string): ParsedAutomationWorkflow => {
  * recommended path is a small real YAML parser + schema-driven validation.
  */
 const parseWorkflowYaml = (content: string): ParsedAutomationWorkflow => {
-  const lines = content.split(/\r?\n/);
-  let parsedVersion = parseWorkflowVersion(undefined);
-  let name = 'workflow';
-  let section: 'permissions' | 'vars' | 'steps' | null = null;
-  const permissions: Partial<Record<AutomationPermissionName, string>> = {};
+  let parsedRaw: unknown;
+  try {
+    parsedRaw = YAML.parse(content);
+  } catch (error) {
+    throw new ZaoWuError({
+      code: 'WORKFLOW_PARSE_FAILED',
+      message: 'Could not parse workflow.',
+      why: error instanceof Error ? error.message : 'The YAML parser rejected the file.',
+      fix: 'Fix the YAML syntax and run `zw auto validate` again.',
+    });
+  }
+
+  if (parsedRaw === null || parsedRaw === undefined) {
+    parsedRaw = {};
+  } else if (typeof parsedRaw !== 'object' || Array.isArray(parsedRaw)) {
+    throw new ZaoWuError({
+      code: 'WORKFLOW_PARSE_FAILED',
+      message: 'Could not parse workflow.',
+      why: 'Workflow content is not a YAML object.',
+      fix: 'Verify the workflow format and run `zw auto validate` again.',
+    });
+  }
+
+  const parsed = parsedRaw as Record<string, unknown>;
+
+  const version = parseWorkflowVersion(parsed.version);
+  const name = typeof parsed.name === 'string' && parsed.name ? parsed.name.trim() : 'workflow';
+
   const variables: Record<string, string> = {};
-  const steps: AutomationStep[] = [];
-  let currentStep: AutomationStep | null = null;
-
-  for (const rawLine of lines) {
-    const line = rawLine.trimEnd();
-
-    if (!line.trim() || line.trim().startsWith('#')) {
-      continue;
-    }
-
-    const versionMatch = /^version:\s*(.+)$/.exec(line);
-
-    if (versionMatch && !rawLine.startsWith(' ')) {
-      parsedVersion = parseWorkflowVersion(versionMatch[1]);
-      section = null;
-      continue;
-    }
-
-    const nameMatch = /^name:\s*(.+)$/.exec(line);
-
-    if (nameMatch && !rawLine.startsWith(' ')) {
-      name = nameMatch[1].trim();
-      section = null;
-      continue;
-    }
-
-    if (/^vars:\s*$/.test(line) && !rawLine.startsWith(' ')) {
-      section = 'vars';
-      currentStep = null;
-      continue;
-    }
-
-    if (/^permissions:\s*$/.test(line) && !rawLine.startsWith(' ')) {
-      section = 'permissions';
-      currentStep = null;
-      continue;
-    }
-
-    if (/^steps:\s*$/.test(line) && !rawLine.startsWith(' ')) {
-      section = 'steps';
-      currentStep = null;
-      continue;
-    }
-
-    const variableMatch = /^\s{2}([A-Za-z0-9_-]+):\s*(.+)$/.exec(line);
-
-    if (section === 'vars' && variableMatch) {
-      variables[variableMatch[1]] = variableMatch[2].trim();
-      continue;
-    }
-
-    if (section === 'permissions' && variableMatch) {
-      permissions[variableMatch[1] as AutomationPermissionName] = variableMatch[2].trim();
-      continue;
-    }
-
-    const stepMatch = /^\s*-\s+name:\s*(.+)$/.exec(line);
-
-    if (stepMatch) {
-      currentStep = {
-        name: stepMatch[1].trim(),
-      };
-      steps.push(currentStep);
-      continue;
-    }
-
-    const messageMatch = /^\s+message:\s*(.+)$/.exec(line);
-
-    if (messageMatch && currentStep) {
-      currentStep.message = messageMatch[1].trim();
-      continue;
-    }
-
-    const runMatch = /^\s+run:\s*(.+)$/.exec(line);
-
-    if (runMatch && currentStep) {
-      currentStep.run = runMatch[1].trim();
+  const rawVars = parsed.vars ?? parsed.variables;
+  if (rawVars && typeof rawVars === 'object' && !Array.isArray(rawVars)) {
+    for (const [k, v] of Object.entries(rawVars)) {
+      variables[k] = v === null || v === undefined ? '' : String(v).trim();
     }
   }
 
-  const { policy, permissionWarnings } = parseExecutionPolicy(permissions);
+  const { policy, permissionWarnings } = parseExecutionPolicy(parsed.permissions);
+
+  const steps: AutomationStep[] = [];
+  if (Array.isArray(parsed.steps)) {
+    for (const step of parsed.steps) {
+      if (step && typeof step === 'object') {
+        const stepObj = step as Record<string, unknown>;
+        const stepName =
+          typeof stepObj.name === 'string' && stepObj.name ? stepObj.name.trim() : '';
+        const stepMessage =
+          typeof stepObj.message === 'string' ? stepObj.message.trim() : undefined;
+        const stepRun = typeof stepObj.run === 'string' ? stepObj.run.trim() : undefined;
+
+        steps.push({
+          name: stepName,
+          ...(stepMessage !== undefined ? { message: stepMessage } : {}),
+          ...(stepRun !== undefined ? { run: stepRun } : {}),
+        });
+      }
+    }
+  }
 
   return {
-    ...parsedVersion,
+    ...version,
     name,
     variables,
     permissions: policy,
@@ -481,17 +452,34 @@ const createStepOperationPlan = (step: {
 export function checkShellSafety(command: string): string | undefined {
   const normalized = command.toLowerCase().trim();
 
-  // 1. rm -rf, rm -r, rm -f, rm --recursive
-  if (/\brm\s+-[a-z]*[rf]/i.test(normalized) || /\brm\s+--recursive/i.test(normalized)) {
+  // 1. rm -rf, rm -r, rm -f, rm --recursive, rm --force
+  if (
+    /\brm\s+-[a-z]*[rf]/i.test(normalized) ||
+    /\brm\s+--recursive/i.test(normalized) ||
+    /\brm\s+--force/i.test(normalized)
+  ) {
     return 'Dangerous command pattern found: `rm` with recursive/force flags.';
   }
 
-  // 2. sudo
+  // 2. Windows recursive deletions: del /s, erase /s, rd /s, rmdir /s
+  if (
+    /\b(del|erase|rd|rmdir)\b/i.test(normalized) &&
+    (/\/[a-z]*s/i.test(normalized) || /\b-(recurse|s)\b/i.test(normalized))
+  ) {
+    return 'Dangerous command pattern found: recursive deletion (`del`, `rd`, or `rmdir` with `/s` or `-recurse`).';
+  }
+
+  // 3. Windows format drive: format c: etc.
+  if (/\bformat\s+[a-z]:/i.test(normalized)) {
+    return 'Dangerous command pattern found: disk formatting (`format`).';
+  }
+
+  // 4. sudo
   if (/\bsudo\b/i.test(normalized)) {
     return 'Dangerous command pattern found: execution with administrative privileges (`sudo`).';
   }
 
-  // 3. chmod or chown
+  // 5. chmod or chown
   if (/\bchmod\b/i.test(normalized)) {
     return 'Dangerous command pattern found: modifying file permissions (`chmod`).';
   }
@@ -499,13 +487,60 @@ export function checkShellSafety(command: string): string | undefined {
     return 'Dangerous command pattern found: changing file ownership (`chown`).';
   }
 
-  // 4. piped shell execution like curl | sh, wget | bash, or iex/invoke-expression
+  // 6. piped shell execution like curl | sh, wget | bash, or iex/invoke-expression
   if (
     /\|\s*(sh|bash|zsh|fish|cmd|powershell|pwsh|iex)\b/i.test(normalized) ||
     /\biex\b/i.test(normalized) ||
     /\binvoke-expression\b/i.test(normalized)
   ) {
     return 'Dangerous command pattern found: piped shell execution or dynamic command evaluation.';
+  }
+
+  // 7. Base64 obfuscation decoding into shell execution
+  if (
+    /\bbase64\b/i.test(normalized) &&
+    (/\|\s*(sh|bash|zsh|fish|cmd|powershell|pwsh|iex)\b/i.test(normalized) ||
+      /\b--decode\b/i.test(normalized) ||
+      /\b-d\b/i.test(normalized))
+  ) {
+    return 'Dangerous command pattern found: decoding base64 payload into shell execution.';
+  }
+
+  // 8. Reverse shell or TCP/UDP redirection pattern (e.g., /dev/tcp/ or /dev/udp/)
+  if (/\/dev\/(tcp|udp)\//i.test(normalized)) {
+    return 'Dangerous command pattern found: network redirect / reverse shell redirection (`/dev/tcp` or `/dev/udp`).';
+  }
+
+  // 9. Netcat backdoor execution (e.g., nc -e or netcat -e)
+  if (/\b(nc|netcat|ncat)\b/i.test(normalized) && /\s+-e\b/i.test(normalized)) {
+    return 'Dangerous command pattern found: netcat executable execution flag (`-e` redirection).';
+  }
+
+  // 10. Interactive shell spawn commands (e.g. bash -i, sh -i)
+  if (/\b(bash|sh|zsh|dash|ksh)\s+-i\b/i.test(normalized)) {
+    return 'Dangerous command pattern found: interactive shell spawn (`-i` flag).';
+  }
+
+  // 11. Download and execute scripts sequentially (e.g. curl ... -o x && sh x, wget ... && bash x)
+  if (
+    /\b(curl|wget)\b/i.test(normalized) &&
+    /\b(sh|bash|zsh|cmd|powershell|pwsh)\b/i.test(normalized) &&
+    (/\.sh\b/i.test(normalized) || /\.ps1\b/i.test(normalized) || /\.bat\b/i.test(normalized))
+  ) {
+    return 'Dangerous command pattern found: download and sequential script execution.';
+  }
+
+  // 12. Write redirection to sensitive system paths (e.g. > /etc/ or > c:\windows)
+  if (
+    />>\s*([/\\]etc[/\\]|c:[/\\]windows[/\\])/i.test(normalized) ||
+    />\s*([/\\]etc[/\\]|c:[/\\]windows[/\\])/i.test(normalized)
+  ) {
+    return 'Dangerous command pattern found: write redirection to sensitive system directory.';
+  }
+
+  // 13. Writing to sensitive files using tee (e.g. tee /etc/passwd)
+  if (/\btee\b.*([/\\]etc[/\\]|c:[/\\]windows[/\\])/i.test(normalized)) {
+    return 'Dangerous command pattern found: writing to sensitive system path using tee.';
   }
 
   return undefined;
@@ -756,10 +791,15 @@ export const runWorkflowFile = async (
         });
         executed.push(`${step.name}: ${output.trim()}`);
       } catch (error) {
+        let whyMessage = 'Unknown shell execution error.';
+        if (error instanceof Error) {
+          const stderrStr = (error as { stderr?: Buffer }).stderr?.toString().trim();
+          whyMessage = stderrStr ? `Command stderr:\n${stderrStr}` : error.message;
+        }
         throw new ZaoWuError({
           code: 'WORKFLOW_STEP_FAILED',
           message: `Workflow step \`${step.name}\` failed.`,
-          why: error instanceof Error ? error.message : 'Unknown shell execution error.',
+          why: whyMessage,
           fix: 'Check the shell command syntax and environment, then try again.',
         });
       }

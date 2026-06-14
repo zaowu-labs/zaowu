@@ -40,5 +40,12 @@
     "zaowu",
     "cli",
     "zw"
-  ]
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zaowu-labs/zaowu.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://github.com/zaowu-labs/zaowu",
+  "bugs": "https://github.com/zaowu-labs/zaowu/issues"
 }

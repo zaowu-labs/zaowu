@@ -487,7 +487,7 @@ describe('dev domain', () => {
   it('parses Git status output', () => {
     const runner: DevCommandRunner = (_command, args) => {
       if (args.join(' ') === 'status --short --branch') {
-        return '## codex/work...origin/codex/work [ahead 1]\nM  packages/dev/src/index.ts\n M README.md\n?? scratch.md';
+        return '## codex/work...origin/codex/work [ahead 1]\nM  packages/dev/src/index.ts\n M README.md\n?? scratch.md\nR  old.txt -> new.txt\nA  "quoted file.txt"';
       }
 
       throw new Error('unexpected git command');
@@ -498,7 +498,7 @@ describe('dev domain', () => {
       status: 'ok',
       branch: 'codex/work',
       clean: false,
-      staged: ['packages/dev/src/index.ts'],
+      staged: ['packages/dev/src/index.ts', 'new.txt', 'quoted file.txt'],
       unstaged: ['README.md'],
       untracked: ['scratch.md'],
     });
@@ -543,6 +543,37 @@ describe('dev domain', () => {
       previousCommit: 'commit_hash_123',
       currentCommit: 'commit_hash_123',
       output: 'Successfully synchronized branch `main` to `origin/main`.',
+    });
+  });
+
+  it('parses quoted file paths with spaces correctly', () => {
+    const runner: DevCommandRunner = (_command, args) => {
+      if (args.join(' ') === 'diff --cached --name-only') {
+        return '"some folder/file with spaces.ts"';
+      }
+      if (args.join(' ') === 'diff --cached --numstat') {
+        return '2\t1\t"some folder/file with spaces.ts"';
+      }
+      if (args.join(' ') === 'diff --cached --unified=0') {
+        return [
+          'diff --git a/"some folder/file with spaces.ts" b/"some folder/file with spaces.ts"',
+          '@@ -1 +1,2 @@',
+          '-old',
+          '+new',
+        ].join('\n');
+      }
+      throw new Error('unexpected git command: ' + args.join(' '));
+    };
+
+    expect(reviewDevChanges(runner, { mode: 'staged' })).toMatchObject({
+      diffHunks: [
+        {
+          filePath: 'some folder/file with spaces.ts',
+          header: '@@ -1 +1,2 @@',
+          addedLines: 1,
+          removedLines: 1,
+        },
+      ],
     });
   });
 });

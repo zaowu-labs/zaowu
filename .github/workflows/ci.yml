@@ -21,7 +21,7 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          - windows-2025-vs2026
+          - windows-latest
         node-version:
           - 20.19.0
           - 24.x
@@ -58,6 +58,9 @@ jobs:
 
       - name: Smoke test packed CLI install
         run: corepack pnpm verify:pack-install
+
+      - name: Check command capability matrix
+        run: corepack pnpm verify:capabilities
 
       - name: Smoke test CLI
         run: corepack pnpm verify:smoke

@@ -22,10 +22,18 @@
     "dev": "tsc -b --watch"
   },
   "dependencies": {
-    "@zaowu/core": "workspace:*"
+    "@zaowu/core": "workspace:*",
+    "yaml": "^2.9.0"
   },
   "keywords": [
     "zaowu",
     "automation"
-  ]
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zaowu-labs/zaowu.git",
+    "directory": "packages/auto"
+  },
+  "homepage": "https://github.com/zaowu-labs/zaowu",
+  "bugs": "https://github.com/zaowu-labs/zaowu/issues"
 }

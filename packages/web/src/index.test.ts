@@ -16,6 +16,15 @@ describe('web domain', () => {
     });
   });
 
+  it('prefixes URLs lacking a scheme with https by default', async () => {
+    await expect(inspectWebTarget('example.com')).resolves.toEqual({
+      schemaVersion: 1,
+      status: 'preview',
+      url: 'https://example.com/',
+      headers: {},
+    });
+  });
+
   it('rejects invalid or unsupported URLs before network access', async () => {
     await expect(inspectWebTarget('file:///tmp/report.html', { yes: true })).rejects.toThrow(
       'Web URL is invalid.'

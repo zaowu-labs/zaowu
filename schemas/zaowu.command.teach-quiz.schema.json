@@ -20,6 +20,12 @@
       "items": {
         "type": "string"
       }
+    },
+    "format": {
+      "type": "string"
+    },
+    "content": {
+      "type": "string"
     }
   }
 }

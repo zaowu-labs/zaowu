@@ -1,8 +1,12 @@
 import { constants } from 'node:fs';
 import { access, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { createCapabilityLedger, stripUtf8Bom, type DomainDefinition } from '@zaowu/core';
-import { ZaoWuError } from '@zaowu/core';
+import {
+  createCapabilityLedger,
+  stripUtf8Bom,
+  ZaoWuError,
+  type DomainDefinition,
+} from '@zaowu/core';
 
 export interface DocumentSummary {
   schemaVersion: 1;
@@ -107,6 +111,8 @@ const SUPPORTED_TEXT_EXTENSIONS = new Set([
   '.yaml',
   '.pdf',
   '.docx',
+  '.html',
+  '.htm',
 ]);
 
 /**
@@ -253,10 +259,38 @@ const assertSupportedDocument = (filePath: string): void => {
     throw new ZaoWuError({
       code: 'DOCUMENT_FORMAT_UNSUPPORTED',
       message: 'Document format is not supported yet.',
-      why: `ZaoWu can read text, Markdown-like, PDF, and DOCX files. It cannot parse \`${extension || 'unknown'}\` files yet.`,
-      fix: 'Use `.txt`, `.md`, `.pdf`, or `.docx`, or add a parser inside `packages/doc` before using this format.',
+      why: `ZaoWu can read text, Markdown-like, PDF, DOCX, and HTML files. It cannot parse \`${extension || 'unknown'}\` files yet.`,
+      fix: 'Use `.txt`, `.md`, `.pdf`, `.docx`, `.html`, or `.htm`, or add a parser inside `packages/doc` before using this format.',
     });
   }
+};
+
+const stripHtmlTags = (html: string): string => {
+  let clean = html.replace(/<!--[\s\S]*?-->/g, '');
+  clean = clean.replace(/<(head|script|style)\b[^>]*>([\s\S]*?)<\/\1>/gi, '');
+  clean = clean.replace(/<\/(p|div|h1|h2|h3|h4|h5|h6|li|tr)>\s*/gi, '\n');
+  clean = clean.replace(/<br\s*\/?>\s*/gi, '\n');
+  clean = clean.replace(/<[^>]+>/g, ' ');
+  clean = clean
+    .replaceAll('&nbsp;', ' ')
+    .replaceAll('&amp;', '&')
+    .replaceAll('&lt;', '<')
+    .replaceAll('&gt;', '>')
+    .replaceAll('&quot;', '"')
+    .replaceAll('&apos;', "'")
+    .replaceAll('&#39;', "'")
+    .replaceAll('&#x27;', "'")
+    .replaceAll('&#x22;', '"')
+    .replaceAll('&#34;', '"')
+    .replaceAll('&#38;', '&')
+    .replaceAll('&#60;', '<')
+    .replaceAll('&#62;', '>');
+  return clean
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line, idx, arr) => line || (idx > 0 && arr[idx - 1]))
+    .join('\n')
+    .trim();
 };
 
 const readTextDocument = async (
@@ -268,17 +302,43 @@ const readTextDocument = async (
 
   try {
     if (extension === '.pdf') {
-      const { PDFParse } = await importPdfParse();
-      const parser = new PDFParse({
-        data: new Uint8Array(await readFile(filePath)),
-      });
+      const runtime = globalThis as PdfRuntimeGlobal;
+      const hadDOMMatrix = 'DOMMatrix' in runtime;
+      const hadImageData = 'ImageData' in runtime;
+      const hadPath2D = 'Path2D' in runtime;
+      const oldDOMMatrix = runtime.DOMMatrix;
+      const oldImageData = runtime.ImageData;
+      const oldPath2D = runtime.Path2D;
 
       try {
-        const parsed = await parser.getText();
+        const { PDFParse } = await importPdfParse();
+        const parser = new PDFParse({
+          data: new Uint8Array(await readFile(filePath)),
+        });
 
-        return stripUtf8Bom(parsed.text ?? '');
+        try {
+          const parsed = await parser.getText();
+
+          return stripUtf8Bom(parsed.text ?? '');
+        } finally {
+          await parser.destroy();
+        }
       } finally {
-        await parser.destroy();
+        if (!hadDOMMatrix) {
+          delete runtime.DOMMatrix;
+        } else {
+          runtime.DOMMatrix = oldDOMMatrix;
+        }
+        if (!hadImageData) {
+          delete runtime.ImageData;
+        } else {
+          runtime.ImageData = oldImageData;
+        }
+        if (!hadPath2D) {
+          delete runtime.Path2D;
+        } else {
+          runtime.Path2D = oldPath2D;
+        }
       }
     }
 
@@ -298,6 +358,11 @@ const readTextDocument = async (
             });
 
       return stripUtf8Bom(parsed.value);
+    }
+
+    if (extension === '.html' || extension === '.htm') {
+      const rawHtml = await readFile(filePath, 'utf8');
+      return stripUtf8Bom(stripHtmlTags(rawHtml));
     }
 
     return stripUtf8Bom(await readFile(filePath, 'utf8'));
@@ -500,6 +565,15 @@ export const convertDocument = async (
     } catch (error) {
       if (error instanceof ZaoWuError) {
         throw error;
+      }
+
+      if ((error as { code?: string }).code === 'EEXIST') {
+        throw new ZaoWuError({
+          code: 'DOCUMENT_OUTPUT_CONFLICT',
+          message: 'Document output file already exists.',
+          why: `ZaoWu will not silently overwrite \`${options.outputPath}\`.`,
+          fix: 'Choose a new `--output` path, or remove the existing file yourself first.',
+        });
       }
 
       throw new ZaoWuError({

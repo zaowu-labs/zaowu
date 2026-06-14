@@ -306,7 +306,7 @@ describe('AI provider registry', () => {
 
     expect(calls).toEqual([
       {
-        url: 'https://api.openai.com/v1/responses',
+        url: 'https://api.openai.com/v1/chat/completions',
         init: {
           method: 'POST',
           headers: {
@@ -316,7 +316,8 @@ describe('AI provider registry', () => {
           signal: expect.any(AbortSignal),
           body: JSON.stringify({
             model: 'test-model',
-            input: 'Explain ZaoWu',
+            messages: [{ role: 'user', content: 'Explain ZaoWu' }],
+            stream: false,
           }),
         },
       },
@@ -759,5 +760,140 @@ describe('AI provider registry', () => {
     });
 
     expect(result.output).toBe('Ollama streamed text');
+  });
+
+  it('handles OpenAI streaming callbacks correctly', async () => {
+    const chunks: string[] = [];
+    const onChunk = (chunk: string) => {
+      chunks.push(chunk);
+    };
+
+    const result = await askAI({
+      provider: 'openai',
+      prompt: 'Explain ZaoWu',
+      allowNetwork: true,
+      onChunk,
+      env: {
+        OPENAI_API_KEY: 'test-key',
+      },
+      fetcher: async (_url, _init) => {
+        return {
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          async json() {
+            return {
+              choices: [
+                {
+                  message: {
+                    content: 'OpenAI streamed text',
+                  },
+                },
+              ],
+            };
+          },
+        };
+      },
+    });
+
+    expect(result.output).toBe('OpenAI streamed text');
+  });
+
+  it('supports custom OPENAI_BASE_URL endpoint', async () => {
+    let requestedUrl = '';
+    await askAI({
+      provider: 'openai',
+      prompt: 'Explain ZaoWu',
+      allowNetwork: true,
+      env: {
+        OPENAI_API_KEY: 'test-key',
+        OPENAI_BASE_URL: 'https://my-custom-proxy.internal',
+      },
+      fetcher: async (url, _init) => {
+        requestedUrl = url;
+        return {
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          async json() {
+            return {
+              choices: [{ message: { content: 'Custom OpenAI Response' } }],
+            };
+          },
+        };
+      },
+    });
+    expect(requestedUrl).toBe('https://my-custom-proxy.internal/v1/chat/completions');
+  });
+
+  it('supports custom ANTHROPIC_BASE_URL endpoint', async () => {
+    let requestedUrl = '';
+    await askAI({
+      provider: 'anthropic',
+      prompt: 'Explain ZaoWu',
+      allowNetwork: true,
+      env: {
+        ANTHROPIC_API_KEY: 'test-key',
+        ANTHROPIC_BASE_URL: 'https://my-anthropic-proxy.internal/',
+      },
+      fetcher: async (url, _init) => {
+        requestedUrl = url;
+        return {
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          async json() {
+            return {
+              content: [{ type: 'text', text: 'Custom Anthropic Response' }],
+            };
+          },
+        };
+      },
+    });
+    expect(requestedUrl).toBe('https://my-anthropic-proxy.internal/v1/messages');
+  });
+
+  it('retries on rate limits (429) or server errors (500) and eventually succeeds or fails', async () => {
+    let callsCount = 0;
+    const result = await askAI({
+      provider: 'openai',
+      prompt: 'Explain ZaoWu',
+      allowNetwork: true,
+      env: {
+        OPENAI_API_KEY: 'test-key',
+      },
+      fetcher: async (_url, _init) => {
+        callsCount++;
+        if (callsCount < 3) {
+          return {
+            ok: false,
+            status: 429,
+            statusText: 'Too Many Requests',
+            headers: {
+              get(name: string) {
+                if (name === 'retry-after') return '0.01'; // wait 10ms
+                return null;
+              },
+            },
+            async json() {
+              return {};
+            },
+          };
+        }
+        return {
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          async json() {
+            return {
+              choices: [{ message: { content: 'Success after retry' } }],
+            };
+          },
+        };
+      },
+    });
+
+    expect(callsCount).toBe(3);
+    expect(result.output).toBe('Success after retry');
   });
 });

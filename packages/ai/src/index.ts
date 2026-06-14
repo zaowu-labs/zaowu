@@ -1,6 +1,16 @@
 import { readFile } from 'node:fs/promises';
-import { createCapabilityLedger, type DomainDefinition } from '@zaowu/core';
-import { stripUtf8Bom, ZaoWuError } from '@zaowu/core';
+import {
+  createCapabilityLedger,
+  stripUtf8Bom,
+  ZaoWuError,
+  type DomainDefinition,
+} from '@zaowu/core';
+import {
+  parseNDJSONLine,
+  parseOpenAISSELine,
+  parseSSELine,
+  streamResponseBody,
+} from './streaming.js';
 
 export interface AIProviderDescriptor {
   id: string;
@@ -9,13 +19,6 @@ export interface AIProviderDescriptor {
   configured: boolean;
   requiredEnv: string[];
   defaultModel?: string;
-}
-
-type AIStreamEventListener = (arg: unknown) => void;
-
-interface AIStreamBody {
-  getReader?: () => { read(): Promise<{ done: boolean; value?: Uint8Array }> };
-  on?: (event: string, listener: AIStreamEventListener) => void;
 }
 
 export interface AIFetchResponse {
@@ -460,6 +463,80 @@ const getFetcher = (fetcher?: AIFetcher): AIFetcher => {
   return globalThis.fetch as unknown as AIFetcher;
 };
 
+export async function fetchWithRetry(
+  fetcher: AIFetcher,
+  url: string,
+  init: {
+    method: string;
+    headers: Record<string, string>;
+    body: string;
+    signal?: AbortSignal;
+  },
+  providerName: string,
+  timeoutMs: number,
+  maxRetries = 3
+): Promise<AIFetchResponse> {
+  let attempt = 0;
+  let delay = 1000;
+
+  while (true) {
+    attempt++;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    let response: AIFetchResponse;
+
+    try {
+      response = await fetcher(url, {
+        ...init,
+        signal: controller.signal,
+      });
+    } catch {
+      clearTimeout(timeout);
+      if (attempt >= maxRetries) {
+        throw new ZaoWuError({
+          code: 'AI_PROVIDER_REQUEST_FAILED',
+          message: 'AI provider request failed.',
+          why: controller.signal.aborted
+            ? `${providerName} did not respond within ${timeoutMs}ms.`
+            : 'The request failed before a response was received.',
+          fix: 'Check network access, provider status, and timeout settings, then try again.',
+        });
+      }
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      delay *= 2;
+      continue;
+    }
+
+    clearTimeout(timeout);
+
+    if (response.ok) {
+      return response;
+    }
+
+    const retryAfterMs = parseRetryAfterHeaderMs(response.headers?.get('retry-after'));
+    const failure = classifyAIProviderHttpFailure(
+      providerName,
+      response.status,
+      response.statusText,
+      retryAfterMs
+    );
+
+    if (failure.retryable && attempt < maxRetries) {
+      const waitMs = retryAfterMs ?? delay;
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+      delay *= 2;
+      continue;
+    }
+
+    throw new ZaoWuError({
+      code: 'AI_PROVIDER_REQUEST_FAILED',
+      message: 'AI provider request failed.',
+      why: failure.why,
+      fix: failure.fix,
+    });
+  }
+}
+
 const extractOpenAIOutputText = (payload: unknown): string => {
   if (!payload || typeof payload !== 'object') {
     throw new ZaoWuError({
@@ -471,6 +548,11 @@ const extractOpenAIOutputText = (payload: unknown): string => {
   }
 
   const response = payload as {
+    choices?: Array<{
+      message?: {
+        content?: string;
+      };
+    }>;
     output_text?: unknown;
     output?: Array<{
       content?: Array<{
@@ -479,6 +561,10 @@ const extractOpenAIOutputText = (payload: unknown): string => {
       }>;
     }>;
   };
+
+  if (response.choices?.[0]?.message?.content !== undefined) {
+    return response.choices[0].message.content;
+  }
 
   if (typeof response.output_text === 'string' && response.output_text.trim()) {
     return response.output_text;
@@ -543,15 +629,15 @@ const OPENAI_PROVIDER: AIProvider = {
     const prepared = await prepareAIInput(request);
 
     const model = getOpenAIModel(request, env);
-    const controller = new AbortController();
-    const timeout = setTimeout(
-      () => controller.abort(),
-      request.timeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS
-    );
-    let response: AIFetchResponse;
+    const isStream = Boolean(request.onChunk);
 
-    try {
-      response = await getFetcher(request.fetcher)('https://api.openai.com/v1/responses', {
+    const openAiBaseUrl = env.OPENAI_BASE_URL?.trim() || 'https://api.openai.com';
+    const url = `${openAiBaseUrl.replace(/\/$/, '')}/v1/chat/completions`;
+
+    const response = await fetchWithRetry(
+      getFetcher(request.fetcher),
+      url,
+      {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -559,40 +645,23 @@ const OPENAI_PROVIDER: AIProvider = {
         },
         body: JSON.stringify({
           model,
-          input: prepared.combinedPrompt,
+          messages: [{ role: 'user', content: prepared.combinedPrompt }],
+          stream: isStream,
         }),
-        signal: controller.signal,
+      },
+      OPENAI_PROVIDER_DESCRIPTOR.name,
+      request.timeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS
+    );
+
+    let output = '';
+
+    if (isStream && response.body) {
+      output = await streamResponseBody(response.body, parseOpenAISSELine, (text) => {
+        request.onChunk!(text);
       });
-    } catch {
-      throw new ZaoWuError({
-        code: 'AI_PROVIDER_REQUEST_FAILED',
-        message: 'AI provider request failed.',
-        why: controller.signal.aborted
-          ? `OpenAI did not respond within ${request.timeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS}ms.`
-          : 'The OpenAI request failed before a response was received.',
-        fix: 'Check network access, provider status, and timeout settings, then try again.',
-      });
-    } finally {
-      clearTimeout(timeout);
+    } else {
+      output = extractOpenAIOutputText(await parseOpenAIJsonResponse(response));
     }
-
-    if (!response.ok) {
-      const failure = classifyAIProviderHttpFailure(
-        OPENAI_PROVIDER_DESCRIPTOR.name,
-        response.status,
-        response.statusText,
-        parseRetryAfterHeaderMs(response.headers?.get('retry-after'))
-      );
-
-      throw new ZaoWuError({
-        code: 'AI_PROVIDER_REQUEST_FAILED',
-        message: 'AI provider request failed.',
-        why: failure.why,
-        fix: failure.fix,
-      });
-    }
-
-    const output = extractOpenAIOutputText(await parseOpenAIJsonResponse(response));
     const descriptor = createProviderDescriptor(OPENAI_PROVIDER_DESCRIPTOR, env);
 
     return {
@@ -674,85 +743,9 @@ const OLLAMA_PROVIDER: AIProvider = {
     let output = '';
 
     if (isStream && response.body) {
-      const body = response.body as AIStreamBody;
-      if (typeof body.getReader === 'function') {
-        const reader = body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() ?? '';
-
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed) continue;
-            try {
-              const chunk = JSON.parse(trimmed);
-              if (chunk.response) {
-                request.onChunk!(chunk.response);
-                output += chunk.response;
-              }
-            } catch {
-              // Ignore invalid lines
-            }
-          }
-        }
-        if (buffer.trim()) {
-          try {
-            const chunk = JSON.parse(buffer);
-            if (chunk.response) {
-              request.onChunk!(chunk.response);
-              output += chunk.response;
-            }
-          } catch {
-            // Ignore invalid lines
-          }
-        }
-      } else if (typeof body.on === 'function') {
-        const bodyWithOn = body as {
-          on: (event: string, listener: AIStreamEventListener) => void;
-        };
-        await new Promise<void>((resolve, reject) => {
-          let buffer = '';
-          bodyWithOn.on('data', (chunk: unknown) => {
-            buffer += String(chunk);
-            const lines = buffer.split('\n');
-            buffer = lines.pop() ?? '';
-            for (const line of lines) {
-              const trimmed = line.trim();
-              if (!trimmed) continue;
-              try {
-                const parsed = JSON.parse(trimmed);
-                if (parsed.response) {
-                  request.onChunk!(parsed.response);
-                  output += parsed.response;
-                }
-              } catch {
-                // Ignore invalid lines
-              }
-            }
-          });
-          bodyWithOn.on('end', () => {
-            if (buffer.trim()) {
-              try {
-                const parsed = JSON.parse(buffer);
-                if (parsed.response) {
-                  request.onChunk!(parsed.response);
-                  output += parsed.response;
-                }
-              } catch {
-                // Ignore invalid lines
-              }
-            }
-            resolve();
-          });
-          bodyWithOn.on('error', reject);
-        });
-      }
+      output = await streamResponseBody(response.body, parseNDJSONLine, (text) => {
+        request.onChunk!(text);
+      });
     } else {
       let payload: unknown;
       try {
@@ -826,16 +819,13 @@ const ANTHROPIC_PROVIDER: AIProvider = {
     const prepared = await prepareAIInput(request);
     const model = resolveAIModel(this.descriptor, { model: request.model, env });
     const isStream = Boolean(request.onChunk);
+    const anthropicBaseUrl = env.ANTHROPIC_BASE_URL?.trim() || 'https://api.anthropic.com';
+    const url = `${anthropicBaseUrl.replace(/\/$/, '')}/v1/messages`;
 
-    const controller = new AbortController();
-    const timeout = setTimeout(
-      () => controller.abort(),
-      request.timeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS
-    );
-    let response: AIFetchResponse;
-
-    try {
-      response = await getFetcher(request.fetcher)('https://api.anthropic.com/v1/messages', {
+    const response = await fetchWithRetry(
+      getFetcher(request.fetcher),
+      url,
+      {
         method: 'POST',
         headers: {
           'x-api-key': apiKey,
@@ -848,99 +838,17 @@ const ANTHROPIC_PROVIDER: AIProvider = {
           max_tokens: 4096,
           stream: isStream,
         }),
-        signal: controller.signal,
-      });
-    } catch {
-      throw new ZaoWuError({
-        code: 'AI_PROVIDER_REQUEST_FAILED',
-        message: 'AI provider request failed.',
-        why: controller.signal.aborted
-          ? `Anthropic did not respond within ${request.timeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS}ms.`
-          : 'The Anthropic request failed before a response was received.',
-        fix: 'Check network access, provider status, and timeout settings, then try again.',
-      });
-    } finally {
-      clearTimeout(timeout);
-    }
-
-    if (!response.ok) {
-      const failure = classifyAIProviderHttpFailure(
-        ANTHROPIC_PROVIDER_DESCRIPTOR.name,
-        response.status,
-        response.statusText,
-        parseRetryAfterHeaderMs(response.headers?.get('retry-after'))
-      );
-
-      throw new ZaoWuError({
-        code: 'AI_PROVIDER_REQUEST_FAILED',
-        message: 'AI provider request failed.',
-        why: failure.why,
-        fix: failure.fix,
-      });
-    }
+      },
+      ANTHROPIC_PROVIDER_DESCRIPTOR.name,
+      request.timeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS
+    );
 
     let output = '';
 
     if (isStream && response.body) {
-      const body = response.body as AIStreamBody;
-      if (typeof body.getReader === 'function') {
-        const reader = body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() ?? '';
-
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed.startsWith('data:')) continue;
-            const dataStr = trimmed.slice(5).trim();
-            if (dataStr === '[DONE]') continue;
-            try {
-              const event = JSON.parse(dataStr);
-              if (event.type === 'content_block_delta' && event.delta?.text) {
-                request.onChunk!(event.delta.text);
-                output += event.delta.text;
-              }
-            } catch {
-              // Ignore invalid lines
-            }
-          }
-        }
-      } else if (typeof body.on === 'function') {
-        const bodyWithOn = body as {
-          on: (event: string, listener: AIStreamEventListener) => void;
-        };
-        await new Promise<void>((resolve, reject) => {
-          let buffer = '';
-          bodyWithOn.on('data', (chunk: unknown) => {
-            buffer += String(chunk);
-            const lines = buffer.split('\n');
-            buffer = lines.pop() ?? '';
-            for (const line of lines) {
-              const trimmed = line.trim();
-              if (!trimmed.startsWith('data:')) continue;
-              const dataStr = trimmed.slice(5).trim();
-              if (dataStr === '[DONE]') continue;
-              try {
-                const event = JSON.parse(dataStr);
-                if (event.type === 'content_block_delta' && event.delta?.text) {
-                  request.onChunk!(event.delta.text);
-                  output += event.delta.text;
-                }
-              } catch {
-                // Ignore invalid lines
-              }
-            }
-          });
-          bodyWithOn.on('end', () => resolve());
-          bodyWithOn.on('error', reject);
-        });
-      }
+      output = await streamResponseBody(response.body, parseSSELine, (text) => {
+        request.onChunk!(text);
+      });
     } else {
       let payload: unknown;
       try {

