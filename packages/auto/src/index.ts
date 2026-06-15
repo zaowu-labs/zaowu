@@ -1,4 +1,3 @@
-import { execSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import YAML from 'yaml';
@@ -101,7 +100,6 @@ export const AUTO_DOMAIN: DomainDefinition = {
   summary: 'Automation workflows with validation, dry-run, and confirmation',
   capabilities: createCapabilityLedger({
     readsFiles: true,
-    executesShell: true,
   }),
   commands: [
     {
@@ -141,10 +139,10 @@ const DEFAULT_EXECUTION_SANDBOX: Omit<AutomationExecutionSandbox, 'workflowDirec
 const KNOWN_PERMISSIONS: readonly AutomationPermissionName[] = ['shell', 'fileWrites', 'network'];
 
 const createExecutionPolicy = (
-  permissions: AutomationWorkflowPermissions
+  _permissions: AutomationWorkflowPermissions
 ): AutomationExecutionPolicy => ({
   schemaVersion: AUTO_POLICY_SCHEMA_VERSION,
-  ...permissions,
+  ...DEFAULT_WORKFLOW_PERMISSIONS,
 });
 
 const resolveWorkflowDirectory = (filePath: string): string => path.resolve(path.dirname(filePath));
@@ -584,11 +582,9 @@ export const validateWorkflowContent = (
       if (safetyError) {
         warnings.push(`Step \`${step.name}\` safety violation: ${safetyError}`);
       }
-      if (workflow.permissions.shell === 'blocked') {
-        warnings.push(
-          `Step \`${step.name}\` uses shell execution, which this first version will not run.`
-        );
-      }
+      warnings.push(
+        `Step \`${step.name}\` uses shell execution, which this first version will not run.`
+      );
     }
 
     for (const missingVariable of getMissingVariables(step, workflow.variables)) {
@@ -658,14 +654,14 @@ export const planWorkflowContent = (
     }
 
     if (step.run) {
-      const shellPolicy = validation.workflow.permissions.shell;
+      const shellPolicy = validation.policy.shell;
       const preview = substituteVariables(step.run, validation.workflow.variables);
       const safetyError = checkShellSafety(preview);
-      const isBlocked = shellPolicy !== 'prompt' || !!safetyError;
+      const isBlocked = shellPolicy === 'blocked' || !!safetyError;
       const reason = safetyError
         ? safetyError
         : isBlocked
-          ? 'Shell permission is blocked by workflow policy.'
+          ? 'Shell execution is disabled in this foundation version.'
           : undefined;
 
       return {
@@ -762,14 +758,6 @@ export const runWorkflowFile = async (
 
   for (const step of plan.steps) {
     if (step.blocked) {
-      if (step.reason && step.reason.includes('Dangerous command pattern found')) {
-        throw new ZaoWuError({
-          code: 'WORKFLOW_SHELL_DANGEROUS',
-          message: `Workflow step \`${step.name}\` was blocked for safety.`,
-          why: step.reason,
-          fix: 'Remove the dangerous command pattern from the workflow steps.',
-        });
-      }
       skipped.push(`${step.name}: ${step.reason ?? 'blocked'}`);
       continue;
     }
@@ -781,28 +769,6 @@ export const runWorkflowFile = async (
 
     if (step.action === 'message') {
       executed.push(`${step.name}: ${step.preview}`);
-    } else if (step.action === 'shell') {
-      try {
-        const cwd = path.dirname(path.resolve(filePath));
-        const output = execSync(step.preview, {
-          cwd,
-          encoding: 'utf8',
-          stdio: ['ignore', 'pipe', 'pipe'],
-        });
-        executed.push(`${step.name}: ${output.trim()}`);
-      } catch (error) {
-        let whyMessage = 'Unknown shell execution error.';
-        if (error instanceof Error) {
-          const stderrStr = (error as { stderr?: Buffer }).stderr?.toString().trim();
-          whyMessage = stderrStr ? `Command stderr:\n${stderrStr}` : error.message;
-        }
-        throw new ZaoWuError({
-          code: 'WORKFLOW_STEP_FAILED',
-          message: `Workflow step \`${step.name}\` failed.`,
-          why: whyMessage,
-          fix: 'Check the shell command syntax and environment, then try again.',
-        });
-      }
     }
   }
 

@@ -3,12 +3,15 @@
 Developer workflow package for ZaoWu.
 
 This package reads Git state for status, commit-message preview, and local diff
-review. It owns deterministic review signals such as diff hunk summaries,
-sensitive-code heuristics, dependency metadata checks, and recommended checks.
+review. It also owns the preview-first `dev sync` operation that fetches origin
+and hard-resets the current branch only after explicit confirmation.
 
 Safety:
 
-- Commands in this package do not commit, push, checkout, reset, or stage files.
+- Status, commit preview, and review do not modify Git state.
+- Sync is destructive, previews by default, and requires explicit confirmation.
+- Sync operation plans disclose `git fetch origin`, the exact hard-reset target,
+  and network access to the origin remote.
 - Commit preview and review output are read-only and report risks as warnings.
 - Commit preview returns both a copyable `message` and a structured `suggestion`
   with inferred type, scope, subject, title, and body lines.

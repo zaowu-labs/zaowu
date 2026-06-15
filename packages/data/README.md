@@ -2,7 +2,7 @@
 
 Data workflow package for ZaoWu.
 
-This package reads CSV, TSV, and XLSX inputs for inspection, lightweight
+This package reads CSV, TSV, JSON, and XLSX inputs for inspection, lightweight
 analysis, schema inference, sampling, and preview-first cleaning.
 
 Safety:

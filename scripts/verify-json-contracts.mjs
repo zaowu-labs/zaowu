@@ -147,10 +147,7 @@ const assertSchemaFragmentsStayAligned = () => {
   const operationPlan = schemas.shared.$defs.operationPlan;
 
   for (const field of ['subjects', 'fingerprintAlgorithm', 'fingerprint']) {
-    assert(
-      operationPlan.required.includes(field),
-      `shared operationPlan must require ${field}.`
-    );
+    assert(operationPlan.required.includes(field), `shared operationPlan must require ${field}.`);
   }
   assert(
     operationPlan.properties.fingerprintAlgorithm.const === 'sha256-v1',
@@ -457,7 +454,9 @@ for (const contract of COMMAND_CONTRACTS.filter((candidate) => candidate.id !== 
     `${contract.id} must register a result schema file.`
   );
   assert(
-    Object.values(schemas).some((schema) => path.basename(contract.schemaFile) === path.basename(new URL(schema.$id).pathname)),
+    Object.values(schemas).some(
+      (schema) => path.basename(contract.schemaFile) === path.basename(new URL(schema.$id).pathname)
+    ),
     `${contract.id} schema file must be loaded by the JSON contract gate.`
   );
 }
@@ -476,7 +475,8 @@ for (const contract of COMMAND_CONTRACTS) {
 
 const schemaErrorCodes = schemas.error.properties.error.properties.code.enum;
 assert(
-  JSON.stringify([...schemaErrorCodes].sort()) === JSON.stringify([...core.ZAOWU_ERROR_CODES].sort()),
+  JSON.stringify([...schemaErrorCodes].sort()) ===
+    JSON.stringify([...core.ZAOWU_ERROR_CODES].sort()),
   'Command error schema code enum must match the core error code registry.'
 );
 
@@ -513,7 +513,10 @@ assert(
   !Object.hasOwn(plan.workflow.permissions, 'schemaVersion'),
   'workflow permissions must not be polluted with runtime schemaVersion.'
 );
-assert(plan.steps?.[0]?.policyDecision === 'allowed', 'auto plan steps must expose policy decisions.');
+assert(
+  plan.steps?.[0]?.policyDecision === 'allowed',
+  'auto plan steps must expose policy decisions.'
+);
 assert(
   plan.steps?.[0]?.operationPlan?.risk === 'low',
   'auto plan message steps must expose low-risk step operation plans.'
@@ -552,21 +555,14 @@ try {
   );
 
   const configValidation = await configPackage.validateResolvedConfig(configValidateFixture);
-  const configSet = await configPackage.setResolvedConfigValue(
-    'project.name',
-    'contract-next',
-    {
-      cwd: configValidateFixture,
-    }
-  );
+  const configSet = await configPackage.setResolvedConfigValue('project.name', 'contract-next', {
+    cwd: configValidateFixture,
+  });
   const configMigration = await configPackage.migrateResolvedConfig({
     cwd: configValidateFixture,
   });
 
-  assert(
-    configValidation.schemaVersion === 1,
-    'config validate result schemaVersion must be 1.'
-  );
+  assert(configValidation.schemaVersion === 1, 'config validate result schemaVersion must be 1.');
   assertValid('configValidate', configValidation);
   assert(configSet.schemaVersion === 1, 'config set result schemaVersion must be 1.');
   assert(configSet.status === 'preview', 'config set package output should preview by default.');
@@ -596,10 +592,7 @@ try {
   assertValid('docOutline', documentOutline);
   assertValid('docSearch', documentSearch);
   assertValid('docConvert', documentConversion);
-  assert(
-    documentConversion.schemaVersion === 1,
-    'doc convert result schemaVersion must be 1.'
-  );
+  assert(documentConversion.schemaVersion === 1, 'doc convert result schemaVersion must be 1.');
   assert(documentConversion.status === 'preview', 'doc convert package output should preview.');
 
   const dataInspection = await data.inspectData(dataPath);
@@ -719,7 +712,10 @@ const status = dev.getDevStatus(runner);
 
 assert(commit.schemaVersion === 1, 'dev commit result schemaVersion must be 1.');
 assert(commit.source === 'staged', 'dev commit should use staged changes.');
-assert(commit.suggestion?.title === commit.message, 'dev commit suggestion title must match message.');
+assert(
+  commit.suggestion?.title === commit.message,
+  'dev commit suggestion title must match message.'
+);
 assert(
   commit.findings.some((finding) => finding.title === 'Shell execution added'),
   'dev commit must expose staged diff risk findings.'
@@ -743,6 +739,14 @@ const devSync = dev.syncDevRepo(runner, { yes: true });
 assert(devSyncPreview.schemaVersion === 1, 'dev sync result schemaVersion must be 1.');
 assert(devSyncPreview.status === 'preview', 'dev sync default mode must preview.');
 assert(devSync.status === 'ok', 'dev sync confirmed mode must succeed.');
+assert(
+  devSyncPreview.operationPlan?.executes?.includes('git reset --hard origin/main'),
+  'dev sync preview must disclose the hard reset command.'
+);
+assert(
+  devSync.operationPlan?.confirmationRequired === false,
+  'confirmed dev sync must clear the confirmation requirement.'
+);
 assertValid('devSync', devSyncPreview);
 assertValid('devSync', devSync);
 
@@ -857,10 +861,7 @@ try {
     cliInitCreated.operationPlan?.fingerprint === cliInitPreview.operationPlan?.fingerprint,
     'CLI init confirmation should preserve the preview operation plan fingerprint.'
   );
-  assert(
-    cliConfigValidation.schemaVersion === 1,
-    'CLI config validate schemaVersion must be 1.'
-  );
+  assert(cliConfigValidation.schemaVersion === 1, 'CLI config validate schemaVersion must be 1.');
   assert(cliConfigValidation.status === 'ok', 'CLI config validate should be ok after init.');
   assert(cliConfigSet.schemaVersion === 1, 'CLI config set schemaVersion must be 1.');
   assert(
@@ -992,6 +993,11 @@ try {
     'CLI dev sync preview should require confirmation.'
   );
   assert(
+    cliDevSync.operationPlan?.executes?.includes('git reset --hard origin/master') ||
+      cliDevSync.operationPlan?.executes?.includes('git reset --hard origin/main'),
+    'CLI dev sync preview should disclose its hard reset target.'
+  );
+  assert(
     cliStatus.operationPlan?.executes?.includes('git status --short --branch'),
     'CLI dev status operation plan should disclose git status.'
   );
@@ -1029,13 +1035,20 @@ runCliErrorJson(['unknown-command'], 'UNKNOWN_COMMAND');
 runCliErrorJson(['web', 'inspect', 'not-a-url'], 'WEB_URL_INVALID');
 runCliErrorJson(['ai', 'ask'], 'AI_PROMPT_REQUIRED');
 runCliErrorJson(['ai', 'providers', '--provider', 'missing'], 'AI_PROVIDER_NOT_FOUND');
-runCliErrorJson(['ai', 'ask', 'Explain', 'ZaoWu', '--provider', 'missing'], 'AI_PROVIDER_NOT_FOUND');
-runCliErrorJson(['ai', 'ask', 'Explain', 'ZaoWu', '--provider', 'openai', '--yes'], 'AI_PROVIDER_CONFIG_MISSING', {
-  env: {
-    ...process.env,
-    OPENAI_API_KEY: '',
-  },
-});
+runCliErrorJson(
+  ['ai', 'ask', 'Explain', 'ZaoWu', '--provider', 'missing'],
+  'AI_PROVIDER_NOT_FOUND'
+);
+runCliErrorJson(
+  ['ai', 'ask', 'Explain', 'ZaoWu', '--provider', 'openai', '--yes'],
+  'AI_PROVIDER_CONFIG_MISSING',
+  {
+    env: {
+      ...process.env,
+      OPENAI_API_KEY: '',
+    },
+  }
+);
 
 const emptyDevCliFixture = await mkdtemp(path.join(tmpdir(), 'zaowu-dev-empty-contract-'));
 

@@ -242,6 +242,14 @@ export const mergeConfigs = (global: ZaoWuConfig, project: ZaoWuConfig): ZaoWuCo
   };
 };
 
+const formatYamlConfigValue = (key: ConfigKey, value: string | null): string => {
+  if (key === 'version') {
+    return '1';
+  }
+
+  return value === null ? 'null' : JSON.stringify(value);
+};
+
 export const modifyYamlContent = (
   content: string,
   key: ConfigKey,
@@ -253,7 +261,7 @@ export const modifyYamlContent = (
   if (parts.length === 1) {
     const searchKey = parts[0];
     const index = lines.findIndex((l) => new RegExp(`^${searchKey}:\\s*`).test(l.trim()));
-    const formattedValue = value === null ? 'null' : value;
+    const formattedValue = formatYamlConfigValue(key, value);
     if (index !== -1) {
       lines[index] = `${searchKey}: ${formattedValue}`;
       return lines.join('\n');
@@ -278,7 +286,7 @@ export const modifyYamlContent = (
       }
 
       if (inSection && indent > 0 && trimmed.startsWith(`${subKey}:`)) {
-        const formattedValue = value === null ? 'null' : value;
+        const formattedValue = formatYamlConfigValue(key, value);
         const leadingIndent = ' '.repeat(indent);
         lines[i] = `${leadingIndent}${subKey}: ${formattedValue}`;
         return lines.join('\n');
@@ -539,17 +547,17 @@ export const serializeConfig = (config: ZaoWuConfig, filePath: string): string =
     'version: 1',
     '',
     'project:',
-    `  name: ${config.project.name}`,
+    `  name: ${formatYamlConfigValue('project.name', config.project.name)}`,
     '',
     'ai:',
-    `  provider: ${config.ai.provider ?? 'null'}`,
+    `  provider: ${formatYamlConfigValue('ai.provider', config.ai.provider)}`,
     '',
     'defaults:',
-    `  output: ${config.defaults.output}`,
+    `  output: ${formatYamlConfigValue('defaults.output', config.defaults.output)}`,
     '',
     'paths:',
-    `  workspace: ${config.paths.workspace}`,
-    `  cache: ${config.paths.cache}`,
+    `  workspace: ${formatYamlConfigValue('paths.workspace', config.paths.workspace)}`,
+    `  cache: ${formatYamlConfigValue('paths.cache', config.paths.cache)}`,
     '',
   ].join('\n');
 };

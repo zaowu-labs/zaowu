@@ -129,7 +129,7 @@ export const DEV_DOMAIN: DomainDefinition = {
     },
     {
       name: 'sync',
-      summary: 'Synchronize and align local branch with its remote tracking branch',
+      summary: 'Synchronize the local branch with the same-named branch on origin',
       status: 'available',
       sensitive: true,
     },
@@ -1050,6 +1050,9 @@ export const syncDevRepo = (
     risk: 'high',
     confirmationRequired: !options.yes,
     subjects: [`git:${status.branch}`],
+    reads: ['current Git branch', 'current HEAD commit'],
+    executes: ['git fetch origin', `git reset --hard origin/${status.branch}`],
+    network: ['git remote origin'],
     notes: [
       `This command will fetch remote updates and hard-reset your local \`${status.branch}\` branch to \`origin/${status.branch}\`.`,
       'WARNING: Any local uncommitted changes or diverged local commits will be discarded.',
@@ -1090,5 +1093,6 @@ export const syncDevRepo = (
     previousCommit,
     currentCommit,
     output: `Successfully synchronized branch \`${status.branch}\` to \`origin/${status.branch}\`.`,
+    operationPlan,
   };
 };

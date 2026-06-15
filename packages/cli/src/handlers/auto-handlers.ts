@@ -45,9 +45,8 @@ export const handleAutoRun: DomainActionHandler = async (args, context) => {
   const blockedSteps = plan.steps
     .filter((step) => step.blocked)
     .map((step) => `${step.name}: ${step.reason ?? 'blocked'}`);
-  const hasShellStep = plan.steps.some((step) => step.action === 'shell' && !step.blocked);
   const operationPlan = createOperationPlan({
-    risk: hasShellStep ? 'high' : 'medium',
+    risk: 'medium',
     confirmationRequired: !context.yes,
     subjects: [`workflow:${plan.filePath}`],
     reads: [plan.filePath],
@@ -57,7 +56,7 @@ export const handleAutoRun: DomainActionHandler = async (args, context) => {
       `Sandbox shellCommands: ${plan.sandbox.shellCommands}.`,
       `Ready steps: ${readySteps.length > 0 ? readySteps.join(', ') : 'none'}.`,
       `Blocked steps: ${blockedSteps.length > 0 ? blockedSteps.join('; ') : 'none'}.`,
-      'Shell steps require --yes to execute.',
+      'Shell steps remain blocked in this foundation version, including with --yes.',
     ],
   });
   assertOperationPlanFingerprint(context, operationPlan);

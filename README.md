@@ -22,16 +22,16 @@
 
 ZaoWu is structured as a monorepo containing specialized domain modules. Here is an overview of what ZaoWu can do out-of-the-box:
 
-| Domain       | Action                                  | Description                                                             | Safety Level                    |
-| :----------- | :-------------------------------------- | :---------------------------------------------------------------------- | :------------------------------ |
-| **`ai`**     | `providers` / `ask`                     | List local LLM providers (Ollama, OpenAI) and prompt models             | Safe (Read-only)                |
-| **`dev`**    | `status` / `review` / `commit` / `sync` | Run smart code reviews, commit suggestions, and branch synchronizations | Safe (Preview first)            |
-| **`doc`**    | `convert` / `outline` / `search`        | Parse PDF/DOCX into clean Markdown structure; retrieve doc outlines     | Safe (No write without `--yes`) |
-| **`data`**   | `schema` / `sample` / `clean`           | Analyze XLSX/CSV structures and return tabular column definitions       | Safe (Read-only)                |
-| **`auto`**   | `validate` / `plan` / `run`             | Execute versioned automation workflows (supports message & shell steps) | Sensitive (Needs `--yes`)       |
-| **`teach`**  | `plan` / `quiz`                         | Create learning outline tracks and format Canvas quiz exports           | Safe (Read-only)                |
-| **`plugin`** | `validate` / `install`                  | Validate local extension manifests and install workspace plugins        | Safe (Local-first)              |
-| **`config`** | `get` / `set` / `validate`              | Manage system-wide options, timeouts, and active LLM models             | Safe (Config directory)         |
+| Domain       | Action                                  | Description                                                          | Safety Level                    |
+| :----------- | :-------------------------------------- | :------------------------------------------------------------------- | :------------------------------ |
+| **`ai`**     | `providers` / `ask`                     | Use echo, Ollama, OpenAI, or Anthropic behind one provider boundary  | Network preview first           |
+| **`dev`**    | `status` / `review` / `commit` / `sync` | Review changes, suggest commits, and explicitly synchronize branches | Destructive sync needs `--yes`  |
+| **`doc`**    | `convert` / `outline` / `search`        | Parse PDF/DOCX into clean Markdown structure; retrieve doc outlines  | Safe (No write without `--yes`) |
+| **`data`**   | `schema` / `sample` / `clean`           | Analyze CSV, TSV, JSON, and XLSX structures                          | Writes preview first            |
+| **`auto`**   | `validate` / `plan` / `run`             | Validate workflows and run confirmed message steps                   | Shell remains blocked           |
+| **`teach`**  | `plan` / `quiz`                         | Create learning outline tracks and format Canvas quiz exports        | Safe (Read-only)                |
+| **`plugin`** | `validate` / `install`                  | Validate local extension manifests and install workspace plugins     | Safe (Local-first)              |
+| **`config`** | `get` / `set` / `validate`              | Manage system-wide options, timeouts, and active LLM models          | Safe (Config directory)         |
 
 ---
 
@@ -73,14 +73,16 @@ corepack pnpm zw --help
 
 ### 🤖 Local AI & Code Review
 
-ZaoWu features a local-first architecture. Start a local Ollama daemon and run:
+ZaoWu features a provider boundary with explicit network confirmation. Start a
+local Ollama daemon and run:
 
 ```bash
 # Set your active provider to Ollama
-corepack pnpm zw config set ai.provider ollama
+corepack pnpm zw config set ai.provider ollama --yes
 
 # Perform an AI-assisted code review of your current branch diffs
-corepack pnpm zw dev review --ai
+corepack pnpm zw dev review --ai --provider echo
+corepack pnpm zw dev review --ai --provider ollama --yes
 ```
 
 ### 📄 Document Conversion (DOCX to Markdown)
@@ -102,13 +104,14 @@ corepack pnpm zw teach quiz "Variables store values. Functions group behavior." 
 
 ### ⚙️ Safe Workflow Automation
 
-Run localized dev-ops pipelines defined in simple YAML configs. Shell steps default to a safe dry-run preview:
+Run localized workflows defined in simple YAML configs. Message steps can run
+after confirmation; shell steps remain visible but blocked:
 
 ```bash
 # Preview the execution plan of a workflow
 corepack pnpm zw auto plan examples/workflows/blocked-shell.yml
 
-# Execute the workflow commands after verifying safety
+# Execute supported message steps after verifying safety
 corepack pnpm zw auto run examples/workflows/blocked-shell.yml --yes
 ```
 

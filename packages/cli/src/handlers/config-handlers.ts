@@ -91,7 +91,11 @@ export const handleConfigSet: DomainActionHandler = async (args, context) => {
   const operationPlan = createOperationPlan({
     risk: 'medium',
     confirmationRequired: !context.yes,
-    subjects: [`config:${preview.key}`],
+    subjects: [
+      `config:${preview.key}`,
+      `old-value:${JSON.stringify(preview.oldValue)}`,
+      `new-value:${JSON.stringify(preview.newValue)}`,
+    ],
     reads: [preview.filePath],
     writes: [preview.filePath],
     notes: ['Config writes are previewed unless --yes is provided.'],

@@ -5,12 +5,6 @@ import {
   ZaoWuError,
   type DomainDefinition,
 } from '@zaowu/core';
-import {
-  parseNDJSONLine,
-  parseOpenAISSELine,
-  parseSSELine,
-  streamResponseBody,
-} from './streaming.js';
 
 export interface AIProviderDescriptor {
   id: string;
@@ -291,6 +285,73 @@ const OPENAI_PROVIDER_DESCRIPTOR: Omit<AIProviderDescriptor, 'configured'> = {
   network: true,
   requiredEnv: ['OPENAI_API_KEY'],
   defaultModel: 'gpt-4.1-mini',
+};
+
+const resolveProviderEndpoint = (
+  baseUrl: string,
+  pathSuffix: string,
+  environmentVariable: string
+): string => {
+  let parsed: URL;
+
+  try {
+    parsed = new URL(baseUrl);
+  } catch {
+    throw new ZaoWuError({
+      code: 'AI_PROVIDER_REQUEST_FAILED',
+      message: 'AI provider endpoint is invalid.',
+      why: `The endpoint configured through \`${environmentVariable}\` is not a valid URL.`,
+      fix: `Set \`${environmentVariable}\` to an explicit http or https base URL.`,
+    });
+  }
+
+  if (
+    !['http:', 'https:'].includes(parsed.protocol) ||
+    parsed.username ||
+    parsed.password ||
+    parsed.search ||
+    parsed.hash
+  ) {
+    throw new ZaoWuError({
+      code: 'AI_PROVIDER_REQUEST_FAILED',
+      message: 'AI provider endpoint is invalid.',
+      why: `The endpoint configured through \`${environmentVariable}\` must use http or https and must not contain credentials, a query string, or a fragment.`,
+      fix: `Set \`${environmentVariable}\` to a credential-free http or https base URL without a query string or fragment.`,
+    });
+  }
+
+  return `${parsed.toString().replace(/\/+$/, '')}${pathSuffix}`;
+};
+
+export const resolveAIProviderNetworkTarget = (
+  providerId: string,
+  env: NodeJS.ProcessEnv = process.env
+): string | undefined => {
+  if (providerId === OPENAI_PROVIDER_DESCRIPTOR.id) {
+    return resolveProviderEndpoint(
+      env.OPENAI_BASE_URL?.trim() || 'https://api.openai.com',
+      '/v1/responses',
+      'OPENAI_BASE_URL'
+    );
+  }
+
+  if (providerId === 'ollama') {
+    return resolveProviderEndpoint(
+      env.OLLAMA_HOST?.trim() || 'http://localhost:11434',
+      '/api/generate',
+      'OLLAMA_HOST'
+    );
+  }
+
+  if (providerId === 'anthropic') {
+    return resolveProviderEndpoint(
+      env.ANTHROPIC_BASE_URL?.trim() || 'https://api.anthropic.com',
+      '/v1/messages',
+      'ANTHROPIC_BASE_URL'
+    );
+  }
+
+  return undefined;
 };
 
 export const resolveAIModel = (
@@ -629,10 +690,7 @@ const OPENAI_PROVIDER: AIProvider = {
     const prepared = await prepareAIInput(request);
 
     const model = getOpenAIModel(request, env);
-    const isStream = Boolean(request.onChunk);
-
-    const openAiBaseUrl = env.OPENAI_BASE_URL?.trim() || 'https://api.openai.com';
-    const url = `${openAiBaseUrl.replace(/\/$/, '')}/v1/chat/completions`;
+    const url = resolveAIProviderNetworkTarget(OPENAI_PROVIDER_DESCRIPTOR.id, env)!;
 
     const response = await fetchWithRetry(
       getFetcher(request.fetcher),
@@ -645,23 +703,14 @@ const OPENAI_PROVIDER: AIProvider = {
         },
         body: JSON.stringify({
           model,
-          messages: [{ role: 'user', content: prepared.combinedPrompt }],
-          stream: isStream,
+          input: prepared.combinedPrompt,
         }),
       },
       OPENAI_PROVIDER_DESCRIPTOR.name,
       request.timeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS
     );
 
-    let output = '';
-
-    if (isStream && response.body) {
-      output = await streamResponseBody(response.body, parseOpenAISSELine, (text) => {
-        request.onChunk!(text);
-      });
-    } else {
-      output = extractOpenAIOutputText(await parseOpenAIJsonResponse(response));
-    }
+    const output = extractOpenAIOutputText(await parseOpenAIJsonResponse(response));
     const descriptor = createProviderDescriptor(OPENAI_PROVIDER_DESCRIPTOR, env);
 
     return {
@@ -678,7 +727,7 @@ const OPENAI_PROVIDER: AIProvider = {
 const OLLAMA_PROVIDER_DESCRIPTOR: Omit<AIProviderDescriptor, 'configured'> = {
   id: 'ollama',
   name: 'Ollama (Local)',
-  network: false,
+  network: true,
   requiredEnv: [],
   defaultModel: 'llama3',
 };
@@ -687,10 +736,19 @@ const OLLAMA_PROVIDER: AIProvider = {
   descriptor: createProviderDescriptor(OLLAMA_PROVIDER_DESCRIPTOR),
   async ask(request) {
     const env = request.env ?? process.env;
+
+    if (!request.allowNetwork) {
+      throw new ZaoWuError({
+        code: 'AI_NETWORK_CONFIRMATION_REQUIRED',
+        message: 'Network AI request requires confirmation.',
+        why: 'The Ollama provider sends prompt input to an HTTP endpoint.',
+        fix: 'Use the CLI preview first, then re-run with `--yes` when the operation plan is acceptable.',
+      });
+    }
+
     const prepared = await prepareAIInput(request);
-    const host = env.OLLAMA_HOST?.trim() || 'http://localhost:11434';
     const model = request.model?.trim() || OLLAMA_PROVIDER_DESCRIPTOR.defaultModel!;
-    const isStream = Boolean(request.onChunk);
+    const url = resolveAIProviderNetworkTarget(OLLAMA_PROVIDER_DESCRIPTOR.id, env)!;
 
     const controller = new AbortController();
     const timeout = setTimeout(
@@ -700,7 +758,7 @@ const OLLAMA_PROVIDER: AIProvider = {
     let response: AIFetchResponse;
 
     try {
-      response = await getFetcher(request.fetcher)(`${host}/api/generate`, {
+      response = await getFetcher(request.fetcher)(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -708,7 +766,7 @@ const OLLAMA_PROVIDER: AIProvider = {
         body: JSON.stringify({
           model,
           prompt: prepared.combinedPrompt,
-          stream: isStream,
+          stream: false,
         }),
         signal: controller.signal,
       });
@@ -718,7 +776,7 @@ const OLLAMA_PROVIDER: AIProvider = {
         message: 'AI provider request failed.',
         why: controller.signal.aborted
           ? `Ollama did not respond within ${request.timeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS}ms.`
-          : `ZaoWu failed to connect to Ollama at ${host}.`,
+          : `ZaoWu failed to connect to Ollama at ${url}.`,
         fix: 'Make sure Ollama is running locally (run `ollama serve` or start the Ollama desktop app) and that you have pulled the model (run `ollama pull <model>`).',
       });
     } finally {
@@ -740,36 +798,28 @@ const OLLAMA_PROVIDER: AIProvider = {
       });
     }
 
-    let output = '';
-
-    if (isStream && response.body) {
-      output = await streamResponseBody(response.body, parseNDJSONLine, (text) => {
-        request.onChunk!(text);
+    let payload: unknown;
+    try {
+      payload = await response.json();
+    } catch {
+      throw new ZaoWuError({
+        code: 'AI_PROVIDER_RESPONSE_INVALID',
+        message: 'AI provider response is invalid.',
+        why: 'Ollama returned a successful HTTP response, but the response body was not valid JSON.',
+        fix: 'Check the Ollama version and settings.',
       });
-    } else {
-      let payload: unknown;
-      try {
-        payload = await response.json();
-      } catch {
-        throw new ZaoWuError({
-          code: 'AI_PROVIDER_RESPONSE_INVALID',
-          message: 'AI provider response is invalid.',
-          why: 'Ollama returned a successful HTTP response, but the response body was not valid JSON.',
-          fix: 'Check the Ollama version and settings.',
-        });
-      }
-
-      const resObj = payload as { response?: unknown };
-      if (typeof resObj !== 'object' || resObj === null || typeof resObj.response !== 'string') {
-        throw new ZaoWuError({
-          code: 'AI_PROVIDER_RESPONSE_INVALID',
-          message: 'AI provider response is invalid.',
-          why: 'The response from Ollama did not contain the generated text.',
-          fix: 'Check the Ollama version and settings.',
-        });
-      }
-      output = resObj.response;
     }
+
+    const resObj = payload as { response?: unknown };
+    if (typeof resObj !== 'object' || resObj === null || typeof resObj.response !== 'string') {
+      throw new ZaoWuError({
+        code: 'AI_PROVIDER_RESPONSE_INVALID',
+        message: 'AI provider response is invalid.',
+        why: 'The response from Ollama did not contain the generated text.',
+        fix: 'Check the Ollama version and settings.',
+      });
+    }
+    const output = resObj.response;
 
     const descriptor = createProviderDescriptor(OLLAMA_PROVIDER_DESCRIPTOR, env);
 
@@ -818,9 +868,7 @@ const ANTHROPIC_PROVIDER: AIProvider = {
 
     const prepared = await prepareAIInput(request);
     const model = resolveAIModel(this.descriptor, { model: request.model, env });
-    const isStream = Boolean(request.onChunk);
-    const anthropicBaseUrl = env.ANTHROPIC_BASE_URL?.trim() || 'https://api.anthropic.com';
-    const url = `${anthropicBaseUrl.replace(/\/$/, '')}/v1/messages`;
+    const url = resolveAIProviderNetworkTarget(ANTHROPIC_PROVIDER_DESCRIPTOR.id, env)!;
 
     const response = await fetchWithRetry(
       getFetcher(request.fetcher),
@@ -836,35 +884,27 @@ const ANTHROPIC_PROVIDER: AIProvider = {
           model,
           messages: [{ role: 'user', content: prepared.combinedPrompt }],
           max_tokens: 4096,
-          stream: isStream,
+          stream: false,
         }),
       },
       ANTHROPIC_PROVIDER_DESCRIPTOR.name,
       request.timeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS
     );
 
-    let output = '';
-
-    if (isStream && response.body) {
-      output = await streamResponseBody(response.body, parseSSELine, (text) => {
-        request.onChunk!(text);
+    let payload: unknown;
+    try {
+      payload = await response.json();
+    } catch {
+      throw new ZaoWuError({
+        code: 'AI_PROVIDER_RESPONSE_INVALID',
+        message: 'AI provider response is invalid.',
+        why: 'Anthropic returned a successful HTTP response, but the response body was not valid JSON.',
+        fix: 'Retry the request.',
       });
-    } else {
-      let payload: unknown;
-      try {
-        payload = await response.json();
-      } catch {
-        throw new ZaoWuError({
-          code: 'AI_PROVIDER_RESPONSE_INVALID',
-          message: 'AI provider response is invalid.',
-          why: 'Anthropic returned a successful HTTP response, but the response body was not valid JSON.',
-          fix: 'Retry the request.',
-        });
-      }
-
-      const resObj = payload as { content?: Array<{ type: string; text: string }> };
-      output = resObj.content?.map((c) => c.text).join('') || '';
     }
+
+    const resObj = payload as { content?: Array<{ type: string; text: string }> };
+    const output = resObj.content?.map((c) => c.text).join('') || '';
 
     const descriptor = createProviderDescriptor(ANTHROPIC_PROVIDER_DESCRIPTOR, env);
 

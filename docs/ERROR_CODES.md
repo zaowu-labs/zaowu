@@ -34,17 +34,17 @@ registry.
 
 ## Config
 
-| Code                            | Meaning                                      |
-| ------------------------------- | -------------------------------------------- |
-| `CONFIG_ALREADY_EXISTS`         | `zw init --yes` would overwrite config.      |
-| `CONFIG_FORMAT_UNSUPPORTED`     | The config file extension is unsupported.    |
-| `CONFIG_KEY_UNSUPPORTED`        | The requested config key is not supported.   |
-| `CONFIG_NOT_FOUND`              | No `zw.yml`, `zw.yaml`, or `zw.json` exists. |
-| `CONFIG_PARSE_FAILED`           | Config content could not be parsed.          |
-| `CONFIG_SECRET_KEY_NOT_ALLOWED` | A secret-like key was rejected.              |
-| `CONFIG_VALUE_INVALID`          | A config value failed validation.            |
-| `CONFIG_VERSION_UNSUPPORTED`    | The config version is unsupported.           |
-| `CONFIG_WRITE_FAILED`           | A config write failed.                       |
+| Code                            | Meaning                                    |
+| ------------------------------- | ------------------------------------------ |
+| `CONFIG_ALREADY_EXISTS`         | `zw init --yes` would overwrite config.    |
+| `CONFIG_FORMAT_UNSUPPORTED`     | The config file extension is unsupported.  |
+| `CONFIG_KEY_UNSUPPORTED`        | The requested config key is not supported. |
+| `CONFIG_NOT_FOUND`              | No supported project config file exists.   |
+| `CONFIG_PARSE_FAILED`           | Config content could not be parsed.        |
+| `CONFIG_SECRET_KEY_NOT_ALLOWED` | A secret-like key was rejected.            |
+| `CONFIG_VALUE_INVALID`          | A config value failed validation.          |
+| `CONFIG_VERSION_UNSUPPORTED`    | The config version is unsupported.         |
+| `CONFIG_WRITE_FAILED`           | A config write failed.                     |
 
 ## Data
 

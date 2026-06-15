@@ -12,6 +12,7 @@ import {
 describe('auto domain', () => {
   it('declares automation workflow commands', () => {
     expect(AUTO_DOMAIN.name).toBe('auto');
+    expect(AUTO_DOMAIN.capabilities?.executesShell).toBe(false);
     expect(AUTO_DOMAIN.commands.map((command) => command.name)).toEqual([
       'validate',
       'plan',
@@ -101,7 +102,7 @@ describe('auto domain', () => {
     ).toEqual(['Step `build` uses shell execution, which this first version will not run.']);
   });
 
-  it('parses workflow execution policy and enables shell execution when prompt is specified', () => {
+  it('keeps runtime shell execution blocked when prompt is requested', () => {
     expect(
       planWorkflowContent(
         'name: demo\npermissions:\n  shell: prompt\nsteps:\n  - name: build\n    run: pnpm build\n'
@@ -110,7 +111,7 @@ describe('auto domain', () => {
       schemaVersion: 1,
       policy: {
         schemaVersion: 1,
-        shell: 'prompt',
+        shell: 'blocked',
         fileWrites: 'blocked',
         network: 'blocked',
       },
@@ -123,8 +124,9 @@ describe('auto domain', () => {
           name: 'build',
           action: 'shell',
           requiredPermission: 'shell',
-          policyDecision: 'allowed',
-          blocked: false,
+          policyDecision: 'blocked',
+          blocked: true,
+          reason: 'Shell execution is disabled in this foundation version.',
           operationPlan: {
             schemaVersion: 1,
             risk: 'high',
@@ -133,7 +135,7 @@ describe('auto domain', () => {
           },
         },
       ],
-      warnings: [],
+      warnings: ['Step `build` uses shell execution, which this first version will not run.'],
     });
   });
 
@@ -219,7 +221,7 @@ describe('auto domain', () => {
           blocked: true,
           requiredPermission: 'shell',
           policyDecision: 'blocked',
-          reason: 'Shell permission is blocked by workflow policy.',
+          reason: 'Shell execution is disabled in this foundation version.',
           operationPlan: {
             schemaVersion: 1,
             risk: 'high',
@@ -285,7 +287,7 @@ describe('auto domain', () => {
         schemaVersion: 1,
         status: 'ok',
         executed: ['hello: Hello'],
-        skipped: ['build: Shell permission is blocked by workflow policy.'],
+        skipped: ['build: Shell execution is disabled in this foundation version.'],
         sandbox: {
           shellCommands: 'blocked',
           fileWrites: 'blocked',
@@ -297,7 +299,7 @@ describe('auto domain', () => {
     }
   });
 
-  it('runs confirmed shell steps when shell policy is prompt', async () => {
+  it('does not run confirmed shell steps when shell policy is prompt', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-auto-'));
     const filePath = path.join(root, 'workflow.yml');
 
@@ -319,8 +321,8 @@ describe('auto domain', () => {
       await expect(runWorkflowFile(filePath, { yes: true })).resolves.toMatchObject({
         schemaVersion: 1,
         status: 'ok',
-        executed: ['test_run: Hello Shell'],
-        skipped: [],
+        executed: [],
+        skipped: ['test_run: Shell execution is disabled in this foundation version.'],
       });
     } finally {
       await rm(root, { recursive: true, force: true });
@@ -379,7 +381,7 @@ describe('auto domain', () => {
     });
   });
 
-  it('throws safety error during execution of dangerous commands', async () => {
+  it('keeps dangerous shell commands blocked during confirmed runs', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-auto-'));
     const filePath = path.join(root, 'workflow.yml');
 
@@ -398,19 +400,19 @@ describe('auto domain', () => {
     );
 
     try {
-      await expect(runWorkflowFile(filePath, { yes: true })).rejects.toThrow(
-        /Workflow step `test_run` was blocked for safety/
-      );
+      await expect(runWorkflowFile(filePath, { yes: true })).resolves.toMatchObject({
+        executed: [],
+        skipped: ['test_run: Dangerous command pattern found: `rm` with recursive/force flags.'],
+      });
     } finally {
       await rm(root, { recursive: true, force: true });
     }
   });
 
-  it('captures command stderr when a shell step fails during execution', async () => {
+  it('never launches arbitrary shell commands during confirmed runs', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-auto-'));
     const filePath = path.join(root, 'workflow.yml');
 
-    // Run a command that prints to stderr and exits with non-zero (e.g. node -e "console.error('custom_error_log'); process.exit(1)")
     await writeFile(
       filePath,
       [
@@ -419,17 +421,17 @@ describe('auto domain', () => {
         '  shell: prompt',
         'steps:',
         '  - name: fail_step',
-        '    run: node -e "console.error(\'custom_error_log\'); process.exit(1)"',
+        '    run: node -e "process.exit(99)"',
         '',
       ].join('\n'),
       'utf8'
     );
 
     try {
-      await expect(runWorkflowFile(filePath, { yes: true })).rejects.toMatchObject({
-        code: 'WORKFLOW_STEP_FAILED',
-        message: 'Workflow step `fail_step` failed.',
-        why: 'Command stderr:\ncustom_error_log',
+      await expect(runWorkflowFile(filePath, { yes: true })).resolves.toMatchObject({
+        status: 'ok',
+        executed: [],
+        skipped: ['fail_step: Shell execution is disabled in this foundation version.'],
       });
     } finally {
       await rm(root, { recursive: true, force: true });

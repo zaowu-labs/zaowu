@@ -11,5 +11,6 @@ Safety:
 - Confirmed requests require `--yes` through the CLI path.
 - Output should make the target URL and request status clear.
 - Confirmed requests use a bounded default timeout.
+- Redirects are not followed automatically, so the confirmed network target stays the disclosed URL.
 - Request failures use structured ZaoWu errors instead of raw network errors.
 - Fetched response bodies are bounded and report whether truncation happened.

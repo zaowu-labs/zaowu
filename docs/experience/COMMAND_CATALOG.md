@@ -80,6 +80,9 @@ First-version behavior:
 - Uses the local `echo` provider by default.
 - `zw ai ask --file README.md` includes a readable file as explicit input.
 - The OpenAI provider uses the Responses API when `OPENAI_API_KEY` is set.
+- Ollama uses its local HTTP API and therefore follows the same preview and
+  `--yes` confirmation rule as other network providers.
+- Provider operation plans disclose the resolved HTTP endpoint.
 - `--model` or `OPENAI_MODEL` can override the default model. Preview output,
   operation-plan subjects, fingerprints, and confirmed requests use the same
   resolved model.
@@ -102,17 +105,20 @@ Common failures:
 
 ## `zw dev`
 
-| Command         | Description                                   | Example                  |
-| --------------- | --------------------------------------------- | ------------------------ |
-| `zw dev status` | Show branch, staged, unstaged, and untracked  | `zw dev status`          |
-| `zw dev review` | Review staged or working-tree changes         | `zw dev review --staged` |
-| `zw dev commit` | Suggest a structured commit preview           | `zw dev commit`          |
-| `zw dev sync`   | Synchronize local branch with remote tracking | `zw dev sync`            |
+| Command         | Description                                         | Example                  |
+| --------------- | --------------------------------------------------- | ------------------------ |
+| `zw dev status` | Show branch, staged, unstaged, and untracked        | `zw dev status`          |
+| `zw dev review` | Review staged or working-tree changes               | `zw dev review --staged` |
+| `zw dev commit` | Suggest a structured commit preview                 | `zw dev commit`          |
+| `zw dev sync`   | Reset the local branch to the same branch on origin | `zw dev sync`            |
 
 Safety:
 
 - `zw dev status`, `zw dev review`, and `zw dev commit` do not modify Git state.
-- `zw dev sync` updates Git state by fetching and performing a hard reset. It runs in preview mode by default, requiring the `--yes` flag or confirmation to execute.
+- `zw dev sync` updates Git state by fetching `origin` and hard-resetting the
+  current branch to `origin/<branch>`. It previews by default and requires
+  `--yes` to execute.
+- Its operation plan lists both Git commands and the origin network remote.
 - `zw dev commit` reads staged changes only.
 - `zw dev review --staged` and `zw dev review --worktree` keep sources explicit.
 - Commit previews include a structured Conventional Commit suggestion, suggested
@@ -151,7 +157,7 @@ Safety:
 Current format support:
 
 - Supported: `.txt`, `.md`, `.markdown`, `.csv`, `.json`, `.yml`, `.yaml`,
-  `.pdf`, `.docx`
+  `.html`, `.htm`, `.pdf`, `.docx`
 - PDF and DOCX are extracted as text. Rich layout, comments, tracked changes,
   and embedded media are not preserved in this foundation version.
 
@@ -174,7 +180,7 @@ Safety:
 
 Current format support:
 
-- Supported: `.csv`, `.tsv`, `.xlsx`
+- Supported: `.csv`, `.tsv`, `.json`, `.xlsx`
 - XLSX support reads the first worksheet by default. Use `--sheet <name>` on
   inspect, analyze, clean, schema, or sample to select a worksheet by name.
 - XLSX values are normalized to strings for this foundation version.
@@ -270,6 +276,8 @@ Safety:
 
 - Network requests are not sent by default.
 - Use `--yes` to make the request.
+- Redirects are not followed automatically, so the confirmed target remains the
+  only requested URL.
 
 ## Contract Guards
 

@@ -109,7 +109,7 @@ describe('executeCli', () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain('ZaoWu Data Schema');
-    expect(result.stdout).toContain('zw data schema <file.csv|file.tsv|file.xlsx>');
+    expect(result.stdout).toContain('zw data schema <file.csv|file.tsv|file.json|file.xlsx>');
   });
 
   it('keeps automation help aligned with supported workflow formats', async () => {
@@ -284,8 +284,33 @@ describe('executeCli', () => {
       operationPlan: {
         risk: 'medium',
         confirmationRequired: true,
-        network: ['openai'],
+        network: ['https://api.openai.com/v1/responses'],
         secrets: ['OPENAI_API_KEY'],
+      },
+    });
+  });
+
+  it('requires preview and confirmation for Ollama HTTP requests', async () => {
+    const result = await executeCli([
+      'ai',
+      'ask',
+      'Explain',
+      'ZaoWu',
+      '--provider',
+      'ollama',
+      '--json',
+    ]);
+
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      status: 'preview',
+      provider: {
+        id: 'ollama',
+        network: true,
+      },
+      operationPlan: {
+        confirmationRequired: true,
+        network: ['http://localhost:11434/api/generate'],
       },
     });
   });
@@ -436,7 +461,7 @@ describe('executeCli', () => {
 
       expect(result.exitCode).toBe(1);
       expect(payload.error.code).toBe('OPERATION_PLAN_MISMATCH');
-      expect(config).toContain('name: zaowu-project');
+      expect(config).toContain('name: "zaowu-project"');
       expect(config).not.toContain('blocked');
     } finally {
       await rm(root, { recursive: true, force: true });
@@ -471,7 +496,39 @@ describe('executeCli', () => {
       expect(result.exitCode).toBe(0);
       expect(payload.operationPlan.fingerprint).toBe(previewPayload.operationPlan.fingerprint);
       expect(payload.wroteFile).toBe(true);
-      expect(config).toContain('name: allowed');
+      expect(config).toContain('name: "allowed"');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects a config value change made with a fingerprint from another value', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
+
+    try {
+      await executeCli(['init', '--yes'], { cwd: root });
+      const preview = await executeCli(['config', 'set', 'project.name', 'first', '--json'], {
+        cwd: root,
+      });
+      const previewPayload = JSON.parse(preview.stdout);
+      const result = await executeCli(
+        [
+          'config',
+          'set',
+          'project.name',
+          'second',
+          '--yes',
+          '--plan-fingerprint',
+          previewPayload.operationPlan.fingerprint,
+          '--json',
+        ],
+        { cwd: root }
+      );
+      const config = await readFile(path.join(root, DEFAULT_CONFIG_FILE_NAME), 'utf8');
+
+      expect(result.exitCode).toBe(1);
+      expect(JSON.parse(result.stderr).error.code).toBe('OPERATION_PLAN_MISMATCH');
+      expect(config).toContain('name: "zaowu-project"');
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -513,7 +570,7 @@ describe('executeCli', () => {
 
       const globalPath = payload.filePath;
       const config = await readFile(globalPath, 'utf8');
-      expect(config).toContain('name: global-project');
+      expect(config).toContain('name: "global-project"');
 
       const localYml = path.join(root, DEFAULT_CONFIG_FILE_NAME);
       await expect(readFile(localYml, 'utf8')).rejects.toThrow();
@@ -552,6 +609,45 @@ describe('executeCli', () => {
         risk: 'low',
         executes: ['git status --short --branch'],
       },
+    });
+  });
+
+  it('keeps confirmed dev sync aligned with its previewed operation plan', async () => {
+    const commandRunner = (_command: string, args: readonly string[]): string => {
+      switch (args.join(' ')) {
+        case 'status --short --branch':
+          return '## main...origin/main';
+        case 'rev-parse HEAD':
+          return 'commit_hash_123';
+        case 'fetch origin':
+          return 'fetched';
+        case 'reset --hard origin/main':
+          return 'reset';
+        default:
+          throw new Error(`unexpected command: ${args.join(' ')}`);
+      }
+    };
+    const preview = await executeCli(['dev', 'sync', '--json'], { commandRunner });
+    const previewPayload = JSON.parse(preview.stdout);
+    const confirmed = await executeCli(
+      [
+        'dev',
+        'sync',
+        '--yes',
+        '--plan-fingerprint',
+        previewPayload.operationPlan.fingerprint,
+        '--json',
+      ],
+      { commandRunner }
+    );
+    const confirmedPayload = JSON.parse(confirmed.stdout);
+
+    expect(confirmed.exitCode).toBe(0);
+    expect(confirmedPayload.operationPlan).toMatchObject({
+      confirmationRequired: false,
+      executes: ['git fetch origin', 'git reset --hard origin/main'],
+      network: ['git remote origin'],
+      fingerprint: previewPayload.operationPlan.fingerprint,
     });
   });
 

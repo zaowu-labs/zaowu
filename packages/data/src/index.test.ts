@@ -146,6 +146,29 @@ describe('data domain', () => {
     }
   });
 
+  it('does not treat partially numeric text as a number', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-data-'));
+    const filePath = path.join(root, 'mixed.csv');
+
+    await writeFile(filePath, 'name,amount\nA,10\nB,20kg\nC,30\n', 'utf8');
+
+    try {
+      await expect(analyzeData(filePath)).resolves.toMatchObject({
+        numericColumns: [
+          {
+            column: 'amount',
+            count: 2,
+            min: 10,
+            max: 30,
+            average: 20,
+          },
+        ],
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('previews cleaned CSV output without writing by default', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-data-'));
     const inputPath = path.join(root, 'sales.csv');

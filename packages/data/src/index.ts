@@ -517,7 +517,9 @@ export const analyzeData = async (
 
   for (const [index, header] of table.headers.entries()) {
     const numbers = table.rows
-      .map((row) => Number.parseFloat(row[index] ?? ''))
+      .map((row) => (row[index] ?? '').trim())
+      .filter(Boolean)
+      .map((value) => Number(value))
       .filter((value) => Number.isFinite(value));
 
     if (numbers.length === 0) {

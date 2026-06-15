@@ -3,7 +3,7 @@
 Document workflow package for ZaoWu.
 
 This package extracts and summarizes text from supported document inputs,
-including text-like files, PDF, and DOCX in the foundation version.
+including text-like files, HTML, PDF, and DOCX in the foundation version.
 
 ## PDF Support Note (Foundation Workaround)
 

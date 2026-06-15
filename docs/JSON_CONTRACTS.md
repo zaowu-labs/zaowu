@@ -192,9 +192,10 @@ Stable fields:
 - `validation` for preview output
 - `operationPlan` when routed through the CLI
 
-Local providers can return `status: "ok"` without network access. Network
-providers preview by default and return `status: "preview"` with `output: null`
-until the user confirms with `--yes`. For provider-backed requests, `model` and
+The local echo provider can return `status: "ok"` without network access.
+HTTP-backed providers, including Ollama, preview by default and return
+`status: "preview"` with `output: null` until the user confirms with `--yes`.
+Their operation plans disclose the resolved endpoint. For provider-backed requests, `model` and
 the `operationPlan.subjects` model entry use the same resolved value: explicit
 `--model`, then provider-specific environment defaults such as `OPENAI_MODEL`,
 then the provider default.
@@ -278,6 +279,17 @@ Stable fields:
 - `operationPlan` when routed through the CLI
 
 `zw dev status` reads Git status only and does not modify Git state.
+
+### `zw dev sync --json`
+
+Current result schema: `schemaVersion: 1`.
+
+Schema file: `schemas/zaowu.command.dev-sync.schema.json`.
+
+Sync previews by default. Its operation plan lists `git fetch origin`,
+`git reset --hard origin/<branch>`, and network access to the origin remote.
+Confirmed results keep the same fingerprint and set
+`confirmationRequired: false`.
 
 ### `zw auto validate --json`
 
@@ -388,7 +400,7 @@ Schema files: `schemas/zaowu.command.web-*.schema.json`.
 
 Inspect and fetch preview without network access by default. CLI output includes
 the shared `operationPlan`, including the normalized URL and confirmation
-requirement.
+requirement. Redirects are not followed automatically.
 
 ## Verification
 

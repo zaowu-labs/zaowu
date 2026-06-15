@@ -534,15 +534,28 @@ describe('dev domain', () => {
       previousCommit: 'commit_hash_123',
       currentCommit: 'commit_hash_123',
       output: 'Preview: ZaoWu will run `git fetch origin` and `git reset --hard origin/main`.',
+      operationPlan: {
+        risk: 'high',
+        confirmationRequired: true,
+        reads: ['current Git branch', 'current HEAD commit'],
+        executes: ['git fetch origin', 'git reset --hard origin/main'],
+        network: ['git remote origin'],
+      },
     });
 
-    expect(syncDevRepo(runner, { yes: true })).toEqual({
+    expect(syncDevRepo(runner, { yes: true })).toMatchObject({
       schemaVersion: 1,
       status: 'ok',
       branch: 'main',
       previousCommit: 'commit_hash_123',
       currentCommit: 'commit_hash_123',
       output: 'Successfully synchronized branch `main` to `origin/main`.',
+      operationPlan: {
+        risk: 'high',
+        confirmationRequired: false,
+        executes: ['git fetch origin', 'git reset --hard origin/main'],
+        network: ['git remote origin'],
+      },
     });
   });
 
