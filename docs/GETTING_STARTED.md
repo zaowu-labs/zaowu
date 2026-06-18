@@ -82,6 +82,14 @@ guarded inside `packages/ai` so internal callers cannot bypass confirmation.
 The preview reads any `--file` input and reports combined input size before a
 network request can be sent.
 
+Ollama also uses HTTP, even when it runs on localhost, so it follows the same
+preview-first rule:
+
+```bash
+corepack pnpm --silent zw ai ask "Explain ZaoWu" --provider ollama
+corepack pnpm --silent zw ai ask "Explain ZaoWu" --provider ollama --yes
+```
+
 Review Git state without modifying it:
 
 ```bash
@@ -89,15 +97,22 @@ corepack pnpm --silent zw dev status
 corepack pnpm --silent zw dev review
 corepack pnpm --silent zw dev review --staged
 corepack pnpm --silent zw dev commit
+corepack pnpm --silent zw dev sync
 ```
 
 Review output includes change categories, diff hunk summaries, deterministic
 risk signals, and recommended validation commands so the next check is explicit.
 Worktree review lists untracked files by name; stage them when you need full Git
 diff context.
+`zw dev sync` is different: it fetches `origin` and hard-resets the current
+branch to `origin/<branch>`. It previews by default and requires `--yes`; local
+tracked changes and diverged local commits can be discarded. When either risk
+is present, confirmed execution also requires `--discard-local`. Untracked files
+are not removed by this command.
 
-Work with supported documents. Text, Markdown-like files, PDF, and DOCX are
-handled as extracted text in this foundation version:
+Work with supported documents. Text, Markdown-like files, HTML, PDF, and DOCX
+are handled as extracted text in this foundation version. HTML headings and
+lightweight table rows retain useful structure:
 
 ```bash
 corepack pnpm --silent zw doc summary README.md
@@ -119,6 +134,8 @@ corepack pnpm --silent zw data clean examples/data/sales.csv --output clean.csv 
 
 Blank and duplicate headers are normalized to stable names such as `column_3`
 and `name_2` before schema or sample JSON is produced.
+Schema inference also recognizes valid calendar dates, percentages, and common
+currency values while preserving the original cell text.
 
 Validate and preview automation workflows:
 
@@ -126,16 +143,19 @@ Validate and preview automation workflows:
 corepack pnpm --silent zw auto validate examples/workflows/message.yml
 corepack pnpm --silent zw auto plan examples/workflows/message.yml
 corepack pnpm --silent zw auto run examples/workflows/message.yml
+corepack pnpm --silent zw auto plan examples/workflows/write-file.yml
 ```
 
 Workflows default to `version: 1`; unsupported explicit versions produce a
 warning and remain visible in validation and plan output.
 Workflow `permissions` can declare `shell`, `fileWrites`, and `network` as
 `blocked` or `prompt`. In this foundation version, shell steps still stay
-blocked even when `permissions.shell: prompt` is present. JSON output also
-includes a runtime `policy` and an execution `sandbox`; the sandbox keeps shell
-commands, file writes, and network access blocked in this phase. It also shows
-the resolved workflow directory that future execution would use as its boundary.
+blocked even when `permissions.shell: prompt` is present. Structured
+`writeFile` steps may create a new file only when `fileWrites: prompt` is
+declared and the run is confirmed with `--yes`. Absolute paths, parent-directory
+escapes, existing targets, and linked directories that resolve outside the
+workflow directory are refused. JSON output includes the runtime `policy` and
+execution `sandbox`, including the resolved workflow-directory boundary.
 `zw auto plan --json` includes per-step `operationPlan` entries so automation
 can inspect risk and planned execution before anything runs.
 
@@ -151,7 +171,8 @@ corepack pnpm --silent zw plugin list
 
 Local plugin manifests may declare `schemaVersion: 1`. Unsupported schema
 versions, duplicate command names, and invalid command summaries are reported
-before installation from a local source.
+before installation from a local source. Plugin commands are not executed in
+this foundation version.
 
 ## Safety Defaults
 
@@ -163,8 +184,11 @@ before installation from a local source.
 - Plugin install/remove previews by default.
 - Confirmed plugin install refuses existing manifests, and confirmed plugin
   remove refuses missing manifests.
-- Automation shell steps are detected but not executed.
-- Git commands do not commit, push, reset, or checkout.
+- Automation shell steps are detected but not executed. Structured file writes
+  are confirmation-gated, sandboxed, and create-only.
+- Git status, review, and commit preview are read-only. `zw dev sync --yes`
+  performs the explicitly previewed fetch and hard reset only when no discard
+  risk exists; otherwise add `--discard-local`.
 - Config rejects secret-like keys such as `token`, `password`, and `apiKey`.
 - Sensitive JSON outputs include a schema-versioned `operationPlan` that lists
   subjects, reads, writes, deletes, network requests, secrets, execution,
@@ -227,13 +251,13 @@ corepack pnpm --silent zw dev commit
 
 `Data format is not supported yet.`
 
-Use `.csv`, `.tsv`, or `.xlsx`. XLSX reads the first worksheet by default; pass
+Use `.csv`, `.tsv`, `.json`, or `.xlsx`. XLSX reads the first worksheet by default; pass
 `--sheet <name>` when you need a specific worksheet.
 
 `Document format is not supported yet.`
 
-Use `.txt`, `.md`, `.markdown`, `.csv`, `.json`, `.yml`, `.yaml`, `.pdf`, or
-`.docx`. PDF and DOCX are extracted as text.
+Use `.txt`, `.md`, `.markdown`, `.csv`, `.json`, `.yml`, `.yaml`, `.html`,
+`.htm`, `.pdf`, or `.docx`. PDF and DOCX are extracted as text.
 
 `Workflow format is not supported yet.`
 

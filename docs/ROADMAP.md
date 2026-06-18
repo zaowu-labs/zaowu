@@ -44,13 +44,15 @@ Scope:
 - local AI provider listing and explicit file input
 - non-streaming OpenAI provider adapter behind `packages/ai` with explicit
   network confirmation, shared preview, timeout, and input-size guardrails
-- developer status/review/commit previews with change categories, diff hunk
-  summaries, deterministic risk signals, and recommended checks
-- document outline/search, frontmatter extraction, PDF, and DOCX text extraction
-- data schema/sample, clean metadata, and XLSX first-sheet or named-sheet
-  support with stable normalized headers
+- developer status/review/commit previews with change categories, line-aware
+  diff hunk summaries, deterministic risk signals, and recommended checks
+- document outline/search, frontmatter extraction, structured HTML text, PDF,
+  and DOCX text extraction
+- data schema/sample, semantic date/percent/currency inference, clean metadata,
+  and XLSX first-sheet or named-sheet support with stable normalized headers
 - automation planning with variable checks, workflow version warnings, and
-  explicit execution policy decisions plus a blocked execution sandbox
+  explicit execution policy decisions plus a sandboxed structured file-write
+  action
 - automation execution rules documented before shell execution is enabled
 - local plugin manifest validation with schema version and command checks
 - user-facing examples and JSON Schemas kept outside runtime packages

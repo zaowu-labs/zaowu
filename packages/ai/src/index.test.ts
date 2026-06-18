@@ -10,17 +10,18 @@ import {
   listAIProviders,
   parseRetryAfterHeaderMs,
   previewAIRequest,
+  resolveAIProviderNetworkTarget,
   resolveAIModel,
   validateAIProviderConfig,
 } from './index';
 
-const readOpenAIFixture = async (name: string): Promise<unknown> =>
+const readAIFixture = async (name: string): Promise<unknown> =>
   JSON.parse(
     await readFile(new URL(`../test/fixtures/${name}.json`, import.meta.url), 'utf8')
   ) as unknown;
 
 describe('AI provider registry', () => {
-  it('starts with local echo and ollama providers', () => {
+  it('marks every HTTP-backed provider as networked', () => {
     expect(listAIProviders({})).toEqual([
       {
         id: 'echo',
@@ -40,7 +41,7 @@ describe('AI provider registry', () => {
       {
         id: 'ollama',
         name: 'Ollama (Local)',
-        network: false,
+        network: true,
         configured: true,
         requiredEnv: [],
         defaultModel: 'llama3',
@@ -80,11 +81,7 @@ describe('AI provider registry', () => {
             status: 200,
             statusText: 'OK',
             async json() {
-              return {
-                model: 'test-model',
-                response: 'Ollama response text',
-                done: true,
-              };
+              return await readAIFixture('ollama-generate');
             },
           };
         },
@@ -93,7 +90,7 @@ describe('AI provider registry', () => {
       schemaVersion: 1,
       provider: {
         id: 'ollama',
-        network: false,
+        network: true,
         configured: true,
       },
       model: 'test-model',
@@ -288,7 +285,7 @@ describe('AI provider registry', () => {
             status: 200,
             statusText: 'OK',
             async json() {
-              return await readOpenAIFixture('openai-output-text');
+              return await readAIFixture('openai-output-text');
             },
           };
         },
@@ -306,7 +303,7 @@ describe('AI provider registry', () => {
 
     expect(calls).toEqual([
       {
-        url: 'https://api.openai.com/v1/chat/completions',
+        url: 'https://api.openai.com/v1/responses',
         init: {
           method: 'POST',
           headers: {
@@ -316,8 +313,7 @@ describe('AI provider registry', () => {
           signal: expect.any(AbortSignal),
           body: JSON.stringify({
             model: 'test-model',
-            messages: [{ role: 'user', content: 'Explain ZaoWu' }],
-            stream: false,
+            input: 'Explain ZaoWu',
           }),
         },
       },
@@ -354,7 +350,7 @@ describe('AI provider registry', () => {
           status: 200,
           statusText: 'OK',
           async json() {
-            return await readOpenAIFixture('openai-output-text');
+            return await readAIFixture('openai-output-text');
           },
         };
       },
@@ -395,7 +391,7 @@ describe('AI provider registry', () => {
           status: 200,
           statusText: 'OK',
           async json() {
-            return await readOpenAIFixture('openai-output-text');
+            return await readAIFixture('openai-output-text');
           },
         };
       },
@@ -422,7 +418,7 @@ describe('AI provider registry', () => {
           status: 200,
           statusText: 'OK',
           async json() {
-            return await readOpenAIFixture('openai-nested-output');
+            return await readAIFixture('openai-nested-output');
           },
         }),
       })
@@ -449,6 +445,18 @@ describe('AI provider registry', () => {
         prompt: 'Explain ZaoWu',
         env: {
           OPENAI_API_KEY: 'test-key',
+        },
+      })
+    ).rejects.toThrow('Network AI request requires confirmation.');
+  });
+
+  it('requires explicit confirmation before contacting Ollama', async () => {
+    await expect(
+      askAI({
+        provider: 'ollama',
+        prompt: 'Explain ZaoWu',
+        fetcher: async () => {
+          throw new Error('fetcher should not be called');
         },
       })
     ).rejects.toThrow('Network AI request requires confirmation.');
@@ -611,7 +619,7 @@ describe('AI provider registry', () => {
           status: 200,
           statusText: 'OK',
           async json() {
-            return await readOpenAIFixture('openai-no-text-output');
+            return await readAIFixture('openai-no-text-output');
           },
         }),
       })
@@ -695,9 +703,7 @@ describe('AI provider registry', () => {
             status: 200,
             statusText: 'OK',
             async json() {
-              return {
-                content: [{ type: 'text', text: 'Anthropic response text' }],
-              };
+              return await readAIFixture('anthropic-message');
             },
           };
         },
@@ -735,7 +741,7 @@ describe('AI provider registry', () => {
     ]);
   });
 
-  it('handles Ollama streaming callbacks correctly', async () => {
+  it('keeps Ollama on the non-streaming foundation path', async () => {
     const chunks: string[] = [];
     const onChunk = (chunk: string) => {
       chunks.push(chunk);
@@ -744,6 +750,7 @@ describe('AI provider registry', () => {
     const result = await askAI({
       provider: 'ollama',
       prompt: 'Explain ZaoWu',
+      allowNetwork: true,
       onChunk,
       fetcher: async (_url, _init) => {
         return {
@@ -760,9 +767,10 @@ describe('AI provider registry', () => {
     });
 
     expect(result.output).toBe('Ollama streamed text');
+    expect(chunks).toEqual([]);
   });
 
-  it('handles OpenAI streaming callbacks correctly', async () => {
+  it('keeps OpenAI on the non-streaming foundation path', async () => {
     const chunks: string[] = [];
     const onChunk = (chunk: string) => {
       chunks.push(chunk);
@@ -797,6 +805,7 @@ describe('AI provider registry', () => {
     });
 
     expect(result.output).toBe('OpenAI streamed text');
+    expect(chunks).toEqual([]);
   });
 
   it('supports custom OPENAI_BASE_URL endpoint', async () => {
@@ -823,7 +832,30 @@ describe('AI provider registry', () => {
         };
       },
     });
-    expect(requestedUrl).toBe('https://my-custom-proxy.internal/v1/chat/completions');
+    expect(requestedUrl).toBe('https://my-custom-proxy.internal/v1/responses');
+  });
+
+  it('rejects provider base URLs with query strings or fragments', () => {
+    for (const [provider, env] of [
+      ['openai', { OPENAI_BASE_URL: 'https://my-custom-proxy.internal?tenant=demo' }],
+      ['ollama', { OLLAMA_HOST: 'http://localhost:11434?tenant=demo' }],
+      ['anthropic', { ANTHROPIC_BASE_URL: 'https://my-anthropic-proxy.internal#messages' }],
+    ] as const) {
+      let thrown: unknown;
+
+      try {
+        resolveAIProviderNetworkTarget(provider, env);
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).toMatchObject({
+        code: 'AI_PROVIDER_REQUEST_FAILED',
+        why: expect.stringContaining(
+          'must use http or https and must not contain credentials, a query string, or a fragment'
+        ),
+      });
+    }
   });
 
   it('supports custom ANTHROPIC_BASE_URL endpoint', async () => {
@@ -851,6 +883,30 @@ describe('AI provider registry', () => {
       },
     });
     expect(requestedUrl).toBe('https://my-anthropic-proxy.internal/v1/messages');
+  });
+
+  it('rejects Anthropic responses without text output', async () => {
+    await expect(
+      askAI({
+        provider: 'anthropic',
+        prompt: 'Explain ZaoWu',
+        allowNetwork: true,
+        env: {
+          ANTHROPIC_API_KEY: 'test-key',
+        },
+        fetcher: async () => ({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          async json() {
+            return await readAIFixture('anthropic-no-text-output');
+          },
+        }),
+      })
+    ).rejects.toMatchObject({
+      code: 'AI_PROVIDER_RESPONSE_INVALID',
+      why: 'The response from Anthropic did not contain generated text.',
+    });
   });
 
   it('retries on rate limits (429) or server errors (500) and eventually succeeds or fails', async () => {

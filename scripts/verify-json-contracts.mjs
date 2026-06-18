@@ -147,10 +147,7 @@ const assertSchemaFragmentsStayAligned = () => {
   const operationPlan = schemas.shared.$defs.operationPlan;
 
   for (const field of ['subjects', 'fingerprintAlgorithm', 'fingerprint']) {
-    assert(
-      operationPlan.required.includes(field),
-      `shared operationPlan must require ${field}.`
-    );
+    assert(operationPlan.required.includes(field), `shared operationPlan must require ${field}.`);
   }
   assert(
     operationPlan.properties.fingerprintAlgorithm.const === 'sha256-v1',
@@ -457,7 +454,9 @@ for (const contract of COMMAND_CONTRACTS.filter((candidate) => candidate.id !== 
     `${contract.id} must register a result schema file.`
   );
   assert(
-    Object.values(schemas).some((schema) => path.basename(contract.schemaFile) === path.basename(new URL(schema.$id).pathname)),
+    Object.values(schemas).some(
+      (schema) => path.basename(contract.schemaFile) === path.basename(new URL(schema.$id).pathname)
+    ),
     `${contract.id} schema file must be loaded by the JSON contract gate.`
   );
 }
@@ -476,7 +475,8 @@ for (const contract of COMMAND_CONTRACTS) {
 
 const schemaErrorCodes = schemas.error.properties.error.properties.code.enum;
 assert(
-  JSON.stringify([...schemaErrorCodes].sort()) === JSON.stringify([...core.ZAOWU_ERROR_CODES].sort()),
+  JSON.stringify([...schemaErrorCodes].sort()) ===
+    JSON.stringify([...core.ZAOWU_ERROR_CODES].sort()),
   'Command error schema code enum must match the core error code registry.'
 );
 
@@ -496,6 +496,9 @@ const workflowContent =
   'name: contract\nvars:\n  target: ZaoWu\nsteps:\n  - name: hello\n    message: Hello {{target}}\n';
 const validation = auto.validateWorkflowContent(workflowContent);
 const plan = auto.planWorkflowContent(workflowContent);
+const writePlan = await auto.planWorkflowFile(
+  path.join(root, 'examples', 'workflows', 'write-file.yml')
+);
 const run = await auto.runWorkflowFile(path.join(root, 'examples', 'workflows', 'message.yml'));
 
 assert(validation.schemaVersion === 1, 'auto validation result schemaVersion must be 1.');
@@ -513,7 +516,10 @@ assert(
   !Object.hasOwn(plan.workflow.permissions, 'schemaVersion'),
   'workflow permissions must not be polluted with runtime schemaVersion.'
 );
-assert(plan.steps?.[0]?.policyDecision === 'allowed', 'auto plan steps must expose policy decisions.');
+assert(
+  plan.steps?.[0]?.policyDecision === 'allowed',
+  'auto plan steps must expose policy decisions.'
+);
 assert(
   plan.steps?.[0]?.operationPlan?.risk === 'low',
   'auto plan message steps must expose low-risk step operation plans.'
@@ -523,6 +529,16 @@ assert(
   'auto plan message steps must not report shell execution.'
 );
 assertValid('autoPlan', plan);
+assert(writePlan.steps?.[0]?.action === 'writeFile', 'auto write plan must expose writeFile.');
+assert(
+  writePlan.sandbox?.fileWrites === 'workflow-directory',
+  'auto write plan must expose its workflow-directory sandbox.'
+);
+assert(
+  path.isAbsolute(writePlan.steps?.[0]?.targetPath ?? ''),
+  'auto write plan must expose an absolute target path.'
+);
+assertValid('autoPlan', writePlan);
 assert(run.schemaVersion === 1, 'auto run result schemaVersion must be 1.');
 assert(run.status === 'preview', 'auto run should preview by default.');
 assertValid('autoRun', run);
@@ -552,21 +568,14 @@ try {
   );
 
   const configValidation = await configPackage.validateResolvedConfig(configValidateFixture);
-  const configSet = await configPackage.setResolvedConfigValue(
-    'project.name',
-    'contract-next',
-    {
-      cwd: configValidateFixture,
-    }
-  );
+  const configSet = await configPackage.setResolvedConfigValue('project.name', 'contract-next', {
+    cwd: configValidateFixture,
+  });
   const configMigration = await configPackage.migrateResolvedConfig({
     cwd: configValidateFixture,
   });
 
-  assert(
-    configValidation.schemaVersion === 1,
-    'config validate result schemaVersion must be 1.'
-  );
+  assert(configValidation.schemaVersion === 1, 'config validate result schemaVersion must be 1.');
   assertValid('configValidate', configValidation);
   assert(configSet.schemaVersion === 1, 'config set result schemaVersion must be 1.');
   assert(configSet.status === 'preview', 'config set package output should preview by default.');
@@ -596,10 +605,7 @@ try {
   assertValid('docOutline', documentOutline);
   assertValid('docSearch', documentSearch);
   assertValid('docConvert', documentConversion);
-  assert(
-    documentConversion.schemaVersion === 1,
-    'doc convert result schemaVersion must be 1.'
-  );
+  assert(documentConversion.schemaVersion === 1, 'doc convert result schemaVersion must be 1.');
   assert(documentConversion.status === 'preview', 'doc convert package output should preview.');
 
   const dataInspection = await data.inspectData(dataPath);
@@ -719,7 +725,10 @@ const status = dev.getDevStatus(runner);
 
 assert(commit.schemaVersion === 1, 'dev commit result schemaVersion must be 1.');
 assert(commit.source === 'staged', 'dev commit should use staged changes.');
-assert(commit.suggestion?.title === commit.message, 'dev commit suggestion title must match message.');
+assert(
+  commit.suggestion?.title === commit.message,
+  'dev commit suggestion title must match message.'
+);
 assert(
   commit.findings.some((finding) => finding.title === 'Shell execution added'),
   'dev commit must expose staged diff risk findings.'
@@ -728,25 +737,53 @@ assertValid('devCommit', commit);
 assert(review.schemaVersion === 1, 'dev review result schemaVersion must be 1.');
 assert(Array.isArray(review.diffHunks), 'dev review diffHunks must be an array.');
 assert(review.diffHunks[0]?.addedLines === 2, 'dev review diffHunks must expose added lines.');
+assert(review.diffHunks[0]?.startLine === 1, 'dev review diffHunks must expose start lines.');
+assert(review.diffHunks[0]?.endLine === 2, 'dev review diffHunks must expose end lines.');
 assert(
   review.findings.some((finding) => finding.title === 'Shell execution added'),
   'dev review must expose deterministic shell-execution risk findings.'
 );
+assert(
+  review.findings.some(
+    (finding) => finding.title === 'Shell execution added' && finding.line === 2
+  ),
+  'dev review findings must expose precise added lines when available.'
+);
 assertValid('devReview', review);
 assert(status.schemaVersion === 1, 'dev status result schemaVersion must be 1.');
 assert(status.clean === false, 'dev status should report staged changes.');
+assert(status.ahead === 0 && status.behind === 0, 'dev status must expose ahead/behind counts.');
 assertValid('devStatus', status);
 
 const devSyncPreview = dev.syncDevRepo(runner);
-const devSync = dev.syncDevRepo(runner, { yes: true });
+let devSyncDiscardError;
+try {
+  dev.syncDevRepo(runner, { yes: true });
+} catch (error) {
+  devSyncDiscardError = error;
+}
+const devSync = dev.syncDevRepo(runner, { yes: true, discardLocal: true });
 
 assert(devSyncPreview.schemaVersion === 1, 'dev sync result schemaVersion must be 1.');
 assert(devSyncPreview.status === 'preview', 'dev sync default mode must preview.');
+assert(
+  devSyncDiscardError?.code === 'GIT_SYNC_DISCARD_CONFIRMATION_REQUIRED',
+  'dev sync must require explicit discard acknowledgement for tracked changes.'
+);
 assert(devSync.status === 'ok', 'dev sync confirmed mode must succeed.');
+assert(
+  devSyncPreview.operationPlan?.executes?.includes('git reset --hard origin/main'),
+  'dev sync preview must disclose the hard reset command.'
+);
+assert(
+  devSync.operationPlan?.confirmationRequired === false,
+  'confirmed dev sync must clear the confirmation requirement.'
+);
 assertValid('devSync', devSyncPreview);
 assertValid('devSync', devSync);
 
 const cliWorkflowPath = 'examples/workflows/message.yml';
+const cliWriteWorkflowPath = 'examples/workflows/write-file.yml';
 const cliInitFixture = await mkdtemp(path.join(tmpdir(), 'zaowu-init-contract-'));
 const cliDoctor = runCliJson(['doctor']);
 const cliAIProviders = runCliJson(['ai', 'providers']);
@@ -768,6 +805,7 @@ const cliAIPreviewEnvModel = runCliJson(['ai', 'ask', 'Summarize', '--provider',
 });
 const cliValidation = runCliJson(['auto', 'validate', cliWorkflowPath]);
 const cliPlan = runCliJson(['auto', 'plan', cliWorkflowPath]);
+const cliWritePlan = runCliJson(['auto', 'plan', cliWriteWorkflowPath]);
 const cliRun = runCliJson(['auto', 'run', cliWorkflowPath]);
 const cliDocSummary = runCliJson(['doc', 'summary', documentPath]);
 const cliDocExtract = runCliJson(['doc', 'extract', documentPath]);
@@ -857,10 +895,7 @@ try {
     cliInitCreated.operationPlan?.fingerprint === cliInitPreview.operationPlan?.fingerprint,
     'CLI init confirmation should preserve the preview operation plan fingerprint.'
   );
-  assert(
-    cliConfigValidation.schemaVersion === 1,
-    'CLI config validate schemaVersion must be 1.'
-  );
+  assert(cliConfigValidation.schemaVersion === 1, 'CLI config validate schemaVersion must be 1.');
   assert(cliConfigValidation.status === 'ok', 'CLI config validate should be ok after init.');
   assert(cliConfigSet.schemaVersion === 1, 'CLI config set schemaVersion must be 1.');
   assert(
@@ -935,6 +970,12 @@ assert(
 );
 assertValid('autoValidate', cliValidation);
 assertValid('autoPlan', cliPlan);
+assertValid('autoPlan', cliWritePlan);
+assert(
+  cliWritePlan.steps?.[0]?.action === 'writeFile' &&
+    path.isAbsolute(cliWritePlan.steps?.[0]?.targetPath ?? ''),
+  'CLI auto write plan should expose an absolute structured target.'
+);
 assertValid('autoRun', cliRun);
 assert(cliRun.status === 'preview', 'CLI auto run should preview by default.');
 assertValid('docSummary', cliDocSummary);
@@ -992,6 +1033,11 @@ try {
     'CLI dev sync preview should require confirmation.'
   );
   assert(
+    cliDevSync.operationPlan?.executes?.includes('git reset --hard origin/master') ||
+      cliDevSync.operationPlan?.executes?.includes('git reset --hard origin/main'),
+    'CLI dev sync preview should disclose its hard reset target.'
+  );
+  assert(
     cliStatus.operationPlan?.executes?.includes('git status --short --branch'),
     'CLI dev status operation plan should disclose git status.'
   );
@@ -1020,6 +1066,15 @@ try {
     cliReview.findings.some((finding) => finding.title === 'Shell execution added'),
     'CLI dev review should expose deterministic shell-execution findings.'
   );
+  assert(
+    cliReview.findings.some(
+      (finding) =>
+        finding.title === 'Shell execution added' &&
+        Number.isInteger(finding.line) &&
+        finding.line > 0
+    ),
+    'CLI dev review should expose line-specific findings.'
+  );
 } finally {
   await rm(devReviewCliFixture, { force: true, recursive: true });
 }
@@ -1029,13 +1084,20 @@ runCliErrorJson(['unknown-command'], 'UNKNOWN_COMMAND');
 runCliErrorJson(['web', 'inspect', 'not-a-url'], 'WEB_URL_INVALID');
 runCliErrorJson(['ai', 'ask'], 'AI_PROMPT_REQUIRED');
 runCliErrorJson(['ai', 'providers', '--provider', 'missing'], 'AI_PROVIDER_NOT_FOUND');
-runCliErrorJson(['ai', 'ask', 'Explain', 'ZaoWu', '--provider', 'missing'], 'AI_PROVIDER_NOT_FOUND');
-runCliErrorJson(['ai', 'ask', 'Explain', 'ZaoWu', '--provider', 'openai', '--yes'], 'AI_PROVIDER_CONFIG_MISSING', {
-  env: {
-    ...process.env,
-    OPENAI_API_KEY: '',
-  },
-});
+runCliErrorJson(
+  ['ai', 'ask', 'Explain', 'ZaoWu', '--provider', 'missing'],
+  'AI_PROVIDER_NOT_FOUND'
+);
+runCliErrorJson(
+  ['ai', 'ask', 'Explain', 'ZaoWu', '--provider', 'openai', '--yes'],
+  'AI_PROVIDER_CONFIG_MISSING',
+  {
+    env: {
+      ...process.env,
+      OPENAI_API_KEY: '',
+    },
+  }
+);
 
 const emptyDevCliFixture = await mkdtemp(path.join(tmpdir(), 'zaowu-dev-empty-contract-'));
 

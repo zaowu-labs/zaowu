@@ -268,7 +268,14 @@ const assertSupportedDocument = (filePath: string): void => {
 const stripHtmlTags = (html: string): string => {
   let clean = html.replace(/<!--[\s\S]*?-->/g, '');
   clean = clean.replace(/<(head|script|style)\b[^>]*>([\s\S]*?)<\/\1>/gi, '');
-  clean = clean.replace(/<\/(p|div|h1|h2|h3|h4|h5|h6|li|tr)>\s*/gi, '\n');
+  clean = clean.replace(
+    /<h([1-6])\b[^>]*>/gi,
+    (_match, level: string) => `${'#'.repeat(Number(level))} `
+  );
+  clean = clean.replace(/<\/h[1-6]>\s*/gi, '\n');
+  clean = clean.replace(/<\/t[dh]>\s*/gi, ' | ');
+  clean = clean.replace(/<\/tr>\s*/gi, '\n');
+  clean = clean.replace(/<\/(p|div|li)>\s*/gi, '\n');
   clean = clean.replace(/<br\s*\/?>\s*/gi, '\n');
   clean = clean.replace(/<[^>]+>/g, ' ');
   clean = clean
@@ -287,7 +294,12 @@ const stripHtmlTags = (html: string): string => {
     .replaceAll('&#62;', '>');
   return clean
     .split(/\r?\n/)
-    .map((line) => line.trim())
+    .map((line) =>
+      line
+        .replace(/\s+\|\s*$/g, '')
+        .replace(/\s+\|\s+/g, ' | ')
+        .trim()
+    )
     .filter((line, idx, arr) => line || (idx > 0 && arr[idx - 1]))
     .join('\n')
     .trim();

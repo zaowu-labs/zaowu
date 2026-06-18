@@ -1,0 +1,6 @@
+{
+  "model": "test-model",
+  "created_at": "2026-06-17T00:00:00Z",
+  "response": "Ollama response text",
+  "done": true
+}

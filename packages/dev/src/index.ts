@@ -56,6 +56,8 @@ export interface DevStatusResult {
   status: 'ok';
   branch: string;
   clean: boolean;
+  ahead: number;
+  behind: number;
   staged: string[];
   unstaged: string[];
   untracked: string[];
@@ -79,6 +81,7 @@ export interface DevReviewFinding {
   detail: string;
   filePath?: string;
   hunkHeader?: string;
+  line?: number;
 }
 
 export interface DevDiffHunk {
@@ -86,6 +89,8 @@ export interface DevDiffHunk {
   header: string;
   addedLines: number;
   removedLines: number;
+  startLine: number;
+  endLine: number;
 }
 
 export interface DevReviewResult {
@@ -129,7 +134,7 @@ export const DEV_DOMAIN: DomainDefinition = {
     },
     {
       name: 'sync',
-      summary: 'Synchronize and align local branch with its remote tracking branch',
+      summary: 'Synchronize the local branch with the same-named branch on origin',
       status: 'available',
       sensitive: true,
     },
@@ -280,6 +285,7 @@ const getWorkingTreeSummary = (commandRunner: DevCommandRunner, cwd?: string): G
 
 interface ParsedDiffHunk extends DevDiffHunk {
   addedText: string[];
+  addedLineNumbers: number[];
 }
 
 const stripDiffPath = (value: string): string => {
@@ -296,6 +302,7 @@ const parseDiffHunks = (diff: string): ParsedDiffHunk[] => {
   const hunks: ParsedDiffHunk[] = [];
   let currentFile = '';
   let currentHunk: ParsedDiffHunk | undefined;
+  let currentNewLine = 0;
 
   for (const line of diff.split(/\r?\n/)) {
     const fileMatch = /^diff --git a\/(.+?) b\/(.+)$/.exec(line);
@@ -303,18 +310,25 @@ const parseDiffHunks = (diff: string): ParsedDiffHunk[] => {
     if (fileMatch) {
       currentFile = stripDiffPath(fileMatch[2]);
       currentHunk = undefined;
+      currentNewLine = 0;
       continue;
     }
 
-    const hunkMatch = /^@@\s+(.+?)\s+@@/.exec(line);
+    const hunkMatch = /^@@\s+-(?:\d+)(?:,\d+)?\s+\+(\d+)(?:,(\d+))?\s+@@/.exec(line);
 
     if (hunkMatch && currentFile) {
+      const startLine = Number.parseInt(hunkMatch[1], 10);
+      const lineCount = Number.parseInt(hunkMatch[2] ?? '1', 10);
+      currentNewLine = startLine;
       currentHunk = {
         filePath: currentFile,
         header: hunkMatch[0],
         addedLines: 0,
         removedLines: 0,
+        startLine,
+        endLine: Math.max(startLine, startLine + lineCount - 1),
         addedText: [],
+        addedLineNumbers: [],
       };
       hunks.push(currentHunk);
       continue;
@@ -324,26 +338,37 @@ const parseDiffHunks = (diff: string): ParsedDiffHunk[] => {
       continue;
     }
 
-    if (line.startsWith('+') && !line.startsWith('+++')) {
-      currentHunk.addedLines += 1;
-      currentHunk.addedText.push(line.slice(1));
+    if (line.startsWith('\\ No newline at end of file')) {
       continue;
     }
 
-    if (line.startsWith('-') && !line.startsWith('---')) {
-      currentHunk.removedLines += 1;
+    if (line.startsWith('+')) {
+      currentHunk.addedLines += 1;
+      currentHunk.addedText.push(line.slice(1));
+      currentHunk.addedLineNumbers.push(currentNewLine);
+      currentNewLine += 1;
+      continue;
     }
+
+    if (line.startsWith('-')) {
+      currentHunk.removedLines += 1;
+      continue;
+    }
+
+    currentNewLine += 1;
   }
 
   return hunks;
 };
 
 const toPublicDiffHunks = (hunks: readonly ParsedDiffHunk[]): DevDiffHunk[] =>
-  hunks.map(({ filePath, header, addedLines, removedLines }) => ({
+  hunks.map(({ filePath, header, addedLines, removedLines, startLine, endLine }) => ({
     filePath,
     header,
     addedLines,
     removedLines,
+    startLine,
+    endLine,
   }));
 
 const getReviewDiffHunks = (
@@ -523,7 +548,8 @@ const addFindingOnce = (findings: DevReviewFinding[], finding: DevReviewFinding)
       (existing) =>
         existing.title === finding.title &&
         existing.filePath === finding.filePath &&
-        existing.hunkHeader === finding.hunkHeader
+        existing.hunkHeader === finding.hunkHeader &&
+        existing.line === finding.line
     )
   ) {
     return;
@@ -601,6 +627,15 @@ const hasDestructiveGitCommandAdded = (line: string): boolean =>
       /[`'"]clean[`'"]\s*,\s*[`'"]-[A-Za-z]*[fd][A-Za-z]*[`'"]/.test(line) ||
       /[`'"]checkout[`'"]\s*,\s*[`'"]--[`'"]/.test(line)));
 
+const findFirstAddedLineNumber = (
+  hunk: ParsedDiffHunk,
+  predicate: (line: string) => boolean
+): number | undefined => {
+  const index = hunk.addedText.findIndex(predicate);
+
+  return index >= 0 ? hunk.addedLineNumbers[index] : undefined;
+};
+
 const addDiffHeuristicFindings = (
   findings: DevReviewFinding[],
   hunks: readonly ParsedDiffHunk[]
@@ -631,6 +666,7 @@ const addDiffHeuristicFindings = (
           'Added code appears to run shell commands; confirm preview or confirmation behavior.',
         filePath: hunk.filePath,
         hunkHeader: hunk.header,
+        line: findFirstAddedLineNumber(hunk, hasShellExecutionAdded),
       });
     }
 
@@ -644,6 +680,7 @@ const addDiffHeuristicFindings = (
           'Added code appears to write or delete files; confirm it cannot silently overwrite user data.',
         filePath: hunk.filePath,
         hunkHeader: hunk.header,
+        line: findFirstAddedLineNumber(hunk, hasFileMutationAdded),
       });
     }
 
@@ -657,6 +694,7 @@ const addDiffHeuristicFindings = (
           'Added code appears to access the network; confirm preview and user consent behavior.',
         filePath: hunk.filePath,
         hunkHeader: hunk.header,
+        line: findFirstAddedLineNumber(hunk, hasNetworkAccessAdded),
       });
     }
 
@@ -669,6 +707,9 @@ const addDiffHeuristicFindings = (
         detail: 'A focused test marker was added and would narrow the test run.',
         filePath: hunk.filePath,
         hunkHeader: hunk.header,
+        line: findFirstAddedLineNumber(hunk, (line) =>
+          /\b(?:it|describe|test)\.only\s*\(/.test(line)
+        ),
       });
     }
 
@@ -682,6 +723,7 @@ const addDiffHeuristicFindings = (
           'Added code appears to contain a credential-like literal; move secrets to environment variables and rotate any exposed value.',
         filePath: hunk.filePath,
         hunkHeader: hunk.header,
+        line: findFirstAddedLineNumber(hunk, hasSecretLikeLiteralAdded),
       });
     }
 
@@ -695,6 +737,7 @@ const addDiffHeuristicFindings = (
           'Added code appears to run a destructive Git command; confirm it cannot reset, clean, or force-push user work without explicit consent.',
         filePath: hunk.filePath,
         hunkHeader: hunk.header,
+        line: findFirstAddedLineNumber(hunk, hasDestructiveGitCommandAdded),
       });
     }
   }
@@ -920,6 +963,8 @@ export const getDevStatus = (
   const firstLine = lines[0] ?? '';
   const branch =
     /^##\s+(.+?)(?:\.{3}.+)?$/.exec(firstLine)?.[1].replace(/\s+\[.+\]$/, '') ?? 'unknown';
+  const ahead = Number.parseInt(/\bahead\s+(\d+)/.exec(firstLine)?.[1] ?? '0', 10) || 0;
+  const behind = Number.parseInt(/\bbehind\s+(\d+)/.exec(firstLine)?.[1] ?? '0', 10) || 0;
   const staged: string[] = [];
   const unstaged: string[] = [];
   const untracked: string[] = [];
@@ -961,6 +1006,8 @@ export const getDevStatus = (
     status: 'ok',
     branch,
     clean: staged.length === 0 && unstaged.length === 0 && untracked.length === 0,
+    ahead,
+    behind,
     staged,
     unstaged,
     untracked,
@@ -1029,9 +1076,27 @@ export interface DevSyncResult {
   operationPlan?: OperationPlan;
 }
 
+const getDevSyncDiscardRisks = (status: DevStatusResult): string[] => {
+  const risks: string[] = [];
+
+  if (status.staged.length > 0) {
+    risks.push(`${status.staged.length} staged file(s)`);
+  }
+
+  if (status.unstaged.length > 0) {
+    risks.push(`${status.unstaged.length} unstaged file(s)`);
+  }
+
+  if (status.ahead > 0) {
+    risks.push(`${status.ahead} local commit(s) ahead of origin/${status.branch}`);
+  }
+
+  return risks;
+};
+
 export const syncDevRepo = (
   commandRunner: DevCommandRunner,
-  options: { cwd?: string; yes?: boolean } = {}
+  options: { cwd?: string; yes?: boolean; discardLocal?: boolean } = {}
 ): DevSyncResult => {
   const status = getDevStatus(commandRunner, options);
 
@@ -1045,14 +1110,30 @@ export const syncDevRepo = (
   }
 
   const previousCommit = runGit(commandRunner, ['rev-parse', 'HEAD'], options.cwd).trim();
+  const discardRisks = getDevSyncDiscardRisks(status);
+  const hasDiscardRisk = discardRisks.length > 0;
 
   const operationPlan = createOperationPlan({
     risk: 'high',
     confirmationRequired: !options.yes,
     subjects: [`git:${status.branch}`],
+    reads: ['current Git branch', 'current HEAD commit', 'current Git status'],
+    executes: ['git fetch origin', `git reset --hard origin/${status.branch}`],
+    network: ['git remote origin'],
     notes: [
       `This command will fetch remote updates and hard-reset your local \`${status.branch}\` branch to \`origin/${status.branch}\`.`,
       'WARNING: Any local uncommitted changes or diverged local commits will be discarded.',
+      ...(hasDiscardRisk
+        ? [
+            `Local discard risk: ${discardRisks.join(', ')}.`,
+            'Confirmed sync requires both --yes and --discard-local while local discard risk is present.',
+          ]
+        : ['No tracked local changes or local ahead commits detected.']),
+      ...(status.untracked.length > 0
+        ? [
+            `Untracked files detected: ${status.untracked.length}; git reset --hard will not delete them.`,
+          ]
+        : []),
     ],
   });
 
@@ -1063,9 +1144,20 @@ export const syncDevRepo = (
       branch: status.branch,
       previousCommit,
       currentCommit: previousCommit,
-      output: `Preview: ZaoWu will run \`git fetch origin\` and \`git reset --hard origin/${status.branch}\`.`,
+      output: hasDiscardRisk
+        ? `Preview: ZaoWu will run \`git fetch origin\` and \`git reset --hard origin/${status.branch}\`. Re-run with --yes --discard-local only if the local discard risk is acceptable.`
+        : `Preview: ZaoWu will run \`git fetch origin\` and \`git reset --hard origin/${status.branch}\`.`,
       operationPlan,
     };
+  }
+
+  if (hasDiscardRisk && !options.discardLocal) {
+    throw new ZaoWuError({
+      code: 'GIT_SYNC_DISCARD_CONFIRMATION_REQUIRED',
+      message: 'Local Git changes require explicit discard confirmation.',
+      why: `ZaoWu found local state that would be discarded by the hard reset: ${discardRisks.join(', ')}.`,
+      fix: 'Review the preview output. If discarding that local state is intended, re-run with `--yes --discard-local --plan-fingerprint <hash>`.',
+    });
   }
 
   runGit(commandRunner, ['fetch', 'origin'], options.cwd);
@@ -1090,5 +1182,6 @@ export const syncDevRepo = (
     previousCommit,
     currentCommit,
     output: `Successfully synchronized branch \`${status.branch}\` to \`origin/${status.branch}\`.`,
+    operationPlan,
   };
 };

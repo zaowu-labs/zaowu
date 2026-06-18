@@ -58,13 +58,18 @@ describe('web domain', () => {
   });
 
   it('fetches content when confirmed', async () => {
-    const fetcher: WebFetcher = async () => ({
-      status: 200,
-      statusText: 'OK',
-      async text() {
-        return 'Hello from the web';
-      },
-    });
+    let requestInit: Parameters<WebFetcher>[1];
+    const fetcher: WebFetcher = async (_url, init) => {
+      requestInit = init;
+
+      return {
+        status: 200,
+        statusText: 'OK',
+        async text() {
+          return 'Hello from the web';
+        },
+      };
+    };
 
     await expect(
       fetchWebTarget('https://example.com', { yes: true, fetcher })
@@ -75,6 +80,7 @@ describe('web domain', () => {
       bodyTruncated: false,
       maxBodyLength: 4000,
     });
+    expect(requestInit?.redirect).toBe('manual');
   });
 
   it('bounds fetched bodies and reports truncation', async () => {

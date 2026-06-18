@@ -3,20 +3,24 @@
 AI provider boundary for ZaoWu.
 
 This package defines provider metadata, preview behavior, local echo responses,
-and the non-streaming OpenAI adapter used by the CLI. Feature packages should
-depend on this boundary instead of calling providers directly.
+and non-streaming Ollama, OpenAI, and Anthropic adapters used by the CLI.
+Feature packages should depend on this boundary instead of calling providers
+directly.
 
 Safety:
 
-- Network providers preview by default.
+- Every HTTP-backed provider, including Ollama, previews by default.
 - Provider requests require explicit confirmation from the CLI path.
+- Operation plans disclose the resolved provider endpoint, including configured base URLs.
 - Secrets must come from environment variables, not config files.
 - Provider HTTP failures are classified so authentication, timeout, rate-limit,
   bad-request, and provider-side problems get different fixes.
+- Ollama, OpenAI, and Anthropic response shapes are validated before generated
+  text is returned; malformed or empty provider output is rejected.
 - Provider failure summaries use HTTP status metadata only; response bodies are
   not exposed in user-facing fixes.
 - Retryable provider failures can carry retry-delay metadata when providers send
   `Retry-After`.
 - Model resolution is shared across preview, operation-plan subjects, and
-  confirmed provider requests: explicit `--model` wins, then `OPENAI_MODEL`,
-  then the provider default.
+  confirmed provider requests: explicit `--model` wins, then provider-specific
+  environment defaults, then the provider default.

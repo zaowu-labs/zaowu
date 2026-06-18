@@ -2,8 +2,12 @@
 
 Data workflow package for ZaoWu.
 
-This package reads CSV, TSV, and XLSX inputs for inspection, lightweight
+This package reads CSV, TSV, JSON, and XLSX inputs for inspection, lightweight
 analysis, schema inference, sampling, and preview-first cleaning.
+
+Schema inference recognizes numbers, booleans, ISO or `MM/DD/YYYY` calendar
+dates, percentages, common currency values, strings, empty columns, and mixed
+columns without changing the source values.
 
 Safety:
 

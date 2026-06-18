@@ -2,19 +2,28 @@
 
 ## Summary
 
-`zw auto` can validate, plan, and preview workflows. Shell execution remains
-blocked until the execution model below is implemented and verified.
+`zw auto` can validate, plan, preview, and run message steps plus one narrow
+structured file-write action. Shell and network execution remain blocked until
+the broader execution model below is implemented and verified.
 
 ## Current State
 
 - `message` steps can run only after confirmation.
+- `writeFile` steps can create a new file only after
+  `permissions.fileWrites: prompt` and confirmation.
 - `run` shell steps are parsed, planned, and blocked.
 - Workflow `permissions` describe requested policy.
 - Runtime `policy` describes what ZaoWu will allow in this version.
-- Runtime `sandbox` reports the resolved workflow directory plus shell commands,
-  file writes, and network access as blocked.
+- Runtime `sandbox` reports the resolved workflow directory, shell and network
+  access as blocked, and structured file writes as either blocked or confined
+  to the workflow directory.
 - Runtime plan steps include per-step `operationPlan` entries before any
   execution support is expanded.
+- Confirmed file writes refuse absolute paths, parent-directory escapes,
+  existing targets, and linked directories that resolve outside the real
+  workflow directory.
+- Workflow files and individual write contents are bounded, and write-content
+  SHA-256 digests participate in confirmation fingerprints.
 
 ## Execution Principles
 
@@ -23,7 +32,8 @@ blocked until the execution model below is implemented and verified.
    themselves.
 3. Stable working root: future execution should default to the resolved
    workflow directory and reject path escapes.
-4. Explicit writes: future file writes need planned paths and overwrite rules.
+4. Explicit writes: file writes need planned paths, create-only behavior, and a
+   real-path containment check at execution time.
 5. Explicit network: future network steps need planned targets and confirmation.
 6. Secret boundaries: workflows must reference secrets by name, not store secret
    values in files.
@@ -70,7 +80,13 @@ The first shell execution version, if implemented later, should be narrow:
 - `zw auto plan --json` remains schema-versioned.
 - `zw auto plan --json` includes per-step operation plans.
 - `zw auto run` never executes a step that was absent from the plan.
-- Confirmed `zw auto run --yes` may execute message steps, but shell steps stay
-  blocked until every requirement above is met.
+- Confirmed `zw auto run --yes` may execute message and structured `writeFile`
+  steps, but shell steps stay blocked until every requirement above is met.
+- `writeFile` plans expose their resolved target and require
+  `permissions.fileWrites: prompt`.
+- Confirmed `writeFile` execution creates only a new file inside the real
+  workflow directory and refuses overwrite or linked-directory escapes.
+- Preview and execution use the same parsed plan, so a confirmed write cannot
+  silently re-read different content.
 - Human output explains blocked, ready, executed, and skipped steps.
 - Expected failures use structured ZaoWu errors and no raw stack traces.

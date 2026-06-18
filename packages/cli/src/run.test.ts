@@ -109,7 +109,7 @@ describe('executeCli', () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain('ZaoWu Data Schema');
-    expect(result.stdout).toContain('zw data schema <file.csv|file.tsv|file.xlsx>');
+    expect(result.stdout).toContain('zw data schema <file.csv|file.tsv|file.json|file.xlsx>');
   });
 
   it('keeps automation help aligned with supported workflow formats', async () => {
@@ -284,8 +284,33 @@ describe('executeCli', () => {
       operationPlan: {
         risk: 'medium',
         confirmationRequired: true,
-        network: ['openai'],
+        network: ['https://api.openai.com/v1/responses'],
         secrets: ['OPENAI_API_KEY'],
+      },
+    });
+  });
+
+  it('requires preview and confirmation for Ollama HTTP requests', async () => {
+    const result = await executeCli([
+      'ai',
+      'ask',
+      'Explain',
+      'ZaoWu',
+      '--provider',
+      'ollama',
+      '--json',
+    ]);
+
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      status: 'preview',
+      provider: {
+        id: 'ollama',
+        network: true,
+      },
+      operationPlan: {
+        confirmationRequired: true,
+        network: ['http://localhost:11434/api/generate'],
       },
     });
   });
@@ -436,7 +461,7 @@ describe('executeCli', () => {
 
       expect(result.exitCode).toBe(1);
       expect(payload.error.code).toBe('OPERATION_PLAN_MISMATCH');
-      expect(config).toContain('name: zaowu-project');
+      expect(config).toContain('name: "zaowu-project"');
       expect(config).not.toContain('blocked');
     } finally {
       await rm(root, { recursive: true, force: true });
@@ -471,7 +496,39 @@ describe('executeCli', () => {
       expect(result.exitCode).toBe(0);
       expect(payload.operationPlan.fingerprint).toBe(previewPayload.operationPlan.fingerprint);
       expect(payload.wroteFile).toBe(true);
-      expect(config).toContain('name: allowed');
+      expect(config).toContain('name: "allowed"');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects a config value change made with a fingerprint from another value', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
+
+    try {
+      await executeCli(['init', '--yes'], { cwd: root });
+      const preview = await executeCli(['config', 'set', 'project.name', 'first', '--json'], {
+        cwd: root,
+      });
+      const previewPayload = JSON.parse(preview.stdout);
+      const result = await executeCli(
+        [
+          'config',
+          'set',
+          'project.name',
+          'second',
+          '--yes',
+          '--plan-fingerprint',
+          previewPayload.operationPlan.fingerprint,
+          '--json',
+        ],
+        { cwd: root }
+      );
+      const config = await readFile(path.join(root, DEFAULT_CONFIG_FILE_NAME), 'utf8');
+
+      expect(result.exitCode).toBe(1);
+      expect(JSON.parse(result.stderr).error.code).toBe('OPERATION_PLAN_MISMATCH');
+      expect(config).toContain('name: "zaowu-project"');
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -513,7 +570,7 @@ describe('executeCli', () => {
 
       const globalPath = payload.filePath;
       const config = await readFile(globalPath, 'utf8');
-      expect(config).toContain('name: global-project');
+      expect(config).toContain('name: "global-project"');
 
       const localYml = path.join(root, DEFAULT_CONFIG_FILE_NAME);
       await expect(readFile(localYml, 'utf8')).rejects.toThrow();
@@ -555,6 +612,94 @@ describe('executeCli', () => {
     });
   });
 
+  it('keeps confirmed dev sync aligned with its previewed operation plan', async () => {
+    const commandRunner = (_command: string, args: readonly string[]): string => {
+      switch (args.join(' ')) {
+        case 'status --short --branch':
+          return '## main...origin/main';
+        case 'rev-parse HEAD':
+          return 'commit_hash_123';
+        case 'fetch origin':
+          return 'fetched';
+        case 'reset --hard origin/main':
+          return 'reset';
+        default:
+          throw new Error(`unexpected command: ${args.join(' ')}`);
+      }
+    };
+    const preview = await executeCli(['dev', 'sync', '--json'], { commandRunner });
+    const previewPayload = JSON.parse(preview.stdout);
+    const confirmed = await executeCli(
+      [
+        'dev',
+        'sync',
+        '--yes',
+        '--plan-fingerprint',
+        previewPayload.operationPlan.fingerprint,
+        '--json',
+      ],
+      { commandRunner }
+    );
+    const confirmedPayload = JSON.parse(confirmed.stdout);
+
+    expect(confirmed.exitCode).toBe(0);
+    expect(confirmedPayload.operationPlan).toMatchObject({
+      confirmationRequired: false,
+      executes: ['git fetch origin', 'git reset --hard origin/main'],
+      network: ['git remote origin'],
+      fingerprint: previewPayload.operationPlan.fingerprint,
+    });
+  });
+
+  it('requires --discard-local for confirmed dev sync with local discard risk', async () => {
+    const commandRunner = (_command: string, args: readonly string[]): string => {
+      switch (args.join(' ')) {
+        case 'status --short --branch':
+          return '## main...origin/main [ahead 1]\nM  packages/dev/src/index.ts';
+        case 'rev-parse HEAD':
+          return 'commit_hash_123';
+        case 'fetch origin':
+          return 'fetched';
+        case 'reset --hard origin/main':
+          return 'reset';
+        default:
+          throw new Error(`unexpected command: ${args.join(' ')}`);
+      }
+    };
+    const preview = await executeCli(['dev', 'sync', '--json'], { commandRunner });
+    const previewPayload = JSON.parse(preview.stdout);
+    const refused = await executeCli(
+      [
+        'dev',
+        'sync',
+        '--yes',
+        '--plan-fingerprint',
+        previewPayload.operationPlan.fingerprint,
+        '--json',
+      ],
+      { commandRunner }
+    );
+    const confirmed = await executeCli(
+      [
+        'dev',
+        'sync',
+        '--yes',
+        '--discard-local',
+        '--plan-fingerprint',
+        previewPayload.operationPlan.fingerprint,
+        '--json',
+      ],
+      { commandRunner }
+    );
+
+    expect(refused.exitCode).toBe(1);
+    expect(JSON.parse(refused.stderr).error.code).toBe('GIT_SYNC_DISCARD_CONFIRMATION_REQUIRED');
+    expect(confirmed.exitCode).toBe(0);
+    expect(JSON.parse(confirmed.stdout).operationPlan.fingerprint).toBe(
+      previewPayload.operationPlan.fingerprint
+    );
+  });
+
   it('runs dev review with diff hunk analysis from CLI', async () => {
     const result = await executeCli(['dev', 'review', '--staged', '--json'], {
       commandRunner: (_command, args) => {
@@ -589,6 +734,8 @@ describe('executeCli', () => {
           header: '@@ -10,0 +11 @@',
           addedLines: 1,
           removedLines: 0,
+          startLine: 11,
+          endLine: 11,
         },
       ],
       findings: [
@@ -604,6 +751,7 @@ describe('executeCli', () => {
         {
           title: 'Shell execution added',
           filePath: 'packages/dev/src/index.ts',
+          line: 11,
         },
       ],
     });
@@ -869,6 +1017,99 @@ describe('executeCli', () => {
           },
         ],
       });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('previews auto writeFile runs with explicit write targets', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
+    const filePath = path.join(root, 'workflow.yml');
+    const outputPath = path.join(root, 'report.txt');
+
+    try {
+      await writeFile(
+        filePath,
+        [
+          'name: writer',
+          'permissions:',
+          '  fileWrites: prompt',
+          'steps:',
+          '  - name: save',
+          '    writeFile:',
+          '      path: report.txt',
+          '      content: Hello',
+          '',
+        ].join('\n'),
+        'utf8'
+      );
+
+      const result = await executeCli(['auto', 'run', filePath, '--json']);
+      const payload = JSON.parse(result.stdout);
+
+      expect(result.exitCode).toBe(0);
+      expect(payload).toMatchObject({
+        status: 'preview',
+        operationPlan: {
+          risk: 'high',
+          confirmationRequired: true,
+          writes: [outputPath],
+        },
+      });
+      expect(payload.operationPlan.subjects).toEqual(
+        expect.arrayContaining([
+          'step:save',
+          'content-length:5',
+          expect.stringMatching(/^content-sha256:[a-f0-9]{64}$/),
+        ])
+      );
+
+      await writeFile(
+        filePath,
+        [
+          'name: writer',
+          'permissions:',
+          '  fileWrites: prompt',
+          'steps:',
+          '  - name: save',
+          '    writeFile:',
+          '      path: report.txt',
+          '      content: Changed',
+          '',
+        ].join('\n'),
+        'utf8'
+      );
+
+      const mismatch = await executeCli([
+        'auto',
+        'run',
+        filePath,
+        '--yes',
+        '--plan-fingerprint',
+        payload.operationPlan.fingerprint,
+        '--json',
+      ]);
+      expect(mismatch.exitCode).toBe(1);
+      expect(JSON.parse(mismatch.stderr)).toMatchObject({
+        error: {
+          code: 'OPERATION_PLAN_MISMATCH',
+        },
+      });
+      await expect(readFile(outputPath, 'utf8')).rejects.toThrow();
+
+      const currentPreview = await executeCli(['auto', 'run', filePath, '--json']);
+      const currentPlan = JSON.parse(currentPreview.stdout).operationPlan;
+      const confirmed = await executeCli([
+        'auto',
+        'run',
+        filePath,
+        '--yes',
+        '--plan-fingerprint',
+        currentPlan.fingerprint,
+        '--json',
+      ]);
+      expect(confirmed.exitCode).toBe(0);
+      await expect(readFile(outputPath, 'utf8')).resolves.toBe('Changed');
     } finally {
       await rm(root, { recursive: true, force: true });
     }

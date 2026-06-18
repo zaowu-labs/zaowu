@@ -106,6 +106,21 @@ assert(
   'Blocked shell workflow should demonstrate shell warning behavior.'
 );
 assertValid('workflow', validators.workflow, blockedWorkflow.workflow);
+
+const writeWorkflow = validateWorkflowContent(
+  await readText('examples', 'workflows', 'write-file.yml'),
+  'write-file.yml'
+);
+assert(writeWorkflow.warnings.length === 0, 'Write workflow example should not warn.');
+assert(
+  writeWorkflow.workflow.permissions.fileWrites === 'prompt',
+  'Write workflow should request file-write confirmation.'
+);
+assert(
+  writeWorkflow.workflow.steps[0]?.writeFile?.path === '{{target}}',
+  'Write workflow should keep its structured target.'
+);
+assertValid('workflow', validators.workflow, writeWorkflow.workflow);
 assertInvalid(
   validators.workflow,
   {
@@ -117,6 +132,23 @@ assertInvalid(
     ],
   },
   'Workflow schema should reject steps without a supported action.'
+);
+assertInvalid(
+  validators.workflow,
+  {
+    name: 'multiple-actions',
+    steps: [
+      {
+        name: 'ambiguous',
+        message: 'hello',
+        writeFile: {
+          path: 'hello.txt',
+          content: 'hello',
+        },
+      },
+    ],
+  },
+  'Workflow schema should reject steps with multiple actions.'
 );
 assertInvalid(
   validators.workflow,

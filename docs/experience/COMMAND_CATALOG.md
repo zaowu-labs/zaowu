@@ -80,6 +80,9 @@ First-version behavior:
 - Uses the local `echo` provider by default.
 - `zw ai ask --file README.md` includes a readable file as explicit input.
 - The OpenAI provider uses the Responses API when `OPENAI_API_KEY` is set.
+- Ollama uses its local HTTP API and therefore follows the same preview and
+  `--yes` confirmation rule as other network providers.
+- Provider operation plans disclose the resolved HTTP endpoint.
 - `--model` or `OPENAI_MODEL` can override the default model. Preview output,
   operation-plan subjects, fingerprints, and confirmed requests use the same
   resolved model.
@@ -102,17 +105,22 @@ Common failures:
 
 ## `zw dev`
 
-| Command         | Description                                   | Example                  |
-| --------------- | --------------------------------------------- | ------------------------ |
-| `zw dev status` | Show branch, staged, unstaged, and untracked  | `zw dev status`          |
-| `zw dev review` | Review staged or working-tree changes         | `zw dev review --staged` |
-| `zw dev commit` | Suggest a structured commit preview           | `zw dev commit`          |
-| `zw dev sync`   | Synchronize local branch with remote tracking | `zw dev sync`            |
+| Command         | Description                                         | Example                  |
+| --------------- | --------------------------------------------------- | ------------------------ |
+| `zw dev status` | Show branch, staged, unstaged, and untracked        | `zw dev status`          |
+| `zw dev review` | Review staged or working-tree changes               | `zw dev review --staged` |
+| `zw dev commit` | Suggest a structured commit preview                 | `zw dev commit`          |
+| `zw dev sync`   | Reset the local branch to the same branch on origin | `zw dev sync`            |
 
 Safety:
 
 - `zw dev status`, `zw dev review`, and `zw dev commit` do not modify Git state.
-- `zw dev sync` updates Git state by fetching and performing a hard reset. It runs in preview mode by default, requiring the `--yes` flag or confirmation to execute.
+- `zw dev sync` updates Git state by fetching `origin` and hard-resetting the
+  current branch to `origin/<branch>`. It previews by default and requires
+  `--yes` to execute. If tracked changes or local commits ahead of the remote
+  branch would be discarded, `--discard-local` is also required. Untracked
+  files are preserved.
+- Its operation plan lists both Git commands and the origin network remote.
 - `zw dev commit` reads staged changes only.
 - `zw dev review --staged` and `zw dev review --worktree` keep sources explicit.
 - Commit previews include a structured Conventional Commit suggestion, suggested
@@ -123,6 +131,8 @@ Safety:
   literals, destructive Git commands, and focused tests.
 - Review and commit findings keep `severity`, `priority`, and `category` for
   automation-friendly grouping.
+- Review hunks expose new-file `startLine` and `endLine`; line-specific findings
+  expose `line` when a precise added line is available.
 - Worktree review lists untracked files by name; stage them when full Git diff
   context is required.
 
@@ -151,9 +161,10 @@ Safety:
 Current format support:
 
 - Supported: `.txt`, `.md`, `.markdown`, `.csv`, `.json`, `.yml`, `.yaml`,
-  `.pdf`, `.docx`
+  `.html`, `.htm`, `.pdf`, `.docx`
 - PDF and DOCX are extracted as text. Rich layout, comments, tracked changes,
   and embedded media are not preserved in this foundation version.
+- HTML extraction preserves heading levels and lightweight table row structure.
 
 ## `zw data`
 
@@ -174,12 +185,15 @@ Safety:
 
 Current format support:
 
-- Supported: `.csv`, `.tsv`, `.xlsx`
+- Supported: `.csv`, `.tsv`, `.json`, `.xlsx`
 - XLSX support reads the first worksheet by default. Use `--sheet <name>` on
   inspect, analyze, clean, schema, or sample to select a worksheet by name.
 - XLSX values are normalized to strings for this foundation version.
 - Blank headers become `column_<index>`, and duplicate headers gain numeric
   suffixes before JSON sample or schema output is generated.
+- Schema inference recognizes numbers, booleans, valid `YYYY-MM-DD` or
+  `MM/DD/YYYY` dates, percentages, common currency values, strings, empty
+  columns, and mixed columns. Source values are not normalized or rewritten.
 
 ## `zw auto`
 
@@ -187,7 +201,7 @@ Current format support:
 | ------------------ | --------------------------------------- | ------------------------------------------------- |
 | `zw auto validate` | Validate a simple workflow              | `zw auto validate examples/workflows/message.yml` |
 | `zw auto plan`     | Show variable substitution and blockers | `zw auto plan examples/workflows/message.yml`     |
-| `zw auto run`      | Dry-run or run supported message steps  | `zw auto run examples/workflows/message.yml`      |
+| `zw auto run`      | Run messages or bounded file writes     | `zw auto run examples/workflows/message.yml`      |
 
 Workflow support:
 
@@ -196,14 +210,21 @@ Workflow support:
   as warnings.
 - `vars` can be referenced as `{{name}}`.
 - `permissions` can declare `shell`, `fileWrites`, and `network` as `blocked` or
-  `prompt`; this is a planning policy, not execution permission in this phase.
+  `prompt`. `fileWrites: prompt` enables only the structured `writeFile` action;
+  it does not enable arbitrary filesystem or shell access.
 - JSON output separates the parsed workflow permissions from the runtime
   `policy` and blocked execution `sandbox`.
-- The `sandbox` reports the resolved workflow directory so users can audit the
-  path boundary before any future execution support exists.
+- The `sandbox` reports the resolved workflow directory and whether structured
+  writes are confined to that directory.
 - Plan steps include per-step `operationPlan` entries for risk, confirmation,
   and planned execution.
 - `message` steps can run when confirmed.
+- `writeFile` steps can create new files inside the workflow directory when
+  confirmed. Absolute paths, path escapes, existing files, and linked-directory
+  escapes are refused.
+- Write content is bounded to 262,144 characters, and its SHA-256 digest is
+  included in the confirmation plan so changed content invalidates an old
+  fingerprint.
 - `run` shell steps are detected, planned, and blocked.
 - The public workflow shape is documented in `schemas/zaowu.workflow.schema.json`.
 - Shell execution must not be enabled until
@@ -212,13 +233,13 @@ Workflow support:
 Safety:
 
 - `zw auto run` previews by default.
-- Use `--yes` to execute supported `message` steps.
+- Use `--yes` to execute supported `message` and `writeFile` steps.
 - Shell execution is not enabled in this foundation version.
 - Shell-like steps remain visible in plans so users can see exactly what is
   blocked.
 - Shell steps stay blocked even when `permissions.shell: prompt` is declared.
-- The execution sandbox reports the workflow directory plus shell commands, file
-  writes, and network access as blocked.
+- The execution sandbox reports the workflow directory, keeps shell and network
+  access blocked, and enables only bounded structured writes when declared.
 
 ## `zw plugin`
 
@@ -237,6 +258,8 @@ Manifest support:
   names, and non-string command summaries are validation errors.
 - The public manifest shape is documented in `schemas/zaowu.plugin.schema.json`.
 - Install/remove writes only under `.zaowu/plugins`.
+- Plugin manifests are metadata only; no package or CLI API executes manifest
+  commands in this foundation version.
 - There is no public marketplace in this foundation version.
 
 Safety:
@@ -270,6 +293,8 @@ Safety:
 
 - Network requests are not sent by default.
 - Use `--yes` to make the request.
+- Redirects are not followed automatically, so the confirmed target remains the
+  only requested URL.
 
 ## Contract Guards
 

@@ -146,6 +146,29 @@ describe('data domain', () => {
     }
   });
 
+  it('does not treat partially numeric text as a number', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-data-'));
+    const filePath = path.join(root, 'mixed.csv');
+
+    await writeFile(filePath, 'name,amount\nA,10\nB,20kg\nC,30\n', 'utf8');
+
+    try {
+      await expect(analyzeData(filePath)).resolves.toMatchObject({
+        numericColumns: [
+          {
+            column: 'amount',
+            count: 2,
+            min: 10,
+            max: 30,
+            average: 20,
+          },
+        ],
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('previews cleaned CSV output without writing by default', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-data-'));
     const inputPath = path.join(root, 'sales.csv');
@@ -242,6 +265,67 @@ describe('data domain', () => {
             column: 'note',
             type: 'string',
             nullable: true,
+          },
+        ],
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('infers focused semantic column types without mutating raw values', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-data-'));
+    const filePath = path.join(root, 'semantic.csv');
+
+    await writeFile(
+      filePath,
+      [
+        'date,invalid_date,rate,revenue,text,heterogeneous',
+        '2026-06-17,2026-02-30,12.5%,$1234.50,plain,1',
+        '2026-06-18,2026-13-01,.5%,€2,mixed,true',
+        '',
+      ].join('\n'),
+      'utf8'
+    );
+
+    try {
+      await expect(inferDataSchema(filePath)).resolves.toMatchObject({
+        columns: [
+          {
+            column: 'date',
+            type: 'date',
+          },
+          {
+            column: 'invalid_date',
+            type: 'string',
+          },
+          {
+            column: 'rate',
+            type: 'percent',
+          },
+          {
+            column: 'revenue',
+            type: 'currency',
+          },
+          {
+            column: 'text',
+            type: 'string',
+          },
+          {
+            column: 'heterogeneous',
+            type: 'mixed',
+          },
+        ],
+      });
+      await expect(sampleData(filePath, { rows: 1 })).resolves.toMatchObject({
+        rows: [
+          {
+            date: '2026-06-17',
+            invalid_date: '2026-02-30',
+            rate: '12.5%',
+            revenue: '$1234.50',
+            text: 'plain',
+            heterogeneous: '1',
           },
         ],
       });

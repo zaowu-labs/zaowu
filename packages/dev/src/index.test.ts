@@ -167,6 +167,8 @@ describe('dev domain', () => {
           header: '@@ -1 +1,3 @@',
           addedLines: 2,
           removedLines: 1,
+          startLine: 1,
+          endLine: 3,
         },
       ],
       findings: [
@@ -194,6 +196,7 @@ describe('dev domain', () => {
           category: 'filesystem',
           title: 'File mutation added',
           filePath: 'packages/dev/src/index.ts',
+          line: 2,
         },
       ],
       recommendedChecks: ['corepack pnpm build', 'corepack pnpm test'],
@@ -262,6 +265,63 @@ describe('dev domain', () => {
     });
   });
 
+  it('keeps added-line parsing accurate for diff-like content and metadata', () => {
+    const runner: DevCommandRunner = (_command, args) => {
+      if (args.join(' ') === 'diff --cached --name-only') {
+        return 'packages/dev/src/a.ts\npackages/dev/src/b.ts';
+      }
+
+      if (args.join(' ') === 'diff --cached --numstat') {
+        return '1\t0\tpackages/dev/src/a.ts\n1\t0\tpackages/dev/src/b.ts';
+      }
+
+      if (args.join(' ') === 'diff --cached --unified=0') {
+        return [
+          'diff --git a/packages/dev/src/a.ts b/packages/dev/src/a.ts',
+          '@@ -0,0 +1 @@',
+          '+++counter',
+          '\\ No newline at end of file',
+          'diff --git a/packages/dev/src/b.ts b/packages/dev/src/b.ts',
+          'new file mode 100644',
+          '--- /dev/null',
+          '+++ b/packages/dev/src/b.ts',
+          '@@ -0,0 +1 @@',
+          '+fetch("https://example.com")',
+        ].join('\n');
+      }
+
+      throw new Error('unexpected git command');
+    };
+
+    const review = reviewDevChanges(runner, { mode: 'staged' });
+
+    expect(review.diffHunks).toEqual([
+      {
+        filePath: 'packages/dev/src/a.ts',
+        header: '@@ -0,0 +1 @@',
+        addedLines: 1,
+        removedLines: 0,
+        startLine: 1,
+        endLine: 1,
+      },
+      {
+        filePath: 'packages/dev/src/b.ts',
+        header: '@@ -0,0 +1 @@',
+        addedLines: 1,
+        removedLines: 0,
+        startLine: 1,
+        endLine: 1,
+      },
+    ]);
+    expect(review.findings).toContainEqual(
+      expect.objectContaining({
+        title: 'Network access added',
+        filePath: 'packages/dev/src/b.ts',
+        line: 1,
+      })
+    );
+  });
+
   it('reviews staged changes when explicitly requested', () => {
     const runner: DevCommandRunner = (_command, args) => {
       if (args.join(' ') === 'diff --cached --name-only') {
@@ -294,6 +354,8 @@ describe('dev domain', () => {
           filePath: 'packages/dev/src/index.ts',
           addedLines: 1,
           removedLines: 0,
+          startLine: 5,
+          endLine: 5,
         },
       ],
       findings: [
@@ -309,6 +371,7 @@ describe('dev domain', () => {
         {
           title: 'Network access added',
           filePath: 'packages/dev/src/index.ts',
+          line: 5,
         },
       ],
     });
@@ -498,6 +561,8 @@ describe('dev domain', () => {
       status: 'ok',
       branch: 'codex/work',
       clean: false,
+      ahead: 1,
+      behind: 0,
       staged: ['packages/dev/src/index.ts', 'new.txt', 'quoted file.txt'],
       unstaged: ['README.md'],
       untracked: ['scratch.md'],
@@ -534,15 +599,64 @@ describe('dev domain', () => {
       previousCommit: 'commit_hash_123',
       currentCommit: 'commit_hash_123',
       output: 'Preview: ZaoWu will run `git fetch origin` and `git reset --hard origin/main`.',
+      operationPlan: {
+        risk: 'high',
+        confirmationRequired: true,
+        reads: ['current Git branch', 'current HEAD commit', 'current Git status'],
+        executes: ['git fetch origin', 'git reset --hard origin/main'],
+        network: ['git remote origin'],
+      },
     });
 
-    expect(syncDevRepo(runner, { yes: true })).toEqual({
+    expect(syncDevRepo(runner, { yes: true })).toMatchObject({
       schemaVersion: 1,
       status: 'ok',
       branch: 'main',
       previousCommit: 'commit_hash_123',
       currentCommit: 'commit_hash_123',
       output: 'Successfully synchronized branch `main` to `origin/main`.',
+      operationPlan: {
+        risk: 'high',
+        confirmationRequired: false,
+        executes: ['git fetch origin', 'git reset --hard origin/main'],
+        network: ['git remote origin'],
+      },
+    });
+  });
+
+  it('requires explicit discard confirmation before dev sync discards local state', () => {
+    const calls: string[] = [];
+    const runner: DevCommandRunner = (_command, args) => {
+      calls.push(args.join(' '));
+      if (args.join(' ') === 'status --short --branch') {
+        return '## main...origin/main [ahead 2]\nM  packages/dev/src/index.ts\n M README.md\n';
+      }
+      if (args.join(' ') === 'rev-parse HEAD') {
+        return 'commit_hash_123';
+      }
+      if (args.join(' ') === 'fetch origin') {
+        return 'fetched';
+      }
+      if (args.join(' ') === 'reset --hard origin/main') {
+        return 'reset';
+      }
+      throw new Error('unexpected git command: ' + args.join(' '));
+    };
+
+    expect(syncDevRepo(runner).output).toContain('--yes --discard-local');
+    expect(() => syncDevRepo(runner, { yes: true })).toThrow(
+      'Local Git changes require explicit discard confirmation.'
+    );
+    expect(calls).not.toContain('fetch origin');
+
+    expect(syncDevRepo(runner, { yes: true, discardLocal: true })).toMatchObject({
+      status: 'ok',
+      operationPlan: {
+        confirmationRequired: false,
+        notes: expect.arrayContaining([
+          'Local discard risk: 1 staged file(s), 1 unstaged file(s), 2 local commit(s) ahead of origin/main.',
+        ]),
+      },
     });
   });
 

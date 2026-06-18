@@ -1,5 +1,5 @@
-import { execSync } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { readFile, realpath, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import YAML from 'yaml';
 import {
@@ -15,6 +15,10 @@ export interface AutomationStep {
   name: string;
   message?: string;
   run?: string;
+  writeFile?: {
+    path: string;
+    content: string;
+  };
 }
 
 export type AutomationPermissionMode = 'blocked' | 'prompt';
@@ -35,7 +39,7 @@ export interface AutomationExecutionSandbox {
   root: 'workflow-directory';
   workflowDirectory: string;
   shellCommands: 'blocked';
-  fileWrites: 'blocked';
+  fileWrites: 'blocked' | 'workflow-directory';
   network: 'blocked';
 }
 
@@ -76,8 +80,11 @@ export interface AutomationRunResult {
 export interface AutomationPlanStep {
   index: number;
   name: string;
-  action: 'message' | 'shell' | 'unsupported';
+  action: 'message' | 'shell' | 'writeFile' | 'unsupported';
   preview: string;
+  targetPath?: string;
+  contentLength?: number;
+  contentSha256?: string;
   blocked: boolean;
   requiredPermission?: AutomationPermissionName;
   policyDecision: 'allowed' | 'blocked';
@@ -101,7 +108,7 @@ export const AUTO_DOMAIN: DomainDefinition = {
   summary: 'Automation workflows with validation, dry-run, and confirmation',
   capabilities: createCapabilityLedger({
     readsFiles: true,
-    executesShell: true,
+    writesFiles: true,
   }),
   commands: [
     {
@@ -126,6 +133,8 @@ export const AUTO_DOMAIN: DomainDefinition = {
 const SUPPORTED_WORKFLOW_VERSION = 1;
 const AUTO_RESULT_SCHEMA_VERSION = 1;
 const AUTO_POLICY_SCHEMA_VERSION = 1;
+const MAX_WORKFLOW_CHARACTERS = 1_000_000;
+const MAX_WRITE_FILE_CHARACTERS = 256 * 1024;
 const DEFAULT_WORKFLOW_PERMISSIONS: AutomationWorkflowPermissions = {
   shell: 'blocked',
   fileWrites: 'blocked',
@@ -144,13 +153,19 @@ const createExecutionPolicy = (
   permissions: AutomationWorkflowPermissions
 ): AutomationExecutionPolicy => ({
   schemaVersion: AUTO_POLICY_SCHEMA_VERSION,
-  ...permissions,
+  shell: 'blocked',
+  fileWrites: permissions.fileWrites === 'prompt' ? 'prompt' : 'blocked',
+  network: 'blocked',
 });
 
 const resolveWorkflowDirectory = (filePath: string): string => path.resolve(path.dirname(filePath));
 
-const createExecutionSandbox = (filePath: string): AutomationExecutionSandbox => ({
+const createExecutionSandbox = (
+  filePath: string,
+  policy: AutomationExecutionPolicy
+): AutomationExecutionSandbox => ({
   ...DEFAULT_EXECUTION_SANDBOX,
+  fileWrites: policy.fileWrites === 'prompt' ? 'workflow-directory' : 'blocked',
   workflowDirectory: resolveWorkflowDirectory(filePath),
 });
 
@@ -278,7 +293,40 @@ const parseWorkflowJson = (content: string): ParsedAutomationWorkflow => {
     variables,
     permissions: policy,
     permissionWarnings,
-    steps: Array.isArray(parsed.steps) ? parsed.steps : [],
+    steps: Array.isArray(parsed.steps)
+      ? parsed.steps.map((step): AutomationStep => {
+          if (!step || typeof step !== 'object') {
+            return { name: '' };
+          }
+
+          const stepObj = step as unknown as Record<string, unknown>;
+          const writeFileValue = stepObj.writeFile;
+          const writeFileAction =
+            writeFileValue && typeof writeFileValue === 'object' && !Array.isArray(writeFileValue)
+              ? (writeFileValue as Record<string, unknown>)
+              : undefined;
+
+          return {
+            name: typeof stepObj.name === 'string' ? stepObj.name : '',
+            ...(typeof stepObj.message === 'string' ? { message: stepObj.message } : {}),
+            ...(typeof stepObj.run === 'string' ? { run: stepObj.run } : {}),
+            ...(writeFileAction
+              ? {
+                  writeFile: {
+                    path:
+                      typeof writeFileAction.path === 'string'
+                        ? writeFileAction.path
+                        : String(writeFileAction.path ?? ''),
+                    content:
+                      typeof writeFileAction.content === 'string'
+                        ? writeFileAction.content
+                        : String(writeFileAction.content ?? ''),
+                  },
+                }
+              : {}),
+          };
+        })
+      : [],
   };
 };
 
@@ -351,11 +399,29 @@ const parseWorkflowYaml = (content: string): ParsedAutomationWorkflow => {
         const stepMessage =
           typeof stepObj.message === 'string' ? stepObj.message.trim() : undefined;
         const stepRun = typeof stepObj.run === 'string' ? stepObj.run.trim() : undefined;
+        const writeFileValue = stepObj.writeFile;
+        const writeFileAction =
+          writeFileValue && typeof writeFileValue === 'object' && !Array.isArray(writeFileValue)
+            ? (writeFileValue as Record<string, unknown>)
+            : undefined;
+        const stepWriteFile = writeFileAction
+          ? {
+              path:
+                typeof writeFileAction.path === 'string'
+                  ? writeFileAction.path.trim()
+                  : String(writeFileAction.path ?? '').trim(),
+              content:
+                typeof writeFileAction.content === 'string'
+                  ? writeFileAction.content
+                  : String(writeFileAction.content ?? ''),
+            }
+          : undefined;
 
         steps.push({
           name: stepName,
           ...(stepMessage !== undefined ? { message: stepMessage } : {}),
           ...(stepRun !== undefined ? { run: stepRun } : {}),
+          ...(stepWriteFile !== undefined ? { writeFile: stepWriteFile } : {}),
         });
       }
     }
@@ -404,15 +470,103 @@ const getReferencedVariables = (value: string | undefined): string[] =>
 
 const getMissingVariables = (step: AutomationStep, variables: Record<string, string>): string[] =>
   [
-    ...new Set([...getReferencedVariables(step.message), ...getReferencedVariables(step.run)]),
+    ...new Set([
+      ...getReferencedVariables(step.message),
+      ...getReferencedVariables(step.run),
+      ...getReferencedVariables(step.writeFile?.path),
+      ...getReferencedVariables(step.writeFile?.content),
+    ]),
   ].filter((name) => !(name in variables));
 
 const substituteVariables = (value: string, variables: Record<string, string>): string =>
   value.replace(VARIABLE_PATTERN, (_match, name: string) => variables[name] ?? `{{${name}}}`);
 
+const getStepActionCount = (step: AutomationStep): number =>
+  [step.message, step.run, step.writeFile].filter((value) => value !== undefined).length;
+
+const hashWriteContent = (content: string): string =>
+  createHash('sha256').update(content, 'utf8').digest('hex');
+
+const resolveWorkflowWritePath = (
+  workflowDirectory: string,
+  requestedPath: string
+): { targetPath?: string; reason?: string } => {
+  const trimmedPath = requestedPath.trim();
+
+  if (!trimmedPath) {
+    return {
+      reason: 'writeFile.path is required.',
+    };
+  }
+
+  if (path.isAbsolute(trimmedPath)) {
+    return {
+      reason: 'writeFile.path must be relative to the workflow directory.',
+    };
+  }
+
+  const targetPath = path.resolve(workflowDirectory, trimmedPath);
+  const relativeTarget = path.relative(workflowDirectory, targetPath);
+
+  if (
+    !relativeTarget ||
+    relativeTarget === '..' ||
+    relativeTarget.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relativeTarget)
+  ) {
+    return {
+      reason: 'writeFile.path must name a file inside the workflow directory.',
+    };
+  }
+
+  return { targetPath };
+};
+
+const resolveSandboxedWriteTarget = async (
+  workflowDirectory: string,
+  targetPath: string,
+  stepName: string
+): Promise<string> => {
+  let realWorkflowDirectory: string;
+  let realTargetDirectory: string;
+
+  try {
+    [realWorkflowDirectory, realTargetDirectory] = await Promise.all([
+      realpath(workflowDirectory),
+      realpath(path.dirname(targetPath)),
+    ]);
+  } catch {
+    throw new ZaoWuError({
+      code: 'WORKFLOW_STEP_FAILED',
+      message: `Workflow step \`${stepName}\` failed.`,
+      why: `ZaoWu could not resolve the real workflow or target directory for \`${targetPath}\`.`,
+      fix: 'Use an existing directory inside the workflow directory, then try again.',
+    });
+  }
+
+  const relativeDirectory = path.relative(realWorkflowDirectory, realTargetDirectory);
+  if (
+    relativeDirectory === '..' ||
+    relativeDirectory.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relativeDirectory)
+  ) {
+    throw new ZaoWuError({
+      code: 'WORKFLOW_STEP_FAILED',
+      message: `Workflow step \`${stepName}\` failed.`,
+      why: `ZaoWu refused to follow a linked directory outside the workflow sandbox for \`${targetPath}\`.`,
+      fix: 'Choose a writeFile.path whose parent directory resolves inside the workflow directory.',
+    });
+  }
+
+  return path.join(realTargetDirectory, path.basename(targetPath));
+};
+
 const createStepOperationPlan = (step: {
   action: AutomationPlanStep['action'];
   preview: string;
+  targetPath?: string;
+  contentLength?: number;
+  contentSha256?: string;
   blocked: boolean;
   reason?: string;
 }): OperationPlan => {
@@ -434,6 +588,22 @@ const createStepOperationPlan = (step: {
       notes: [
         ...blockedNote,
         'Message steps do not read files, write files, run shell commands, or use network.',
+      ],
+    });
+  }
+
+  if (step.action === 'writeFile') {
+    return createOperationPlan({
+      risk: 'medium',
+      confirmationRequired: true,
+      subjects: [
+        ...(step.contentSha256 ? [`content-sha256:${step.contentSha256}`] : []),
+        ...(step.contentLength !== undefined ? [`content-length:${step.contentLength}`] : []),
+      ],
+      writes: step.targetPath ? [step.targetPath] : [],
+      notes: [
+        ...blockedNote,
+        'writeFile steps can only create new files inside the workflow directory.',
       ],
     });
   }
@@ -550,6 +720,15 @@ export const validateWorkflowContent = (
   content: string,
   filePath = 'workflow.yml'
 ): AutomationValidationResult => {
+  if (content.length > MAX_WORKFLOW_CHARACTERS) {
+    throw new ZaoWuError({
+      code: 'WORKFLOW_PARSE_FAILED',
+      message: 'Workflow file is too large.',
+      why: `ZaoWu limits workflow files to ${MAX_WORKFLOW_CHARACTERS} characters, but \`${filePath}\` contains ${content.length}.`,
+      fix: 'Split the workflow into smaller files and keep generated content in bounded writeFile steps.',
+    });
+  }
+
   const parsedWorkflow = parseWorkflow(content, filePath);
   const workflow = stripWorkflowMetadata(parsedWorkflow);
   const warnings: string[] = [];
@@ -575,8 +754,14 @@ export const validateWorkflowContent = (
       warnings.push('A workflow step has an empty name.');
     }
 
-    if (!step.message && !step.run) {
+    const actionCount = getStepActionCount(step);
+
+    if (actionCount === 0) {
       warnings.push(`Step \`${step.name}\` has no supported action.`);
+    }
+
+    if (actionCount > 1) {
+      warnings.push(`Step \`${step.name}\` declares multiple actions; choose exactly one action.`);
     }
 
     if (step.run) {
@@ -584,9 +769,23 @@ export const validateWorkflowContent = (
       if (safetyError) {
         warnings.push(`Step \`${step.name}\` safety violation: ${safetyError}`);
       }
-      if (workflow.permissions.shell === 'blocked') {
+      warnings.push(
+        `Step \`${step.name}\` uses shell execution, which this first version will not run.`
+      );
+    }
+
+    if (step.writeFile) {
+      if (!step.writeFile.path.trim()) {
+        warnings.push(`Step \`${step.name}\` writeFile.path is required.`);
+      }
+      if (workflow.permissions.fileWrites !== 'prompt') {
         warnings.push(
-          `Step \`${step.name}\` uses shell execution, which this first version will not run.`
+          `Step \`${step.name}\` writes a file, but permissions.fileWrites is not prompt.`
+        );
+      }
+      if (step.writeFile.content.length > MAX_WRITE_FILE_CHARACTERS) {
+        warnings.push(
+          `Step \`${step.name}\` writeFile.content exceeds the ${MAX_WRITE_FILE_CHARACTERS}-character limit.`
         );
       }
     }
@@ -596,13 +795,15 @@ export const validateWorkflowContent = (
     }
   }
 
+  const policy = createExecutionPolicy(workflow.permissions);
+
   return {
     schemaVersion: AUTO_RESULT_SCHEMA_VERSION,
     status: 'ok',
     filePath,
     workflow,
-    policy: createExecutionPolicy(workflow.permissions),
-    sandbox: createExecutionSandbox(filePath),
+    policy,
+    sandbox: createExecutionSandbox(filePath, policy),
     warnings,
   };
 };
@@ -633,10 +834,37 @@ export const planWorkflowContent = (
   const validation = validateWorkflowContent(content, filePath);
   const steps = validation.workflow.steps.map((step, index): AutomationPlanStep => {
     const missingVariables = getMissingVariables(step, validation.workflow.variables);
+    const actionCount = getStepActionCount(step);
+
+    if (actionCount > 1) {
+      const reason = 'Step declares multiple actions; choose exactly one action.';
+
+      return {
+        index: index + 1,
+        name: step.name,
+        action: 'unsupported',
+        preview: '',
+        blocked: true,
+        policyDecision: 'blocked',
+        reason,
+        operationPlan: createStepOperationPlan({
+          action: 'unsupported',
+          preview: '',
+          blocked: true,
+          reason,
+        }),
+      };
+    }
 
     if (missingVariables.length > 0) {
-      const action = step.run ? 'shell' : step.message ? 'message' : 'unsupported';
-      const preview = step.message ?? step.run ?? '';
+      const action = step.run
+        ? 'shell'
+        : step.message
+          ? 'message'
+          : step.writeFile
+            ? 'writeFile'
+            : 'unsupported';
+      const preview = step.message ?? step.run ?? step.writeFile?.path ?? '';
       const reason = `Missing variable(s): ${missingVariables.join(', ')}`;
 
       return {
@@ -645,7 +873,7 @@ export const planWorkflowContent = (
         action,
         preview,
         blocked: true,
-        requiredPermission: step.run ? 'shell' : undefined,
+        requiredPermission: step.run ? 'shell' : step.writeFile ? 'fileWrites' : undefined,
         policyDecision: 'blocked',
         reason,
         operationPlan: createStepOperationPlan({
@@ -658,14 +886,14 @@ export const planWorkflowContent = (
     }
 
     if (step.run) {
-      const shellPolicy = validation.workflow.permissions.shell;
+      const shellPolicy = validation.policy.shell;
       const preview = substituteVariables(step.run, validation.workflow.variables);
       const safetyError = checkShellSafety(preview);
-      const isBlocked = shellPolicy !== 'prompt' || !!safetyError;
+      const isBlocked = shellPolicy === 'blocked' || !!safetyError;
       const reason = safetyError
         ? safetyError
         : isBlocked
-          ? 'Shell permission is blocked by workflow policy.'
+          ? 'Shell execution is disabled in this foundation version.'
           : undefined;
 
       return {
@@ -700,6 +928,54 @@ export const planWorkflowContent = (
           action: 'message',
           preview,
           blocked: false,
+        }),
+      };
+    }
+
+    if (step.writeFile) {
+      const requestedPath = substituteVariables(step.writeFile.path, validation.workflow.variables);
+      const contentPreview = substituteVariables(
+        step.writeFile.content,
+        validation.workflow.variables
+      );
+      const contentSha256 = hashWriteContent(contentPreview);
+      const resolvedPath = resolveWorkflowWritePath(
+        validation.sandbox.workflowDirectory,
+        requestedPath
+      );
+      const contentTooLarge = contentPreview.length > MAX_WRITE_FILE_CHARACTERS;
+      const isBlocked =
+        validation.policy.fileWrites !== 'prompt' ||
+        Boolean(resolvedPath.reason) ||
+        contentTooLarge;
+      const reason =
+        resolvedPath.reason ??
+        (contentTooLarge
+          ? `writeFile.content exceeds the ${MAX_WRITE_FILE_CHARACTERS}-character limit.`
+          : undefined) ??
+        (isBlocked ? 'File writes require permissions.fileWrites: prompt.' : undefined);
+      const preview = `write ${requestedPath} (${contentPreview.length} chars)`;
+
+      return {
+        index: index + 1,
+        name: step.name,
+        action: 'writeFile',
+        preview,
+        targetPath: resolvedPath.targetPath,
+        contentLength: contentPreview.length,
+        contentSha256,
+        blocked: isBlocked,
+        requiredPermission: 'fileWrites',
+        policyDecision: isBlocked ? 'blocked' : 'allowed',
+        reason,
+        operationPlan: createStepOperationPlan({
+          action: 'writeFile',
+          preview,
+          targetPath: resolvedPath.targetPath,
+          contentLength: contentPreview.length,
+          contentSha256,
+          blocked: isBlocked,
+          reason,
         }),
       };
     }
@@ -752,24 +1028,15 @@ export const planWorkflowFile = async (filePath: string): Promise<AutomationPlan
   return planWorkflowContent(content, filePath);
 };
 
-export const runWorkflowFile = async (
-  filePath: string,
+export const runWorkflowPlan = async (
+  plan: AutomationPlanResult,
   options: { yes?: boolean } = {}
 ): Promise<AutomationRunResult> => {
-  const plan = await planWorkflowFile(filePath);
   const executed: string[] = [];
   const skipped: string[] = [];
 
   for (const step of plan.steps) {
     if (step.blocked) {
-      if (step.reason && step.reason.includes('Dangerous command pattern found')) {
-        throw new ZaoWuError({
-          code: 'WORKFLOW_SHELL_DANGEROUS',
-          message: `Workflow step \`${step.name}\` was blocked for safety.`,
-          why: step.reason,
-          fix: 'Remove the dangerous command pattern from the workflow steps.',
-        });
-      }
       skipped.push(`${step.name}: ${step.reason ?? 'blocked'}`);
       continue;
     }
@@ -781,35 +1048,53 @@ export const runWorkflowFile = async (
 
     if (step.action === 'message') {
       executed.push(`${step.name}: ${step.preview}`);
-    } else if (step.action === 'shell') {
-      try {
-        const cwd = path.dirname(path.resolve(filePath));
-        const output = execSync(step.preview, {
-          cwd,
-          encoding: 'utf8',
-          stdio: ['ignore', 'pipe', 'pipe'],
-        });
-        executed.push(`${step.name}: ${output.trim()}`);
-      } catch (error) {
-        let whyMessage = 'Unknown shell execution error.';
-        if (error instanceof Error) {
-          const stderrStr = (error as { stderr?: Buffer }).stderr?.toString().trim();
-          whyMessage = stderrStr ? `Command stderr:\n${stderrStr}` : error.message;
-        }
+    } else if (step.action === 'writeFile') {
+      const workflowStep = plan.workflow.steps[step.index - 1];
+      const writeFileAction = workflowStep?.writeFile;
+      if (!step.targetPath || !writeFileAction || !step.contentSha256) {
+        skipped.push(`${step.name}: missing write target`);
+        continue;
+      }
+      const content = substituteVariables(writeFileAction.content, plan.workflow.variables);
+      if (hashWriteContent(content) !== step.contentSha256) {
         throw new ZaoWuError({
           code: 'WORKFLOW_STEP_FAILED',
           message: `Workflow step \`${step.name}\` failed.`,
-          why: whyMessage,
-          fix: 'Check the shell command syntax and environment, then try again.',
+          why: 'The planned file content no longer matches its content fingerprint.',
+          fix: 'Re-run the workflow preview and confirm the current operation plan.',
         });
       }
+
+      const sandboxedTarget = await resolveSandboxedWriteTarget(
+        plan.sandbox.workflowDirectory,
+        step.targetPath,
+        step.name
+      );
+
+      try {
+        await writeFile(sandboxedTarget, content, { encoding: 'utf8', flag: 'wx' });
+      } catch (error) {
+        const exists = (error as { code?: string }).code === 'EEXIST';
+        throw new ZaoWuError({
+          code: 'WORKFLOW_STEP_FAILED',
+          message: `Workflow step \`${step.name}\` failed.`,
+          why: exists
+            ? `ZaoWu refused to overwrite existing file \`${step.targetPath}\`.`
+            : `ZaoWu tried to write \`${step.targetPath}\`, but the file system rejected the write.`,
+          fix: exists
+            ? 'Choose a new writeFile.path or remove the existing file yourself first.'
+            : 'Check the workflow directory permissions, then try again.',
+        });
+      }
+
+      executed.push(`${step.name}: wrote ${step.targetPath}`);
     }
   }
 
   return {
     schemaVersion: AUTO_RESULT_SCHEMA_VERSION,
     status: options.yes ? 'ok' : 'preview',
-    filePath,
+    filePath: plan.filePath,
     workflow: plan.workflow,
     policy: plan.policy,
     sandbox: plan.sandbox,
@@ -817,3 +1102,8 @@ export const runWorkflowFile = async (
     skipped,
   };
 };
+
+export const runWorkflowFile = async (
+  filePath: string,
+  options: { yes?: boolean } = {}
+): Promise<AutomationRunResult> => runWorkflowPlan(await planWorkflowFile(filePath), options);

@@ -18,6 +18,14 @@
     "clean": {
       "type": "boolean"
     },
+    "ahead": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "behind": {
+      "type": "integer",
+      "minimum": 0
+    },
     "staged": {
       "type": "array",
       "items": {

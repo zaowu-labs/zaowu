@@ -114,3 +114,6 @@ git diff --check
 The release is blocked if any command fails, if CI is not green on `main`, or if
 package contents do not include expected `dist`, `package.json`, and `README.md`
 files.
+
+The complete candidate-to-post-publish sequence is maintained in
+`docs/RELEASE_CHECKLIST.md`.

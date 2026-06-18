@@ -14,6 +14,7 @@ export type WebFetcher = (
   init?: {
     method?: string;
     signal?: AbortSignal;
+    redirect?: 'manual';
   }
 ) => Promise<WebResponseLike>;
 
@@ -161,7 +162,7 @@ const requestWebTarget = async (
 
   try {
     const response = await withTimeout(
-      getFetcher(fetcher)(url, { method, signal: controller.signal }),
+      getFetcher(fetcher)(url, { method, signal: controller.signal, redirect: 'manual' }),
       timeoutMs
     );
 

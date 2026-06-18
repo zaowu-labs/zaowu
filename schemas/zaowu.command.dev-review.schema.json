@@ -46,6 +46,14 @@
           "removedLines": {
             "type": "integer",
             "minimum": 0
+          },
+          "startLine": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "endLine": {
+            "type": "integer",
+            "minimum": 0
           }
         }
       }

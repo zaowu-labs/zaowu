@@ -214,7 +214,7 @@ describe('config utilities', () => {
         key: 'project.name',
         oldValue: 'old',
         newValue: 'new',
-        content: 'project:\n  name: new\n',
+        content: 'project:\n  name: "new"\n',
         wroteFile: false,
       });
       await expect(loadResolvedConfig(root)).resolves.toMatchObject({
@@ -275,6 +275,22 @@ describe('config utilities', () => {
         newValue: 'C:/some/windows/path',
         wroteFile: true,
       });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('serializes YAML config values without changing their type or structure', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-config-'));
+
+    await writeFile(path.join(root, 'zw.yml'), 'project:\n  name: old\n', 'utf8');
+
+    try {
+      for (const value of ['true', 'demo # literal', 'key: value', 'line one\nline two']) {
+        const preview = await setResolvedConfigValue('project.name', value, { cwd: root });
+
+        expect(parseConfig(preview.content, 'zw.yml').project.name).toBe(value);
+      }
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -412,7 +428,7 @@ describe('config utilities', () => {
       });
 
       const loaded = await loadConfig(globalPath);
-      expect(loaded.content).toContain('name: global-project');
+      expect(loaded.content).toContain('name: "global-project"');
     } finally {
       homedirSpy.mockRestore();
       if (originalAppData !== undefined) {

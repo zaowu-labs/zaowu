@@ -71,6 +71,35 @@ for (const requiredText of [
 const changelog = await readText('CHANGELOG.md must exist before release work.', 'CHANGELOG.md');
 assert(changelog.includes('## Unreleased'), 'CHANGELOG.md must include an Unreleased section.');
 
+const releaseChecklist = await readText(
+  'Release checklist must be documented before release work.',
+  'docs',
+  'RELEASE_CHECKLIST.md'
+);
+for (const section of [
+  '## Candidate Preparation',
+  '## Local Preflight',
+  '## Pull Request And CI',
+  '## Tag And Publish',
+  '## Post-Publish Verification',
+  '## Rollback',
+]) {
+  assert(releaseChecklist.includes(section), `Release checklist must include ${section}.`);
+}
+for (const requiredText of [
+  'https://github.com/zaowu-labs/zaowu.git',
+  'corepack pnpm install --frozen-lockfile',
+  'corepack pnpm verify',
+  'npm Trusted Publishing',
+  'Inspect npm provenance',
+  'Never reuse a failed version number',
+]) {
+  assert(
+    releaseChecklist.includes(requiredText),
+    `Release checklist must include release procedure text: ${requiredText}.`
+  );
+}
+
 const packageDirs = (await readdir(packageRoot, { withFileTypes: true }))
   .filter((entry) => entry.isDirectory())
   .map((entry) => entry.name)

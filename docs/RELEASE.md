@@ -25,6 +25,7 @@ The gate includes:
 - packed CLI install smoke
 - release policy and changelog presence
 - release workflow, provenance, and rollback policy presence
+- practical candidate, CI, publish, post-publish, and rollback checklist
 
 The release metadata check is:
 
@@ -45,6 +46,8 @@ It verifies:
 - `docs/RELEASE_POLICY.md` includes provenance and publish-permission sections
 - `docs/RELEASE_POLICY.md` includes release workflow requirements and rollback
   rules
+- `docs/RELEASE_CHECKLIST.md` includes candidate preparation, local preflight,
+  CI, tag/publish, post-publish verification, and rollback steps
 - `CHANGELOG.md` includes an `Unreleased` section
 
 The JSON contract check is:
@@ -72,6 +75,7 @@ Do not publish packages until these are intentionally designed:
 
 Versioning, changelog, branch, tag, and local preflight rules are defined in
 `docs/RELEASE_POLICY.md`.
+The operational sequence is defined in `docs/RELEASE_CHECKLIST.md`.
 
 ## Manual Preflight
 

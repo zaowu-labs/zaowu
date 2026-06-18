@@ -111,6 +111,7 @@ Description:
 Options:
   --dry-run          Force preview mode
   --yes              Write the updated config file
+  --global           Write the user-level config instead of the project config
   --json             Output machine-readable JSON`,
     migrate: `ZaoWu Config Migrate
 
@@ -129,7 +130,7 @@ Options:
     inspect: `ZaoWu Data Inspect
 
 Usage:
-  zw data inspect <file.csv|file.tsv|file.xlsx> [options]
+  zw data inspect <file.csv|file.tsv|file.json|file.xlsx> [options]
 
 Description:
   Inspect rows, columns, and missing values.
@@ -140,7 +141,7 @@ Options:
     analyze: `ZaoWu Data Analyze
 
 Usage:
-  zw data analyze <file.csv|file.tsv|file.xlsx> [options]
+  zw data analyze <file.csv|file.tsv|file.json|file.xlsx> [options]
 
 Description:
   Analyze numeric columns in supported data files.
@@ -151,7 +152,7 @@ Options:
     clean: `ZaoWu Data Clean
 
 Usage:
-  zw data clean <file.csv|file.tsv|file.xlsx> [--output <path>] [--yes] [options]
+  zw data clean <file.csv|file.tsv|file.json|file.xlsx> [--output <path>] [--yes] [options]
 
 Description:
   Trim cells, remove empty lines, and preview cleaned output by default.
@@ -165,7 +166,7 @@ Options:
     schema: `ZaoWu Data Schema
 
 Usage:
-  zw data schema <file.csv|file.tsv|file.xlsx> [options]
+  zw data schema <file.csv|file.tsv|file.json|file.xlsx> [options]
 
 Description:
   Infer a lightweight schema for each column.
@@ -176,7 +177,7 @@ Options:
     sample: `ZaoWu Data Sample
 
 Usage:
-  zw data sample <file.csv|file.tsv|file.xlsx> [--rows <count>] [options]
+  zw data sample <file.csv|file.tsv|file.json|file.xlsx> [--rows <count>] [options]
 
 Description:
   Show sample rows from supported data files.
@@ -188,7 +189,7 @@ Options:
     sheets: `ZaoWu Data Sheets
 
 Usage:
-  zw data sheets <file.csv|file.tsv|file.xlsx> [options]
+  zw data sheets <file.csv|file.tsv|file.json|file.xlsx> [options]
 
 Description:
   List available sheets in a spreadsheet workbook.
@@ -241,10 +242,14 @@ Usage:
   zw dev sync [--yes] [options]
 
 Description:
-  Synchronize and align local branch with its remote tracking branch, fetching updates and hard-resetting.
+  Fetch origin and hard-reset the local branch to the same-named branch on origin.
 
 Options:
+  --dry-run          Force preview mode
   --yes              Execute the synchronization immediately, discarding any local divergence
+  --discard-local    Required with --yes when tracked changes or local ahead commits would be discarded
+  --plan-fingerprint <hash>
+                     Require the current plan to match a prior preview
   --json             Output machine-readable JSON`,
   },
   doc: {
@@ -380,7 +385,7 @@ Usage:
   zw web inspect <https-url> [--yes] [options]
 
 Description:
-  Preview a target by default. Confirmed use performs a HEAD request.
+  Preview a target by default. Confirmed use performs one HEAD request without following redirects.
 
 Options:
   --dry-run          Force preview mode
@@ -392,7 +397,7 @@ Usage:
   zw web fetch <https-url> [--yes] [options]
 
 Description:
-  Preview a target by default. Confirmed use fetches response text.
+  Preview a target by default. Confirmed use fetches response text without following redirects.
 
 Options:
   --dry-run          Force preview mode

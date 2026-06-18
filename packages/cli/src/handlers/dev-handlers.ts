@@ -1,4 +1,9 @@
-import { askAI, resolveAIModel, validateAIProviderConfig } from '@zaowu/ai';
+import {
+  askAI,
+  resolveAIModel,
+  resolveAIProviderNetworkTarget,
+  validateAIProviderConfig,
+} from '@zaowu/ai';
 import { loadResolvedConfig } from '@zaowu/config';
 import {
   getDevStatus,
@@ -15,6 +20,7 @@ import {
   formatList,
   formatOperationPlan,
   getValue,
+  hasFlag,
   result,
   withOperationPlan,
   ZaoWuError,
@@ -86,10 +92,11 @@ const buildAiOperationPlan = (
   reviewUsesWorktree: boolean,
   isReview: boolean
 ): OperationPlan => {
-  const isLocal = providerId === 'echo' || providerId === 'ollama';
+  const provider = validateAIProviderConfig(providerId).provider;
+  const networkTarget = provider.network ? resolveAIProviderNetworkTarget(providerId) : undefined;
   const actionName = isReview ? 'review' : 'suggestion';
   return createOperationPlan({
-    risk: isLocal ? 'low' : 'medium',
+    risk: provider.network ? 'medium' : 'low',
     reads: isReview
       ? reviewUsesWorktree
         ? ['working-tree git diff', 'untracked git file list']
@@ -100,8 +107,8 @@ const buildAiOperationPlan = (
         ? ['git diff', 'git ls-files --others --exclude-standard']
         : ['git diff --cached']
       : ['git diff --cached'],
-    network: isLocal ? [] : [providerId],
-    secrets: validateAIProviderConfig(providerId).provider.requiredEnv,
+    network: networkTarget ? [networkTarget] : [],
+    secrets: provider.requiredEnv,
     notes: [`AI ${actionName} was generated using the ${providerId} provider.`],
   });
 };
@@ -218,6 +225,7 @@ export const handleDevReview: DomainActionHandler = async (_args, context) => {
       '    "title": "Short title",',
       '    "detail": "Detailed explanation of the issue and fix.",',
       '    "filePath": "relative/path/to/file",',
+      '    "line": 123,',
       '    "hunkHeader": "@@ ... @@"',
       '  }',
       ']',
@@ -295,6 +303,10 @@ export const handleDevReview: DomainActionHandler = async (_args, context) => {
         title: typeof finding.title === 'string' ? finding.title : 'AI Review',
         detail: typeof finding.detail === 'string' ? finding.detail : '',
         filePath: typeof finding.filePath === 'string' ? finding.filePath : undefined,
+        line:
+          Number.isInteger(finding.line) && Number(finding.line) > 0
+            ? Number(finding.line)
+            : undefined,
         hunkHeader: typeof finding.hunkHeader === 'string' ? finding.hunkHeader : undefined,
       });
     }
@@ -364,6 +376,7 @@ export const handleDevStatus: DomainActionHandler = async (_args, context) => {
 
 export const handleDevSync: DomainActionHandler = async (_args, context) => {
   const preview = syncDevRepo(context.commandRunner, { cwd: context.cwd });
+  const discardLocal = hasFlag(context.parsed, '--discard-local');
 
   if (!preview.operationPlan) {
     throw new ZaoWuError({
@@ -377,8 +390,9 @@ export const handleDevSync: DomainActionHandler = async (_args, context) => {
   assertOperationPlanFingerprint(context, preview.operationPlan);
 
   const syncResult = context.yes
-    ? syncDevRepo(context.commandRunner, { cwd: context.cwd, yes: true })
+    ? syncDevRepo(context.commandRunner, { cwd: context.cwd, yes: true, discardLocal })
     : preview;
+  const operationPlan = syncResult.operationPlan ?? preview.operationPlan;
 
   const human = [
     'ZaoWu Dev Sync',
@@ -388,10 +402,10 @@ export const handleDevSync: DomainActionHandler = async (_args, context) => {
     `Previous commit: ${syncResult.previousCommit}`,
     `Current commit: ${syncResult.currentCommit}`,
     '',
-    formatOperationPlan(preview.operationPlan),
+    formatOperationPlan(operationPlan),
     '',
     syncResult.output,
   ].join('\n');
 
-  return result(context, withOperationPlan(syncResult, preview.operationPlan), human);
+  return result(context, withOperationPlan(syncResult, operationPlan), human);
 };

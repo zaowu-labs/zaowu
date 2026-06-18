@@ -2,6 +2,7 @@ import {
   askAI,
   listAIProviders,
   previewAIRequest,
+  resolveAIProviderNetworkTarget,
   resolveAIModel,
   validateAIProviderConfig,
 } from '@zaowu/ai';
@@ -23,12 +24,13 @@ export const handleAiAsk: DomainActionHandler = async (args, context) => {
   const providerValidation = validateAIProviderConfig(requestedProvider);
   const provider = providerValidation.provider;
   const resolvedModel = resolveAIModel(provider, { model: requestedModel });
+  const networkTarget = provider.network ? resolveAIProviderNetworkTarget(provider.id) : undefined;
   const operationPlan = createOperationPlan({
     risk: provider.network ? 'medium' : 'low',
     confirmationRequired: provider.network && !context.yes,
     subjects: [`ai:${provider.id}`, `model:${resolvedModel}`],
     reads: filePath ? [filePath] : [],
-    network: provider.network ? [provider.id] : [],
+    network: networkTarget ? [networkTarget] : [],
     secrets: provider.requiredEnv,
     notes: [
       provider.network
