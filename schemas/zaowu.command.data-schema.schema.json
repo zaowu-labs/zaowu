@@ -33,7 +33,7 @@
             "minimum": 0
           },
           "type": {
-            "enum": ["number", "boolean", "string", "empty", "mixed"]
+            "enum": ["number", "boolean", "date", "percent", "currency", "string", "empty", "mixed"]
           },
           "nullable": {
             "type": "boolean"

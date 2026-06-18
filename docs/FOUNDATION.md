@@ -65,6 +65,10 @@ wire them from `packages/cli`. Do not hide cross-domain coupling inside a helper
 
 Automation shell execution is specifically blocked until
 `docs/experience/ZW_AUTO_EXECUTION.md` is implemented, tested, and documented.
+The only automation write primitive in the foundation phase is the structured
+`writeFile` action, which can create a new file inside the real workflow
+directory after explicit permission and confirmation. Plugin manifests remain
+metadata only and are not executable.
 
 ## Capability Ledger
 

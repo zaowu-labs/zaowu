@@ -1,4 +1,4 @@
-import { planWorkflowFile, runWorkflowFile, validateWorkflowFile } from '@zaowu/auto';
+import { planWorkflowFile, runWorkflowPlan, validateWorkflowFile } from '@zaowu/auto';
 import {
   assertOperationPlanFingerprint,
   createOperationPlan,
@@ -40,28 +40,46 @@ export const handleAutoRun: DomainActionHandler = async (args, context) => {
   const target = requireTarget(args, 'zw auto run');
   const plan = await planWorkflowFile(target);
   const readySteps = plan.steps
-    .filter((step) => (step.action === 'message' || step.action === 'shell') && !step.blocked)
+    .filter(
+      (step) =>
+        (step.action === 'message' || step.action === 'shell' || step.action === 'writeFile') &&
+        !step.blocked
+    )
     .map((step) => step.name);
+  const writeTargets = plan.steps
+    .filter((step) => step.action === 'writeFile' && !step.blocked && step.targetPath)
+    .map((step) => step.targetPath!);
+  const writeSubjects = plan.steps
+    .filter((step) => step.action === 'writeFile' && !step.blocked && step.contentSha256)
+    .flatMap((step) => [
+      `step:${step.name}`,
+      `content-sha256:${step.contentSha256}`,
+      `content-length:${step.contentLength ?? 0}`,
+    ]);
   const blockedSteps = plan.steps
     .filter((step) => step.blocked)
     .map((step) => `${step.name}: ${step.reason ?? 'blocked'}`);
   const operationPlan = createOperationPlan({
-    risk: 'medium',
+    risk: writeTargets.length > 0 ? 'high' : 'medium',
     confirmationRequired: !context.yes,
-    subjects: [`workflow:${plan.filePath}`],
+    subjects: [`workflow:${plan.filePath}`, ...writeSubjects],
     reads: [plan.filePath],
+    writes: writeTargets,
     notes: [
       'Workflow runs preview by default.',
       `Policy shell: ${plan.policy.shell}.`,
+      `Policy fileWrites: ${plan.policy.fileWrites}.`,
       `Sandbox shellCommands: ${plan.sandbox.shellCommands}.`,
+      `Sandbox fileWrites: ${plan.sandbox.fileWrites}.`,
       `Ready steps: ${readySteps.length > 0 ? readySteps.join(', ') : 'none'}.`,
       `Blocked steps: ${blockedSteps.length > 0 ? blockedSteps.join('; ') : 'none'}.`,
       'Shell steps remain blocked in this foundation version, including with --yes.',
+      'writeFile steps can only create new files inside the workflow directory.',
     ],
   });
   assertOperationPlanFingerprint(context, operationPlan);
 
-  const run = await runWorkflowFile(target, { yes: context.yes });
+  const run = await runWorkflowPlan(plan, { yes: context.yes });
   const human = [
     'ZaoWu Auto Run',
     '',

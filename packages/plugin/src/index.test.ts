@@ -8,7 +8,6 @@ import {
   PLUGIN_DOMAIN,
   removePlugin,
   validatePluginSource,
-  executePluginCommand,
 } from './index';
 
 describe('plugin domain', () => {
@@ -224,75 +223,6 @@ describe('plugin domain', () => {
         },
         wroteFile: false,
       });
-    } finally {
-      await rm(root, { recursive: true, force: true });
-    }
-  });
-
-  it('rejects execution for uninstalled plugins', async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-plugin-'));
-
-    try {
-      await expect(
-        executePluginCommand('missing-plugin', 'some-command', [], { cwd: root })
-      ).rejects.toThrow('Plugin is not installed.');
-    } finally {
-      await rm(root, { recursive: true, force: true });
-    }
-  });
-
-  it('executes a command for an installed plugin from a local source', async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-plugin-'));
-    const source = path.join(root, 'source');
-
-    await mkdir(source);
-    await writeFile(
-      path.join(source, 'zaowu.plugin.json'),
-      JSON.stringify({
-        schemaVersion: 1,
-        id: 'readme-gen',
-        version: '0.1.0',
-        commands: [
-          {
-            name: 'generate',
-            summary: 'Generate a README file',
-          },
-        ],
-      }),
-      'utf8'
-    );
-
-    try {
-      await installPlugin('readme-gen', {
-        cwd: root,
-        source,
-        yes: true,
-        installedAt: '2026-06-03T00:00:00.000Z',
-      });
-
-      const result = await executePluginCommand(
-        'readme-gen',
-        'generate',
-        ['--output', 'README.md'],
-        {
-          cwd: root,
-        }
-      );
-
-      expect(result).toEqual({
-        schemaVersion: 1,
-        status: 'ok',
-        pluginId: 'readme-gen',
-        command: 'generate',
-        args: ['--output', 'README.md'],
-        resolvedPath: path.join(source, 'bin', 'generate'),
-        output:
-          'Mock executed plugin `readme-gen` command `generate` with args: --output, README.md',
-      });
-
-      await expect(
-        executePluginCommand('readme-gen', 'missing-cmd', [], { cwd: root })
-      ).rejects.toThrow('Command `missing-cmd` is not defined by plugin `readme-gen`.');
     } finally {
       await rm(root, { recursive: true, force: true });
     }

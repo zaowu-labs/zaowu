@@ -56,6 +56,9 @@
           },
           {
             "required": ["run"]
+          },
+          {
+            "required": ["writeFile"]
           }
         ],
         "properties": {
@@ -69,6 +72,23 @@
           "run": {
             "type": "string",
             "description": "Shell steps are parsed and planned, but blocked in this foundation release."
+          },
+          "writeFile": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "content"],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Relative output path inside the workflow directory."
+              },
+              "content": {
+                "type": "string",
+                "maxLength": 262144,
+                "description": "UTF-8 text content. Variable substitution must also remain within the runtime limit."
+              }
+            }
           }
         }
       }

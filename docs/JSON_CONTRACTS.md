@@ -257,10 +257,11 @@ Stable fields:
 - `recommendedChecks`
 - `operationPlan` when routed through the CLI
 
-`diffHunks` intentionally reports only file path, hunk header, and line counts.
-It does not expose raw diff text by default.
+`diffHunks` intentionally reports only file path, hunk header, new-file
+`startLine`/`endLine`, and line counts. It does not expose raw diff text by
+default.
 Each finding includes `severity`, `priority`, `category`, `title`, and `detail`;
-optional `filePath` and `hunkHeader` fields locate hunk-level risks.
+optional `filePath`, `line`, and `hunkHeader` fields locate hunk-level risks.
 
 ### `zw dev status --json`
 
@@ -276,6 +277,8 @@ Stable fields:
 - `staged`
 - `unstaged`
 - `untracked`
+- `ahead`
+- `behind`
 - `operationPlan` when routed through the CLI
 
 `zw dev status` reads Git status only and does not modify Git state.
@@ -290,6 +293,9 @@ Sync previews by default. Its operation plan lists `git fetch origin`,
 `git reset --hard origin/<branch>`, and network access to the origin remote.
 Confirmed results keep the same fingerprint and set
 `confirmationRequired: false`.
+If tracked changes or local commits ahead of `origin/<branch>` exist, `--yes`
+alone returns `GIT_SYNC_DISCARD_CONFIRMATION_REQUIRED`; execution also requires
+`--discard-local`.
 
 ### `zw auto validate --json`
 
@@ -310,7 +316,7 @@ Stable fields:
 `policy` is the runtime policy output and includes its own `schemaVersion`.
 `sandbox` is the execution boundary for the foundation version. It reports
 `root: "workflow-directory"` and a resolved `workflowDirectory` path so users can
-audit the directory future execution would be confined to.
+audit the directory structured writes are confined to.
 
 ### `zw auto plan --json`
 
@@ -332,6 +338,10 @@ Each step includes `policyDecision` so automation can distinguish ready,
 blocked, and unsupported actions without parsing text. Each step also includes a
 schema-versioned `operationPlan` so callers can inspect per-step risk,
 confirmation requirements, and planned execution without parsing human output.
+Structured `writeFile` steps additionally expose `targetPath`, `contentLength`,
+and `contentSha256`; the target is absolute after planning and must remain
+inside the workflow directory. The content digest is included in confirmation
+fingerprints without requiring callers to parse the file body.
 
 ### `zw auto run --json`
 
@@ -350,8 +360,10 @@ Stable fields:
 - `skipped`
 - `operationPlan` when routed through the CLI
 
-In the foundation version, `message` steps can execute after confirmation.
-Shell steps remain blocked even when workflow permissions request `prompt`.
+In the foundation version, `message` steps and structured `writeFile` steps can
+execute after confirmation. File writes are create-only and confined to the
+real workflow directory. Shell steps remain blocked even when workflow
+permissions request `prompt`.
 
 ### Document Commands
 
@@ -372,6 +384,8 @@ Schema files: `schemas/zaowu.command.data-*.schema.json`.
 Inspect, analyze, schema, and sample expose normalized tabular results. Clean
 reports content and cleanup counts, and adds the shared `operationPlan` through
 the CLI when a write may occur.
+Schema column types include `date`, `percent`, and `currency` in addition to the
+existing primitive, empty, and mixed classifications.
 
 ### Plugin Commands
 
@@ -382,6 +396,7 @@ Schema files: `schemas/zaowu.command.plugin-*.schema.json`.
 List and validate are read-only. Install and remove expose local manifest
 changes and use the shared `operationPlan` in CLI output. Preview results never
 claim a file was written or removed.
+No plugin command-execution contract exists in the foundation version.
 
 ### Teaching Commands
 

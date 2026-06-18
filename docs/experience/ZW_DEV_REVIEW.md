@@ -75,10 +75,11 @@ JSON output includes stable top-level keys:
 }
 ```
 
-`diffHunks` reports file path, hunk header, added line count, and removed line
-count. It does not include raw diff text by default. Each finding includes the
-legacy `severity` plus `priority` and `category` so human output stays readable
-and JSON output can be grouped by risk.
+`diffHunks` reports file path, hunk header, new-file start/end lines, added line
+count, and removed line count. It does not include raw diff text by default.
+Each finding includes the legacy `severity` plus `priority` and `category`; a
+line-specific finding also includes `line` so human output can render
+`file:line` and JSON output can locate the addition precisely.
 
 ## Safety Rules
 

@@ -1,0 +1,15 @@
+{
+  "id": "msg_no_text",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-test",
+  "content": [
+    {
+      "type": "tool_use",
+      "id": "toolu_test",
+      "name": "noop",
+      "input": {}
+    }
+  ],
+  "stop_reason": "tool_use"
+}

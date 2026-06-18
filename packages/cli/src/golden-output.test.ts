@@ -142,7 +142,7 @@ describe('golden command output contracts', () => {
     expect(lines).toContain('Findings:');
     expect(lines).toContain('- info/low/summary: Change size - 2 file(s), +2/-0.');
     expect(lines).toContain(
-      '- warning/high/execution: Shell execution added (packages/dev/src/index.ts @@ -10,0 +11 @@) - Added code appears to run shell commands; confirm preview or confirmation behavior.'
+      '- warning/high/execution: Shell execution added (packages/dev/src/index.ts:11 @@ -10,0 +11 @@) - Added code appears to run shell commands; confirm preview or confirmation behavior.'
     );
   });
 
@@ -179,7 +179,7 @@ describe('golden command output contracts', () => {
     expect(lines).toContain('- Staged files: 1.');
     expect(lines).toContain('Findings:');
     expect(lines).toContain(
-      '- warning/high/execution: Shell execution added (packages/dev/src/index.ts @@ -10,0 +11 @@) - Added code appears to run shell commands; confirm preview or confirmation behavior.'
+      '- warning/high/execution: Shell execution added (packages/dev/src/index.ts:11 @@ -10,0 +11 @@) - Added code appears to run shell commands; confirm preview or confirmation behavior.'
     );
     expect(lines).toContain('Execute:');
     expect(lines).toContain('- git diff --cached');

@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -6,6 +6,7 @@ import {
   AUTO_DOMAIN,
   planWorkflowContent,
   runWorkflowFile,
+  runWorkflowPlan,
   validateWorkflowContent,
 } from './index';
 
@@ -233,6 +234,134 @@ describe('auto domain', () => {
     });
   });
 
+  it('plans writeFile steps only when file writes are explicitly requested', () => {
+    expect(
+      planWorkflowContent(
+        [
+          'name: demo',
+          'vars:',
+          '  target: report.txt',
+          'steps:',
+          '  - name: save',
+          '    writeFile:',
+          '      path: "{{target}}"',
+          '      content: "Hello ZaoWu"',
+          '',
+        ].join('\n')
+      )
+    ).toMatchObject({
+      policy: {
+        fileWrites: 'blocked',
+      },
+      sandbox: {
+        fileWrites: 'blocked',
+      },
+      steps: [
+        {
+          name: 'save',
+          action: 'writeFile',
+          blocked: true,
+          requiredPermission: 'fileWrites',
+          reason: 'File writes require permissions.fileWrites: prompt.',
+          preview: 'write report.txt (11 chars)',
+          operationPlan: {
+            risk: 'medium',
+            confirmationRequired: true,
+          },
+        },
+      ],
+      warnings: ['Step `save` writes a file, but permissions.fileWrites is not prompt.'],
+    });
+
+    expect(
+      planWorkflowContent(
+        [
+          'name: demo',
+          'permissions:',
+          '  fileWrites: prompt',
+          'steps:',
+          '  - name: save',
+          '    writeFile:',
+          '      path: report.txt',
+          '      content: "Hello ZaoWu"',
+          '',
+        ].join('\n'),
+        'workflows/demo.yml'
+      )
+    ).toMatchObject({
+      policy: {
+        fileWrites: 'prompt',
+      },
+      sandbox: {
+        fileWrites: 'workflow-directory',
+      },
+      steps: [
+        {
+          name: 'save',
+          action: 'writeFile',
+          blocked: false,
+          targetPath: path.resolve('workflows', 'report.txt'),
+          contentLength: 11,
+          contentSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+          policyDecision: 'allowed',
+          operationPlan: {
+            subjects: [expect.stringMatching(/^content-sha256:[a-f0-9]{64}$/), 'content-length:11'],
+            writes: [path.resolve('workflows', 'report.txt')],
+          },
+        },
+      ],
+    });
+  });
+
+  it('blocks writeFile paths that leave the workflow directory', () => {
+    expect(
+      planWorkflowContent(
+        [
+          'name: demo',
+          'permissions:',
+          '  fileWrites: prompt',
+          'steps:',
+          '  - name: save',
+          '    writeFile:',
+          '      path: ../outside.txt',
+          '      content: blocked',
+          '',
+        ].join('\n'),
+        path.join('workflows', 'demo.yml')
+      ).steps[0]
+    ).toMatchObject({
+      action: 'writeFile',
+      blocked: true,
+      reason: 'writeFile.path must name a file inside the workflow directory.',
+    });
+  });
+
+  it('bounds workflow and writeFile content sizes', () => {
+    expect(() => validateWorkflowContent('x'.repeat(1_000_001))).toThrow(
+      'Workflow file is too large.'
+    );
+
+    const plan = planWorkflowContent(
+      [
+        'name: large-write',
+        'permissions:',
+        '  fileWrites: prompt',
+        'steps:',
+        '  - name: save',
+        '    writeFile:',
+        '      path: report.txt',
+        `      content: ${'x'.repeat(256 * 1024 + 1)}`,
+        '',
+      ].join('\n')
+    );
+
+    expect(plan.steps[0]).toMatchObject({
+      action: 'writeFile',
+      blocked: true,
+      reason: 'writeFile.content exceeds the 262144-character limit.',
+    });
+  });
+
   it('warns about undefined variables', () => {
     expect(
       validateWorkflowContent(
@@ -296,6 +425,118 @@ describe('auto domain', () => {
       });
     } finally {
       await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('runs confirmed writeFile steps without overwriting existing files', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-auto-'));
+    const filePath = path.join(root, 'workflow.yml');
+    const outputPath = path.join(root, 'report.txt');
+
+    await writeFile(
+      filePath,
+      [
+        'name: demo',
+        'permissions:',
+        '  fileWrites: prompt',
+        'steps:',
+        '  - name: save',
+        '    writeFile:',
+        '      path: report.txt',
+        '      content: "Hello {{target}}"',
+        'vars:',
+        '  target: ZaoWu',
+        '',
+      ].join('\n'),
+      'utf8'
+    );
+
+    try {
+      await expect(runWorkflowFile(filePath)).resolves.toMatchObject({
+        status: 'preview',
+        executed: [],
+        skipped: ['save: dry-run'],
+      });
+      await expect(readFile(outputPath, 'utf8')).rejects.toThrow();
+
+      await expect(runWorkflowFile(filePath, { yes: true })).resolves.toMatchObject({
+        status: 'ok',
+        executed: [`save: wrote ${outputPath}`],
+        skipped: [],
+      });
+      await expect(readFile(outputPath, 'utf8')).resolves.toBe('Hello ZaoWu');
+      await expect(runWorkflowFile(filePath, { yes: true })).rejects.toMatchObject({
+        code: 'WORKFLOW_STEP_FAILED',
+        why: `ZaoWu refused to overwrite existing file \`${outputPath}\`.`,
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a mutated writeFile plan whose content fingerprint no longer matches', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-auto-'));
+    const filePath = path.join(root, 'workflow.yml');
+    const plan = planWorkflowContent(
+      [
+        'name: demo',
+        'permissions:',
+        '  fileWrites: prompt',
+        'steps:',
+        '  - name: save',
+        '    writeFile:',
+        '      path: report.txt',
+        '      content: original',
+        '',
+      ].join('\n'),
+      filePath
+    );
+
+    plan.workflow.steps[0]!.writeFile!.content = 'changed';
+
+    try {
+      await expect(runWorkflowPlan(plan, { yes: true })).rejects.toMatchObject({
+        code: 'WORKFLOW_STEP_FAILED',
+        why: 'The planned file content no longer matches its content fingerprint.',
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects writeFile steps whose parent link resolves outside the workflow directory', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-auto-'));
+    const outside = await mkdtemp(path.join(os.tmpdir(), 'zaowu-auto-outside-'));
+    const filePath = path.join(root, 'workflow.yml');
+    const linkedDirectory = path.join(root, 'linked');
+    const escapedPath = path.join(outside, 'escaped.txt');
+
+    await symlink(outside, linkedDirectory, process.platform === 'win32' ? 'junction' : 'dir');
+    await writeFile(
+      filePath,
+      [
+        'name: demo',
+        'permissions:',
+        '  fileWrites: prompt',
+        'steps:',
+        '  - name: escape',
+        '    writeFile:',
+        '      path: linked/escaped.txt',
+        '      content: blocked',
+        '',
+      ].join('\n'),
+      'utf8'
+    );
+
+    try {
+      await expect(runWorkflowFile(filePath, { yes: true })).rejects.toMatchObject({
+        code: 'WORKFLOW_STEP_FAILED',
+        why: `ZaoWu refused to follow a linked directory outside the workflow sandbox for \`${path.join(root, 'linked', 'escaped.txt')}\`.`,
+      });
+      await expect(readFile(escapedPath, 'utf8')).rejects.toThrow();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+      await rm(outside, { recursive: true, force: true });
     }
   });
 

@@ -663,6 +663,42 @@ const parseOpenAIJsonResponse = async (response: AIFetchResponse): Promise<unkno
   }
 };
 
+const extractAnthropicOutputText = (payload: unknown): string => {
+  if (!payload || typeof payload !== 'object') {
+    throw new ZaoWuError({
+      code: 'AI_PROVIDER_RESPONSE_INVALID',
+      message: 'AI provider response is invalid.',
+      why: 'Anthropic returned a non-object JSON response.',
+      fix: 'Check the Anthropic response or update the provider adapter parser.',
+    });
+  }
+
+  const response = payload as {
+    content?: Array<{
+      type?: unknown;
+      text?: unknown;
+    }>;
+  };
+  const output = response.content
+    ?.map((content) =>
+      content.type === 'text' && typeof content.text === 'string' ? content.text : ''
+    )
+    .filter(Boolean)
+    .join('')
+    .trim();
+
+  if (output) {
+    return output;
+  }
+
+  throw new ZaoWuError({
+    code: 'AI_PROVIDER_RESPONSE_INVALID',
+    message: 'AI provider response is invalid.',
+    why: 'The response from Anthropic did not contain generated text.',
+    fix: 'Check the Anthropic model response and adapter parser.',
+  });
+};
+
 const OPENAI_PROVIDER: AIProvider = {
   descriptor: createProviderDescriptor(OPENAI_PROVIDER_DESCRIPTOR),
   async ask(request) {
@@ -903,8 +939,7 @@ const ANTHROPIC_PROVIDER: AIProvider = {
       });
     }
 
-    const resObj = payload as { content?: Array<{ type: string; text: string }> };
-    const output = resObj.content?.map((c) => c.text).join('') || '';
+    const output = extractAnthropicOutputText(payload);
 
     const descriptor = createProviderDescriptor(ANTHROPIC_PROVIDER_DESCRIPTOR, env);
 

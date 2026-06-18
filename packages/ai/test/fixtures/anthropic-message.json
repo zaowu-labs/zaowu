@@ -1,0 +1,17 @@
+{
+  "id": "msg_test",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-test",
+  "content": [
+    {
+      "type": "text",
+      "text": "Anthropic response text"
+    }
+  ],
+  "stop_reason": "end_turn",
+  "usage": {
+    "input_tokens": 12,
+    "output_tokens": 4
+  }
+}

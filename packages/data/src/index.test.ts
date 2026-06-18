@@ -273,6 +273,67 @@ describe('data domain', () => {
     }
   });
 
+  it('infers focused semantic column types without mutating raw values', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-data-'));
+    const filePath = path.join(root, 'semantic.csv');
+
+    await writeFile(
+      filePath,
+      [
+        'date,invalid_date,rate,revenue,text,heterogeneous',
+        '2026-06-17,2026-02-30,12.5%,$1234.50,plain,1',
+        '2026-06-18,2026-13-01,.5%,€2,mixed,true',
+        '',
+      ].join('\n'),
+      'utf8'
+    );
+
+    try {
+      await expect(inferDataSchema(filePath)).resolves.toMatchObject({
+        columns: [
+          {
+            column: 'date',
+            type: 'date',
+          },
+          {
+            column: 'invalid_date',
+            type: 'string',
+          },
+          {
+            column: 'rate',
+            type: 'percent',
+          },
+          {
+            column: 'revenue',
+            type: 'currency',
+          },
+          {
+            column: 'text',
+            type: 'string',
+          },
+          {
+            column: 'heterogeneous',
+            type: 'mixed',
+          },
+        ],
+      });
+      await expect(sampleData(filePath, { rows: 1 })).resolves.toMatchObject({
+        rows: [
+          {
+            date: '2026-06-17',
+            invalid_date: '2026-02-30',
+            rate: '12.5%',
+            revenue: '$1234.50',
+            text: 'plain',
+            heterogeneous: '1',
+          },
+        ],
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('samples CSV rows', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-data-'));
     const filePath = path.join(root, 'sales.csv');

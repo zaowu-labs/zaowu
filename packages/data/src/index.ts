@@ -62,7 +62,7 @@ export interface DataCleanResult {
 export interface DataColumnSchema {
   column: string;
   index: number;
-  type: 'number' | 'boolean' | 'string' | 'empty' | 'mixed';
+  type: 'number' | 'boolean' | 'date' | 'percent' | 'currency' | 'string' | 'empty' | 'mixed';
   nullable: boolean;
   examples: string[];
 }
@@ -601,6 +601,70 @@ export const cleanData = async (
 
 const isBoolean = (value: string): boolean => ['true', 'false'].includes(value.toLowerCase());
 
+const isValidCalendarDate = (year: number, month: number, day: number): boolean => {
+  if (month < 1 || month > 12 || day < 1) {
+    return false;
+  }
+
+  return day <= new Date(Date.UTC(year, month, 0)).getUTCDate();
+};
+
+const isDateLike = (value: string): boolean => {
+  const trimmed = value.trim();
+
+  const isoMatch = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(trimmed);
+  if (isoMatch) {
+    return isValidCalendarDate(Number(isoMatch[1]), Number(isoMatch[2]), Number(isoMatch[3]));
+  }
+
+  const slashMatch = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(trimmed);
+  if (slashMatch) {
+    return isValidCalendarDate(Number(slashMatch[3]), Number(slashMatch[1]), Number(slashMatch[2]));
+  }
+
+  return false;
+};
+
+const isPercentLike = (value: string): boolean => {
+  const trimmed = value.trim();
+
+  return /^[-+]?(?:\d+(?:\.\d+)?|\.\d+)%$/.test(trimmed);
+};
+
+const isCurrencyLike = (value: string): boolean => {
+  const trimmed = value.trim();
+
+  return (
+    /^(?:[$€£¥]\s*)?[-+]?(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?(?:\s*(?:USD|EUR|GBP|CNY|JPY))?$/.test(
+      trimmed
+    ) && /[$€£¥,]|\b(?:USD|EUR|GBP|CNY|JPY)\b/.test(trimmed)
+  );
+};
+
+const getValueType = (value: string): Exclude<DataColumnSchema['type'], 'empty' | 'mixed'> => {
+  if (Number.isFinite(Number(value))) {
+    return 'number';
+  }
+
+  if (isBoolean(value)) {
+    return 'boolean';
+  }
+
+  if (isDateLike(value)) {
+    return 'date';
+  }
+
+  if (isPercentLike(value)) {
+    return 'percent';
+  }
+
+  if (isCurrencyLike(value)) {
+    return 'currency';
+  }
+
+  return 'string';
+};
+
 const getColumnType = (values: readonly string[]): DataColumnSchema['type'] => {
   const nonEmpty = values.filter((value) => value.trim());
 
@@ -608,22 +672,9 @@ const getColumnType = (values: readonly string[]): DataColumnSchema['type'] => {
     return 'empty';
   }
 
-  if (nonEmpty.every((value) => Number.isFinite(Number(value)))) {
-    return 'number';
-  }
+  const inferredTypes = new Set(nonEmpty.map(getValueType));
 
-  if (nonEmpty.every(isBoolean)) {
-    return 'boolean';
-  }
-
-  if (
-    nonEmpty.some((value) => Number.isFinite(Number(value)) || isBoolean(value)) &&
-    nonEmpty.some((value) => !Number.isFinite(Number(value)) && !isBoolean(value))
-  ) {
-    return 'mixed';
-  }
-
-  return 'string';
+  return inferredTypes.size === 1 ? [...inferredTypes][0]! : 'mixed';
 };
 
 export const inferDataSchema = async (

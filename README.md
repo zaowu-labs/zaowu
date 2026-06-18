@@ -22,16 +22,16 @@
 
 ZaoWu is structured as a monorepo containing specialized domain modules. Here is an overview of what ZaoWu can do out-of-the-box:
 
-| Domain       | Action                                  | Description                                                          | Safety Level                    |
-| :----------- | :-------------------------------------- | :------------------------------------------------------------------- | :------------------------------ |
-| **`ai`**     | `providers` / `ask`                     | Use echo, Ollama, OpenAI, or Anthropic behind one provider boundary  | Network preview first           |
-| **`dev`**    | `status` / `review` / `commit` / `sync` | Review changes, suggest commits, and explicitly synchronize branches | Destructive sync needs `--yes`  |
-| **`doc`**    | `convert` / `outline` / `search`        | Parse PDF/DOCX into clean Markdown structure; retrieve doc outlines  | Safe (No write without `--yes`) |
-| **`data`**   | `schema` / `sample` / `clean`           | Analyze CSV, TSV, JSON, and XLSX structures                          | Writes preview first            |
-| **`auto`**   | `validate` / `plan` / `run`             | Validate workflows and run confirmed message steps                   | Shell remains blocked           |
-| **`teach`**  | `plan` / `quiz`                         | Create learning outline tracks and format Canvas quiz exports        | Safe (Read-only)                |
-| **`plugin`** | `validate` / `install`                  | Validate local extension manifests and install workspace plugins     | Safe (Local-first)              |
-| **`config`** | `get` / `set` / `validate`              | Manage system-wide options, timeouts, and active LLM models          | Safe (Config directory)         |
+| Domain       | Action                                  | Description                                                          | Safety Level                          |
+| :----------- | :-------------------------------------- | :------------------------------------------------------------------- | :------------------------------------ |
+| **`ai`**     | `providers` / `ask`                     | Use echo, Ollama, OpenAI, or Anthropic behind one provider boundary  | Network preview first                 |
+| **`dev`**    | `status` / `review` / `commit` / `sync` | Review changes, suggest commits, and explicitly synchronize branches | Risky sync needs two acknowledgements |
+| **`doc`**    | `convert` / `outline` / `search`        | Parse PDF/DOCX into clean Markdown structure; retrieve doc outlines  | Safe (No write without `--yes`)       |
+| **`data`**   | `schema` / `sample` / `clean`           | Analyze CSV, TSV, JSON, and XLSX structures                          | Writes preview first                  |
+| **`auto`**   | `validate` / `plan` / `run`             | Run messages and bounded structured file writes                      | Shell remains blocked                 |
+| **`teach`**  | `plan` / `quiz`                         | Create learning outline tracks and format Canvas quiz exports        | Safe (Read-only)                      |
+| **`plugin`** | `validate` / `install`                  | Validate and manage local extension manifests                        | Metadata only                         |
+| **`config`** | `get` / `set` / `validate`              | Manage system-wide options, timeouts, and active LLM models          | Safe (Config directory)               |
 
 ---
 
@@ -104,15 +104,16 @@ corepack pnpm zw teach quiz "Variables store values. Functions group behavior." 
 
 ### ⚙️ Safe Workflow Automation
 
-Run localized workflows defined in simple YAML configs. Message steps can run
-after confirmation; shell steps remain visible but blocked:
+Run localized workflows defined in simple YAML configs. Message steps and
+bounded `writeFile` steps can run after confirmation; shell steps remain
+visible but blocked:
 
 ```bash
 # Preview the execution plan of a workflow
 corepack pnpm zw auto plan examples/workflows/blocked-shell.yml
 
-# Execute supported message steps after verifying safety
-corepack pnpm zw auto run examples/workflows/blocked-shell.yml --yes
+# Preview the exact file target of a structured write workflow
+corepack pnpm zw auto plan examples/workflows/write-file.yml
 ```
 
 ---

@@ -20,6 +20,7 @@ import {
   formatList,
   formatOperationPlan,
   getValue,
+  hasFlag,
   result,
   withOperationPlan,
   ZaoWuError,
@@ -224,6 +225,7 @@ export const handleDevReview: DomainActionHandler = async (_args, context) => {
       '    "title": "Short title",',
       '    "detail": "Detailed explanation of the issue and fix.",',
       '    "filePath": "relative/path/to/file",',
+      '    "line": 123,',
       '    "hunkHeader": "@@ ... @@"',
       '  }',
       ']',
@@ -301,6 +303,10 @@ export const handleDevReview: DomainActionHandler = async (_args, context) => {
         title: typeof finding.title === 'string' ? finding.title : 'AI Review',
         detail: typeof finding.detail === 'string' ? finding.detail : '',
         filePath: typeof finding.filePath === 'string' ? finding.filePath : undefined,
+        line:
+          Number.isInteger(finding.line) && Number(finding.line) > 0
+            ? Number(finding.line)
+            : undefined,
         hunkHeader: typeof finding.hunkHeader === 'string' ? finding.hunkHeader : undefined,
       });
     }
@@ -370,6 +376,7 @@ export const handleDevStatus: DomainActionHandler = async (_args, context) => {
 
 export const handleDevSync: DomainActionHandler = async (_args, context) => {
   const preview = syncDevRepo(context.commandRunner, { cwd: context.cwd });
+  const discardLocal = hasFlag(context.parsed, '--discard-local');
 
   if (!preview.operationPlan) {
     throw new ZaoWuError({
@@ -383,7 +390,7 @@ export const handleDevSync: DomainActionHandler = async (_args, context) => {
   assertOperationPlanFingerprint(context, preview.operationPlan);
 
   const syncResult = context.yes
-    ? syncDevRepo(context.commandRunner, { cwd: context.cwd, yes: true })
+    ? syncDevRepo(context.commandRunner, { cwd: context.cwd, yes: true, discardLocal })
     : preview;
   const operationPlan = syncResult.operationPlan ?? preview.operationPlan;
 

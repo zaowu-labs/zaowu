@@ -247,6 +247,7 @@ Description:
 Options:
   --dry-run          Force preview mode
   --yes              Execute the synchronization immediately, discarding any local divergence
+  --discard-local    Required with --yes when tracked changes or local ahead commits would be discarded
   --plan-fingerprint <hash>
                      Require the current plan to match a prior preview
   --json             Output machine-readable JSON`,

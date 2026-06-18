@@ -140,6 +140,16 @@ try {
   assert(autoPlan.sandbox?.shellCommands === 'blocked', 'auto sandbox should block shell commands');
   assert(autoPlan.steps?.[0]?.blocked === false, 'auto plan should mark message step ready');
 
+  const writeWorkflowPath = path.join(examples, 'workflows', 'write-file.yml');
+  const writePlan = run(['auto', 'plan', writeWorkflowPath, '--json'], { json: true });
+  assert(writePlan.schemaVersion === 1, 'write plan should expose result schema version');
+  assert(
+    writePlan.sandbox?.fileWrites === 'workflow-directory',
+    'write plan should confine file writes to the workflow directory'
+  );
+  assert(writePlan.steps?.[0]?.action === 'writeFile', 'write plan should expose writeFile');
+  assert(path.isAbsolute(writePlan.steps?.[0]?.targetPath), 'write target should be absolute');
+
   const pluginManifestPath = path.join(examples, 'plugins', 'hello');
   const pluginValidation = run(['plugin', 'validate', pluginManifestPath, '--json'], {
     json: true,

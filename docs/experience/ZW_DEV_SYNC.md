@@ -9,8 +9,13 @@ explicitly previewed fetch and hard reset.
 
 - The command previews by default.
 - Execution requires `--yes`.
+- If tracked changes or local commits ahead of `origin/<branch>` are present,
+  execution also requires `--discard-local`.
+- Untracked files are disclosed but are not treated as discarded by
+  `git reset --hard`.
 - The operation plan must disclose:
   - the current branch and HEAD read
+  - current Git status
   - `git fetch origin`
   - `git reset --hard origin/<branch>`
   - network access to the origin remote
@@ -43,5 +48,9 @@ The result follows `schemas/zaowu.command.dev-sync.schema.json` and includes:
 - Preview mode does not fetch or reset.
 - Confirmed mode runs only the two disclosed Git commands.
 - The reset target is `origin/<current-branch>`.
+- Tracked changes or commits ahead of the remote require both `--yes` and
+  `--discard-local`.
+- Untracked files do not trigger discard acknowledgement and remain untouched.
 - Preview and confirmed fingerprints match when the plan is unchanged.
-- Tests cover preview, confirmation, operation-plan contents, and Git failures.
+- Tests cover preview, clean confirmation, discard acknowledgement,
+  operation-plan contents, and Git failures.

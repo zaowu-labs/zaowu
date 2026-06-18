@@ -140,8 +140,13 @@ export const formatFinding = (finding: {
   detail: string;
   filePath?: string;
   hunkHeader?: string;
+  line?: number;
 }): string => {
-  const location = [finding.filePath, finding.hunkHeader].filter(Boolean).join(' ');
+  const fileLocation =
+    finding.filePath && finding.line !== undefined
+      ? `${finding.filePath}:${finding.line}`
+      : finding.filePath;
+  const location = [fileLocation, finding.hunkHeader].filter(Boolean).join(' ');
   const risk = [finding.severity, finding.priority, finding.category].filter(Boolean).join('/');
 
   return `- ${risk}: ${finding.title}${location ? ` (${location})` : ''} - ${finding.detail}`;

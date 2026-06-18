@@ -1,0 +1,11 @@
+version: 1
+name: write-file-demo
+vars:
+  target: report.txt
+permissions:
+  fileWrites: prompt
+steps:
+  - name: save-report
+    writeFile:
+      path: '{{target}}'
+      content: 'Hello from ZaoWu automation.'

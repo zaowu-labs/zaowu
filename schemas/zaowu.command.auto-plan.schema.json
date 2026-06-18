@@ -92,10 +92,21 @@
             "type": "string"
           },
           "action": {
-            "enum": ["message", "shell", "unsupported"]
+            "enum": ["message", "shell", "writeFile", "unsupported"]
           },
           "preview": {
             "type": "string"
+          },
+          "targetPath": {
+            "type": "string"
+          },
+          "contentLength": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "contentSha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
           },
           "blocked": {
             "type": "boolean"

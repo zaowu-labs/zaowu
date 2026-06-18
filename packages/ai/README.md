@@ -15,6 +15,8 @@ Safety:
 - Secrets must come from environment variables, not config files.
 - Provider HTTP failures are classified so authentication, timeout, rate-limit,
   bad-request, and provider-side problems get different fixes.
+- Ollama, OpenAI, and Anthropic response shapes are validated before generated
+  text is returned; malformed or empty provider output is rejected.
 - Provider failure summaries use HTTP status metadata only; response bodies are
   not exposed in user-facing fixes.
 - Retryable provider failures can carry retry-delay metadata when providers send

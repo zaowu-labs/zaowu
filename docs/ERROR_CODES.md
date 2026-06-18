@@ -68,11 +68,12 @@ registry.
 
 ## Developer Workflows
 
-| Code                   | Meaning                                   |
-| ---------------------- | ----------------------------------------- |
-| `GIT_COMMAND_FAILED`   | A Git command failed.                     |
-| `NO_CHANGES_TO_REVIEW` | No staged or worktree changes were found. |
-| `NO_STAGED_CHANGES`    | `zw dev commit` found no staged changes.  |
+| Code                                     | Meaning                                                                                                             |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `GIT_COMMAND_FAILED`                     | A Git command failed.                                                                                               |
+| `GIT_SYNC_DISCARD_CONFIRMATION_REQUIRED` | `zw dev sync --yes` would discard local tracked changes or local commits without the extra discard acknowledgement. |
+| `NO_CHANGES_TO_REVIEW`                   | No staged or worktree changes were found.                                                                           |
+| `NO_STAGED_CHANGES`                      | `zw dev commit` found no staged changes.                                                                            |
 
 ## Plugins
 

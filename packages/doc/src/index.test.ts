@@ -376,20 +376,34 @@ describe('doc domain', () => {
     );
   });
 
-  it('converts an HTML document to clean text', async () => {
+  it('converts an HTML document while preserving headings and readable tables', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-doc-'));
     const filePath = path.join(root, 'test.html');
 
     await writeFile(
       filePath,
-      '<html><head><title>Test</title><style>body { color: red; }</style></head><body><h1>Hello</h1><p>World &amp; code</p></body></html>',
+      [
+        '<html><head><title>Test</title><style>body { color: red; }</style></head>',
+        '<body><h1>Hello</h1><p>World &amp; code</p>',
+        '<table><tr><th>Name</th><th>Amount</th></tr><tr><td>A</td><td>10</td></tr></table>',
+        '</body></html>',
+      ].join(''),
       'utf8'
     );
 
     try {
       await expect(convertDocument(filePath)).resolves.toMatchObject({
         status: 'ok',
-        content: 'Hello\nWorld & code',
+        content: '# Hello\nWorld & code\nName | Amount\nA | 10',
+      });
+      await expect(outlineDocument(filePath)).resolves.toMatchObject({
+        outline: [
+          {
+            level: 1,
+            title: 'Hello',
+            line: 1,
+          },
+        ],
       });
     } finally {
       await rm(root, { recursive: true, force: true });

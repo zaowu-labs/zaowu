@@ -266,6 +266,10 @@
         },
         "hunkHeader": {
           "type": "string"
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1
         }
       }
     },
@@ -313,7 +317,7 @@
           "const": "blocked"
         },
         "fileWrites": {
-          "const": "blocked"
+          "enum": ["blocked", "workflow-directory"]
         },
         "network": {
           "const": "blocked"
