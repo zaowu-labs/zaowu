@@ -18,4 +18,5 @@ export { isKnownZaoWuErrorCode, ZAOWU_ERROR_CODES } from './error-codes.js';
 export type { ZaoWuErrorCode } from './error-codes.js';
 export { isZaoWuError, ZaoWuError } from './errors.js';
 export type { ZaoWuErrorJSON, ZaoWuErrorOptions } from './errors.js';
+export { pathExists } from './fs.js';
 export { stripUtf8Bom } from './text.js';

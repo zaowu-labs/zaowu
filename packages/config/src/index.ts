@@ -217,6 +217,7 @@ export const loadGlobalConfig = async (): Promise<ZaoWuConfig | null> => {
       const content = await readFile(globalPath, 'utf8');
       return parseConfig(content, globalPath);
     } catch {
+      // Global config is optional — silently ignore parse errors and fall back to defaults.
       return null;
     }
   }

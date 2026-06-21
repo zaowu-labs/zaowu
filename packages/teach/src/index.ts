@@ -12,10 +12,14 @@ export interface TeachQuizResult {
   schemaVersion: 1;
   status: 'ok';
   topic: string;
+  questionCount: number;
   questions: string[];
   format?: string;
   content?: string;
 }
+
+const DEFAULT_QUIZ_COUNT = 3;
+const MAX_QUIZ_COUNT = 20;
 
 export const TEACH_DOMAIN: DomainDefinition = {
   name: 'teach',
@@ -50,6 +54,7 @@ const readTopicOrFile = async (input: string): Promise<string> => {
   try {
     return await readFile(input, 'utf8');
   } catch {
+    // Not a readable file path — treat the input as a literal topic string.
     return input;
   }
 };
@@ -69,31 +74,67 @@ const getSentences = (content: string): string[] =>
     .map((sentence) => sentence.trim())
     .filter(Boolean);
 
+/**
+ * Extract heading lines from markdown-like content.
+ * Returns bare heading text without the leading # characters.
+ */
+const getHeadings = (content: string): string[] =>
+  content
+    .split(/\r?\n/)
+    .filter((line) => /^#{1,6}\s/.test(line))
+    .map((line) => line.replace(/^#+\s*/, '').trim())
+    .filter(Boolean);
+
 export const createTeachingPlan = async (input: string): Promise<TeachPlanResult> => {
   const content = await readTopicOrFile(input);
   const topic = getTopic(content);
+  const headings = getHeadings(content);
+
+  // Build a richer outline when the content has discoverable section headings.
+  const outline =
+    headings.length > 1
+      ? [
+          `Goal: understand ${topic}.`,
+          'Warm-up: ask what the learner already knows.',
+          ...headings.slice(1).map((h, i) => `Section ${i + 1}: ${h}`),
+          'Practice: complete a short guided exercise.',
+          'Check: summarize the key point and one common mistake.',
+        ]
+      : [
+          `Goal: understand ${topic}.`,
+          'Warm-up: ask what the learner already knows.',
+          'Explain: introduce the core idea with one concrete example.',
+          'Practice: complete a short guided exercise.',
+          'Check: summarize the key point and one common mistake.',
+        ];
 
   return {
     schemaVersion: 1,
     status: 'ok',
     topic,
-    outline: [
-      `Goal: understand ${topic}.`,
-      'Warm-up: ask what the learner already knows.',
-      'Explain: introduce the core idea with one concrete example.',
-      'Practice: complete a short guided exercise.',
-      'Check: summarize the key point and one common mistake.',
-    ],
+    outline,
   };
 };
 
 export const createTeachingQuiz = async (
   input: string,
-  options: { format?: string } = {}
+  options: { format?: string; count?: number } = {}
 ): Promise<TeachQuizResult> => {
+  const rawCount = options.count ?? DEFAULT_QUIZ_COUNT;
+
+  if (!Number.isInteger(rawCount) || rawCount < 1 || rawCount > MAX_QUIZ_COUNT) {
+    throw new ZaoWuError({
+      code: 'TEACH_INPUT_REQUIRED',
+      message: 'Quiz count is out of range.',
+      why: `Question count must be a whole number between 1 and ${MAX_QUIZ_COUNT}, but got ${rawCount}.`,
+      fix: 'Run `zw teach quiz --count 5 "your topic"` to generate 5 questions.',
+    });
+  }
+
+  const count = rawCount;
   const content = await readTopicOrFile(input);
   const topic = getTopic(content);
-  const sentences = getSentences(content).slice(0, 3);
+  const sentences = getSentences(content).slice(0, count);
   const questions =
     sentences.length > 0
       ? sentences.map(
@@ -115,6 +156,7 @@ export const createTeachingQuiz = async (
     schemaVersion: 1,
     status: 'ok',
     topic,
+    questionCount: questions.length,
     questions,
     format,
     content: format === 'canvas-csv' ? resultCsv : undefined,

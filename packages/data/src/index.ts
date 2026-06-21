@@ -1,8 +1,8 @@
-import { constants } from 'node:fs';
-import { access, readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
   createCapabilityLedger,
+  pathExists,
   stripUtf8Bom,
   ZaoWuError,
   type DomainDefinition,
@@ -449,15 +449,6 @@ export const loadDataTable = async (
     emptyLineCount,
     trimmedCellCount,
   };
-};
-
-const pathExists = async (filePath: string): Promise<boolean> => {
-  try {
-    await access(filePath, constants.F_OK);
-    return true;
-  } catch {
-    return false;
-  }
 };
 
 const assertSafeOutputPath = async (inputPath: string, outputPath: string): Promise<void> => {

@@ -783,18 +783,14 @@ const OLLAMA_PROVIDER: AIProvider = {
     }
 
     const prepared = await prepareAIInput(request);
-    const model = request.model?.trim() || OLLAMA_PROVIDER_DESCRIPTOR.defaultModel!;
+    const descriptor = createProviderDescriptor(OLLAMA_PROVIDER_DESCRIPTOR, env);
+    const model = resolveAIModel(descriptor, { model: request.model, env });
     const url = resolveAIProviderNetworkTarget(OLLAMA_PROVIDER_DESCRIPTOR.id, env)!;
 
-    const controller = new AbortController();
-    const timeout = setTimeout(
-      () => controller.abort(),
-      request.timeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS
-    );
-    let response: AIFetchResponse;
-
-    try {
-      response = await getFetcher(request.fetcher)(url, {
+    const response = await fetchWithRetry(
+      getFetcher(request.fetcher),
+      url,
+      {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -804,35 +800,10 @@ const OLLAMA_PROVIDER: AIProvider = {
           prompt: prepared.combinedPrompt,
           stream: false,
         }),
-        signal: controller.signal,
-      });
-    } catch {
-      throw new ZaoWuError({
-        code: 'AI_PROVIDER_REQUEST_FAILED',
-        message: 'AI provider request failed.',
-        why: controller.signal.aborted
-          ? `Ollama did not respond within ${request.timeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS}ms.`
-          : `ZaoWu failed to connect to Ollama at ${url}.`,
-        fix: 'Make sure Ollama is running locally (run `ollama serve` or start the Ollama desktop app) and that you have pulled the model (run `ollama pull <model>`).',
-      });
-    } finally {
-      clearTimeout(timeout);
-    }
-
-    if (!response.ok) {
-      const failure = classifyAIProviderHttpFailure(
-        OLLAMA_PROVIDER_DESCRIPTOR.name,
-        response.status,
-        response.statusText
-      );
-
-      throw new ZaoWuError({
-        code: 'AI_PROVIDER_REQUEST_FAILED',
-        message: 'AI provider request failed.',
-        why: failure.why,
-        fix: 'Make sure the requested model is pulled locally (run `ollama pull <model>`).',
-      });
-    }
+      },
+      OLLAMA_PROVIDER_DESCRIPTOR.name,
+      request.timeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS
+    );
 
     let payload: unknown;
     try {
@@ -856,8 +827,6 @@ const OLLAMA_PROVIDER: AIProvider = {
       });
     }
     const output = resObj.response;
-
-    const descriptor = createProviderDescriptor(OLLAMA_PROVIDER_DESCRIPTOR, env);
 
     return {
       schemaVersion: AI_RESULT_SCHEMA_VERSION,

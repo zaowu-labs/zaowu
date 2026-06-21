@@ -1,8 +1,8 @@
-import { constants } from 'node:fs';
-import { access, readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
   createCapabilityLedger,
+  pathExists,
   stripUtf8Bom,
   ZaoWuError,
   type DomainDefinition,
@@ -385,15 +385,6 @@ const readTextDocument = async (
       why: `ZaoWu tried to read \`${filePath}\`, but the file was not readable.`,
       fix: 'Check the path and file permissions, then run the command again.',
     });
-  }
-};
-
-const pathExists = async (filePath: string): Promise<boolean> => {
-  try {
-    await access(filePath, constants.F_OK);
-    return true;
-  } catch {
-    return false;
   }
 };
 

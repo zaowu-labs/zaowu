@@ -4,7 +4,7 @@
   "title": "ZaoWu Teach Quiz Result",
   "type": "object",
   "additionalProperties": true,
-  "required": ["schemaVersion", "status", "topic", "questions"],
+  "required": ["schemaVersion", "status", "topic", "questionCount", "questions"],
   "properties": {
     "schemaVersion": {
       "const": 1
@@ -14,6 +14,11 @@
     },
     "topic": {
       "type": "string"
+    },
+    "questionCount": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Number of questions generated."
     },
     "questions": {
       "type": "array",

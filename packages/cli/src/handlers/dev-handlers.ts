@@ -7,6 +7,9 @@ import {
 import { loadResolvedConfig } from '@zaowu/config';
 import {
   getDevStatus,
+  isDevFindingCategory,
+  isDevFindingPriority,
+  isDevFindingSeverity,
   previewDevCommit,
   reviewDevChanges,
   syncDevRepo,
@@ -249,7 +252,7 @@ export const handleDevReview: DomainActionHandler = async (_args, context) => {
         isParsedArray = true;
       }
     } catch {
-      // ignore
+      // Fall back to wrapping the raw AI output as a plain-text summary finding.
     }
 
     if (!isParsedArray) {
@@ -264,42 +267,12 @@ export const handleDevReview: DomainActionHandler = async (_args, context) => {
       ];
     }
 
-    const isSeverity = (val: unknown): val is 'info' | 'warning' =>
-      val === 'info' || val === 'warning';
-
-    const isPriority = (val: unknown): val is 'low' | 'medium' | 'high' =>
-      val === 'low' || val === 'medium' || val === 'high';
-
-    const isCategory = (
-      val: unknown
-    ): val is
-      | 'summary'
-      | 'test'
-      | 'dependency'
-      | 'quality'
-      | 'performance'
-      | 'execution'
-      | 'filesystem'
-      | 'network'
-      | 'security'
-      | 'git' =>
-      val === 'summary' ||
-      val === 'test' ||
-      val === 'dependency' ||
-      val === 'quality' ||
-      val === 'performance' ||
-      val === 'execution' ||
-      val === 'filesystem' ||
-      val === 'network' ||
-      val === 'security' ||
-      val === 'git';
-
     for (const item of aiFindings) {
       const finding = item && typeof item === 'object' ? (item as Record<string, unknown>) : {};
       review.findings.push({
-        severity: isSeverity(finding.severity) ? finding.severity : 'info',
-        priority: isPriority(finding.priority) ? finding.priority : 'medium',
-        category: isCategory(finding.category) ? finding.category : 'quality',
+        severity: isDevFindingSeverity(finding.severity) ? finding.severity : 'info',
+        priority: isDevFindingPriority(finding.priority) ? finding.priority : 'medium',
+        category: isDevFindingCategory(finding.category) ? finding.category : 'quality',
         title: typeof finding.title === 'string' ? finding.title : 'AI Review',
         detail: typeof finding.detail === 'string' ? finding.detail : '',
         filePath: typeof finding.filePath === 'string' ? finding.filePath : undefined,

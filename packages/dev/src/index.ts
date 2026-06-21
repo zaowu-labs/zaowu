@@ -13,14 +13,17 @@ export type DevCommandRunner = (
   options?: { cwd?: string }
 ) => string;
 
-export type DevChangeCategory =
-  | 'source'
-  | 'test'
-  | 'docs'
-  | 'dependency'
-  | 'workflow'
-  | 'config'
-  | 'other';
+export const DEV_CHANGE_CATEGORIES = [
+  'source',
+  'test',
+  'docs',
+  'dependency',
+  'workflow',
+  'config',
+  'other',
+] as const;
+
+export type DevChangeCategory = (typeof DEV_CHANGE_CATEGORIES)[number];
 
 export type DevChangeCategories = Record<DevChangeCategory, number>;
 
@@ -71,7 +74,7 @@ export interface DevReviewFinding {
     | 'test'
     | 'dependency'
     | 'quality'
-    | 'performance'
+    | 'performance' // reserved for future use
     | 'execution'
     | 'filesystem'
     | 'network'
@@ -83,6 +86,24 @@ export interface DevReviewFinding {
   hunkHeader?: string;
   line?: number;
 }
+
+export const isDevFindingSeverity = (val: unknown): val is DevReviewFinding['severity'] =>
+  val === 'info' || val === 'warning';
+
+export const isDevFindingPriority = (val: unknown): val is DevReviewFinding['priority'] =>
+  val === 'low' || val === 'medium' || val === 'high';
+
+export const isDevFindingCategory = (val: unknown): val is DevReviewFinding['category'] =>
+  val === 'summary' ||
+  val === 'test' ||
+  val === 'dependency' ||
+  val === 'quality' ||
+  val === 'performance' ||
+  val === 'execution' ||
+  val === 'filesystem' ||
+  val === 'network' ||
+  val === 'security' ||
+  val === 'git';
 
 export interface DevDiffHunk {
   filePath: string;
@@ -154,15 +175,8 @@ const runGit = (commandRunner: DevCommandRunner, args: readonly string[], cwd?: 
   }
 };
 
-const createEmptyCategories = (): DevChangeCategories => ({
-  source: 0,
-  test: 0,
-  docs: 0,
-  dependency: 0,
-  workflow: 0,
-  config: 0,
-  other: 0,
-});
+const createEmptyCategories = (): DevChangeCategories =>
+  Object.fromEntries(DEV_CHANGE_CATEGORIES.map((cat) => [cat, 0])) as DevChangeCategories;
 
 const getFileCategory = (filePath: string): DevChangeCategory => {
   const file = filePath.replaceAll('\\', '/');

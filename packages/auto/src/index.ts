@@ -277,7 +277,20 @@ const parseExecutionPolicy = (
 };
 
 const parseWorkflowJson = (content: string): ParsedAutomationWorkflow => {
-  const parsed = JSON.parse(content) as Partial<AutomationWorkflow>;
+  let parsed: Partial<AutomationWorkflow>;
+
+  try {
+    parsed = JSON.parse(content) as Partial<AutomationWorkflow>;
+  } catch (error) {
+    const detail = error instanceof SyntaxError ? `: ${error.message}` : '';
+    throw new ZaoWuError({
+      code: 'WORKFLOW_PARSE_FAILED',
+      message: 'Could not parse workflow.',
+      why: `Workflow content is not valid JSON${detail}.`,
+      fix: 'Verify the JSON syntax and run `zw auto validate` again.',
+    });
+  }
+
   const version = parseWorkflowVersion(parsed.version);
   const { policy, permissionWarnings } = parseExecutionPolicy(parsed.permissions);
   const variables =
@@ -445,7 +458,11 @@ const parseWorkflow = (content: string, filePath: string): ParsedAutomationWorkf
     return format === 'json'
       ? parseWorkflowJson(normalizedContent)
       : parseWorkflowYaml(normalizedContent);
-  } catch {
+  } catch (error) {
+    if (error instanceof ZaoWuError) {
+      throw error;
+    }
+
     throw new ZaoWuError({
       code: 'WORKFLOW_PARSE_FAILED',
       message: 'Could not parse workflow.',
