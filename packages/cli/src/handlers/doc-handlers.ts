@@ -7,6 +7,7 @@ import {
 } from '@zaowu/doc';
 import {
   assertOperationPlanFingerprint,
+  createContentOperationSubjects,
   createOperationPlan,
   formatObject,
   formatOperationPlan,
@@ -112,7 +113,11 @@ export const handleDocConvert: DomainActionHandler = async (args, context) => {
   const operationPlan = createOperationPlan({
     risk: preview.outputPath ? 'medium' : 'low',
     confirmationRequired: Boolean(preview.outputPath && !context.yes),
-    subjects: [`doc:${preview.inputPath}`, `format:${preview.format}`],
+    subjects: [
+      `doc:${preview.inputPath}`,
+      `format:${preview.format}`,
+      ...createContentOperationSubjects(preview.content),
+    ],
     reads: [preview.inputPath],
     writes: preview.outputPath ? [preview.outputPath] : [],
     notes: ['Document conversion writes require --yes when --output is used.'],

@@ -60,6 +60,63 @@ describe('executeCli', () => {
     expect(getValue(parsed, '--rows')).toBe('5');
   });
 
+  it('tracks options that are missing required values', () => {
+    const parsed = parseArgs([
+      'doc',
+      'convert',
+      'README.md',
+      '--output',
+      '--yes',
+      '--model=',
+      '--count',
+    ]);
+
+    expect(parsed.positionals).toEqual(['doc', 'convert', 'README.md']);
+    expect(parsed.missingValues).toEqual(['--output', '--model', '--count']);
+    expect(getValue(parsed, '--output')).toBeUndefined();
+  });
+
+  it('returns an actionable JSON error for options without values', async () => {
+    const result = await executeCli(['doc', 'convert', 'README.md', '--output', '--json']);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toBe('');
+    expect(JSON.parse(result.stderr)).toEqual({
+      error: {
+        code: 'OPTION_VALUE_REQUIRED',
+        message: 'Option value is required.',
+        why: 'The option --output must be followed by a value.',
+        fix: 'Provide a value, for example `--output value`, or remove the option.',
+        exitCode: 1,
+      },
+    });
+    expect(result.stderr).not.toContain('at ');
+  });
+
+  it('returns an actionable JSON error for invalid option values', async () => {
+    const result = await executeCli(['doc', 'convert', 'README.md', '--format', 'pdf', '--json']);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toBe('');
+    expect(JSON.parse(result.stderr)).toMatchObject({
+      error: {
+        code: 'OPTION_VALUE_INVALID',
+        message: 'Option value is invalid.',
+        why: 'The option --format received `pdf`, but expected `markdown` or `text`.',
+      },
+    });
+  });
+
+  it('rejects invalid numeric options before silent fallback', async () => {
+    const rows = await executeCli(['data', 'sample', 'README.md', '--rows', 'abc', '--json']);
+    const count = await executeCli(['teach', 'quiz', 'TypeScript', '--count', '25', '--json']);
+
+    expect(rows.exitCode).toBe(1);
+    expect(JSON.parse(rows.stderr).error.code).toBe('OPTION_VALUE_INVALID');
+    expect(count.exitCode).toBe(1);
+    expect(JSON.parse(count.stderr).error.code).toBe('OPTION_VALUE_INVALID');
+  });
+
   it('shows command-specific init help', async () => {
     const result = await executeCli(['init', '--help']);
 
@@ -67,6 +124,8 @@ describe('executeCli', () => {
     expect(result.stdout).toContain('Usage:');
     expect(result.stdout).toContain('zw init [options]');
     expect(result.stdout).toContain('zw init --yes');
+    expect(result.stdout).toContain('--plan-fingerprint <hash>');
+    expect(result.stdout).toContain('zw init --yes --plan-fingerprint <hash>');
   });
 
   it('shows command-specific doctor help', async () => {
@@ -411,7 +470,8 @@ describe('executeCli', () => {
         key: 'project.name',
         value: 'zaowu-project',
       });
-      expect(JSON.parse(set.stdout)).toMatchObject({
+      const setPayload = JSON.parse(set.stdout);
+      expect(setPayload).toMatchObject({
         schemaVersion: 1,
         status: 'preview',
         key: 'project.name',
@@ -424,6 +484,15 @@ describe('executeCli', () => {
           writes: [path.join(root, DEFAULT_CONFIG_FILE_NAME)],
         },
       });
+      expect(setPayload.operationPlan.subjects).toEqual(
+        expect.arrayContaining([
+          'config:project.name',
+          'old-value:"zaowu-project"',
+          'new-value:"demo"',
+          expect.stringMatching(/^content-sha256:[a-f0-9]{64}$/),
+          expect.stringMatching(/^content-length:\d+$/),
+        ])
+      );
       expect(JSON.parse(migrate.stdout)).toMatchObject({
         schemaVersion: 1,
         status: 'ok',
@@ -649,6 +718,53 @@ describe('executeCli', () => {
       network: ['git remote origin'],
       fingerprint: previewPayload.operationPlan.fingerprint,
     });
+  });
+
+  it('rejects stale dev sync confirmations when git status changes', async () => {
+    let statusOutput = '## main...origin/main';
+    const calls: string[] = [];
+    const commandRunner = (_command: string, args: readonly string[]): string => {
+      calls.push(args.join(' '));
+      switch (args.join(' ')) {
+        case 'status --short --branch':
+          return statusOutput;
+        case 'rev-parse HEAD':
+          return 'commit_hash_123';
+        case 'fetch origin':
+          return 'fetched';
+        case 'reset --hard origin/main':
+          return 'reset';
+        default:
+          throw new Error(`unexpected command: ${args.join(' ')}`);
+      }
+    };
+    const preview = await executeCli(['dev', 'sync', '--json'], { commandRunner });
+    const previewPayload = JSON.parse(preview.stdout);
+
+    expect(previewPayload.operationPlan.subjects).toEqual(
+      expect.arrayContaining([
+        'git:main',
+        'git-head:commit_hash_123',
+        expect.stringMatching(/^git-status-sha256:[a-f0-9]{64}$/),
+      ])
+    );
+
+    statusOutput = '## main...origin/main\n M README.md';
+    const staleConfirm = await executeCli(
+      [
+        'dev',
+        'sync',
+        '--yes',
+        '--plan-fingerprint',
+        previewPayload.operationPlan.fingerprint,
+        '--json',
+      ],
+      { commandRunner }
+    );
+
+    expect(staleConfirm.exitCode).toBe(1);
+    expect(JSON.parse(staleConfirm.stderr).error.code).toBe('OPERATION_PLAN_MISMATCH');
+    expect(calls).not.toContain('fetch origin');
   });
 
   it('requires --discard-local for confirmed dev sync with local discard risk', async () => {
@@ -899,6 +1015,51 @@ describe('executeCli', () => {
     }
   });
 
+  it('rejects stale document conversion confirmations when input content changes', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
+    const filePath = path.join(root, 'note.md');
+    const outputPath = path.join(root, 'note.out.md');
+
+    try {
+      await writeFile(filePath, '# Note\n\nOriginal.\n', 'utf8');
+      const preview = await executeCli([
+        'doc',
+        'convert',
+        filePath,
+        '--output',
+        outputPath,
+        '--json',
+      ]);
+      const previewPayload = JSON.parse(preview.stdout);
+
+      expect(previewPayload.operationPlan.subjects).toEqual(
+        expect.arrayContaining([
+          expect.stringMatching(/^content-sha256:[a-f0-9]{64}$/),
+          expect.stringMatching(/^content-length:\d+$/),
+        ])
+      );
+
+      await writeFile(filePath, '# Note\n\nChanged.\n', 'utf8');
+      const staleConfirm = await executeCli([
+        'doc',
+        'convert',
+        filePath,
+        '--output',
+        outputPath,
+        '--yes',
+        '--plan-fingerprint',
+        previewPayload.operationPlan.fingerprint,
+        '--json',
+      ]);
+
+      expect(staleConfirm.exitCode).toBe(1);
+      expect(JSON.parse(staleConfirm.stderr).error.code).toBe('OPERATION_PLAN_MISMATCH');
+      await expect(readFile(outputPath, 'utf8')).rejects.toThrow();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('runs data inspect from CLI', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
     const filePath = path.join(root, 'data.csv');
@@ -950,6 +1111,51 @@ describe('executeCli', () => {
           },
         ],
       });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects stale data clean confirmations when input content changes', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
+    const filePath = path.join(root, 'data.csv');
+    const outputPath = path.join(root, 'clean.csv');
+
+    try {
+      await writeFile(filePath, 'name,amount\nA,10\n', 'utf8');
+      const preview = await executeCli([
+        'data',
+        'clean',
+        filePath,
+        '--output',
+        outputPath,
+        '--json',
+      ]);
+      const previewPayload = JSON.parse(preview.stdout);
+
+      expect(previewPayload.operationPlan.subjects).toEqual(
+        expect.arrayContaining([
+          expect.stringMatching(/^content-sha256:[a-f0-9]{64}$/),
+          expect.stringMatching(/^content-length:\d+$/),
+        ])
+      );
+
+      await writeFile(filePath, 'name,amount\nA,20\n', 'utf8');
+      const staleConfirm = await executeCli([
+        'data',
+        'clean',
+        filePath,
+        '--output',
+        outputPath,
+        '--yes',
+        '--plan-fingerprint',
+        previewPayload.operationPlan.fingerprint,
+        '--json',
+      ]);
+
+      expect(staleConfirm.exitCode).toBe(1);
+      expect(JSON.parse(staleConfirm.stderr).error.code).toBe('OPERATION_PLAN_MISMATCH');
+      await expect(readFile(outputPath, 'utf8')).rejects.toThrow();
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -1139,6 +1345,102 @@ describe('executeCli', () => {
           network: ['https://example.com/'],
         },
       });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects stale plugin install confirmations when the target state changes', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
+    const pluginDir = path.join(root, '.zaowu', 'plugins');
+    const pluginPath = path.join(pluginDir, 'readme-gen.json');
+
+    try {
+      const preview = await executeCli(['plugin', 'install', 'readme-gen', '--json'], {
+        cwd: root,
+      });
+      const previewPayload = JSON.parse(preview.stdout);
+
+      expect(previewPayload.operationPlan.subjects).toEqual(
+        expect.arrayContaining(['target-state:missing'])
+      );
+
+      await mkdir(pluginDir, { recursive: true });
+      await writeFile(pluginPath, '{"id":"readme-gen","source":"manual","installedAt":null}\n');
+
+      const staleConfirm = await executeCli(
+        [
+          'plugin',
+          'install',
+          'readme-gen',
+          '--yes',
+          '--plan-fingerprint',
+          previewPayload.operationPlan.fingerprint,
+          '--json',
+        ],
+        { cwd: root }
+      );
+
+      expect(staleConfirm.exitCode).toBe(1);
+      expect(JSON.parse(staleConfirm.stderr).error.code).toBe('OPERATION_PLAN_MISMATCH');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('reports unreadable plugin target state in operation plans', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
+    const pluginPath = path.join(root, '.zaowu', 'plugins', 'readme-gen.json');
+
+    try {
+      await mkdir(pluginPath, { recursive: true });
+      const preview = await executeCli(['plugin', 'install', 'readme-gen', '--json'], {
+        cwd: root,
+      });
+      const previewPayload = JSON.parse(preview.stdout);
+
+      expect(previewPayload.operationPlan.subjects).toEqual(
+        expect.arrayContaining(['target-state:unreadable'])
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects stale plugin remove confirmations when the manifest changes', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
+    const pluginPath = path.join(root, '.zaowu', 'plugins', 'readme-gen.json');
+
+    try {
+      await executeCli(['plugin', 'install', 'readme-gen', '--yes', '--json'], { cwd: root });
+      const preview = await executeCli(['plugin', 'remove', 'readme-gen', '--json'], { cwd: root });
+      const previewPayload = JSON.parse(preview.stdout);
+
+      expect(previewPayload.operationPlan.subjects).toEqual(
+        expect.arrayContaining([
+          'target-state:exists',
+          expect.stringMatching(/^target-content-sha256:[a-f0-9]{64}$/),
+        ])
+      );
+
+      await writeFile(pluginPath, '{"id":"readme-gen","source":"changed","installedAt":null}\n');
+
+      const staleConfirm = await executeCli(
+        [
+          'plugin',
+          'remove',
+          'readme-gen',
+          '--yes',
+          '--plan-fingerprint',
+          previewPayload.operationPlan.fingerprint,
+          '--json',
+        ],
+        { cwd: root }
+      );
+
+      expect(staleConfirm.exitCode).toBe(1);
+      expect(JSON.parse(staleConfirm.stderr).error.code).toBe('OPERATION_PLAN_MISMATCH');
+      await expect(readFile(pluginPath, 'utf8')).resolves.toContain('changed');
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -1514,11 +1816,17 @@ describe('executeCli', () => {
         schemaVersion: 1,
         risk: 'medium',
         confirmationRequired: true,
-        subjects: [`init:${path.join(root, DEFAULT_CONFIG_FILE_NAME)}`],
         writes: [path.join(root, DEFAULT_CONFIG_FILE_NAME)],
         fingerprintAlgorithm: 'sha256-v1',
         fingerprint: expect.stringMatching(/^[a-f0-9]{64}$/),
       });
+      expect(payload.operationPlan.subjects).toEqual(
+        expect.arrayContaining([
+          `init:${path.join(root, DEFAULT_CONFIG_FILE_NAME)}`,
+          expect.stringMatching(/^content-sha256:[a-f0-9]{64}$/),
+          expect.stringMatching(/^content-length:\d+$/),
+        ])
+      );
       await expect(readFile(path.join(root, DEFAULT_CONFIG_FILE_NAME), 'utf8')).rejects.toThrow();
     } finally {
       await rm(root, { recursive: true, force: true });
@@ -1609,12 +1917,18 @@ describe('executeCli', () => {
           schemaVersion: 1,
           risk: 'medium',
           confirmationRequired: false,
-          subjects: [`init:${path.join(root, DEFAULT_CONFIG_FILE_NAME)}`],
           writes: [path.join(root, DEFAULT_CONFIG_FILE_NAME)],
           fingerprintAlgorithm: 'sha256-v1',
           fingerprint: expect.stringMatching(/^[a-f0-9]{64}$/),
         },
       });
+      expect(payload.operationPlan.subjects).toEqual(
+        expect.arrayContaining([
+          `init:${path.join(root, DEFAULT_CONFIG_FILE_NAME)}`,
+          expect.stringMatching(/^content-sha256:[a-f0-9]{64}$/),
+          expect.stringMatching(/^content-length:\d+$/),
+        ])
+      );
       await expect(readFile(path.join(root, DEFAULT_CONFIG_FILE_NAME), 'utf8')).resolves.toContain(
         'version: 1'
       );

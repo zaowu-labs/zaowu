@@ -366,6 +366,16 @@ export const handleDevSync: DomainActionHandler = async (_args, context) => {
     ? syncDevRepo(context.commandRunner, { cwd: context.cwd, yes: true, discardLocal })
     : preview;
   const operationPlan = syncResult.operationPlan ?? preview.operationPlan;
+  const requiresDiscardLocal = operationPlan.notes.some((note) =>
+    note.includes('Confirmed sync requires both --yes and --discard-local')
+  );
+  const confirmCommand = [
+    'zw dev sync',
+    '--yes',
+    ...(requiresDiscardLocal ? ['--discard-local'] : []),
+    '--plan-fingerprint',
+    operationPlan.fingerprint,
+  ].join(' ');
 
   const human = [
     'ZaoWu Dev Sync',
@@ -376,6 +386,7 @@ export const handleDevSync: DomainActionHandler = async (_args, context) => {
     `Current commit: ${syncResult.currentCommit}`,
     '',
     formatOperationPlan(operationPlan),
+    ...(context.yes ? [] : ['', 'To execute exactly this plan, run:', `  ${confirmCommand}`]),
     '',
     syncResult.output,
   ].join('\n');

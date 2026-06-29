@@ -1,8 +1,10 @@
 export {
   assertOperationPlanFingerprint,
   createCapabilityLedger,
+  createContentOperationSubjects,
   createOperationPlan,
   fingerprintOperationPlan,
+  hashOperationContent,
   NO_CAPABILITIES,
 } from './capabilities.js';
 export type {

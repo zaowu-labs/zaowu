@@ -7,7 +7,9 @@
 
 import {
   assertOperationPlanFingerprint as assertOperationPlanFingerprintFromCore,
+  createContentOperationSubjects,
   createOperationPlan,
+  hashOperationContent,
   ZaoWuError,
   type OperationPlan,
 } from '@zaowu/core';
@@ -15,7 +17,13 @@ import { getValue, hasFlag, type ParsedArgs } from './args.js';
 import { createResult, stringifyJSON } from './output.js';
 import type { CliResult, CommandRunner } from './types.js';
 
-export { createOperationPlan, ZaoWuError, type OperationPlan };
+export {
+  createContentOperationSubjects,
+  createOperationPlan,
+  hashOperationContent,
+  ZaoWuError,
+  type OperationPlan,
+};
 export { getValue, hasFlag };
 
 export interface DomainHandlerContext {
@@ -158,6 +166,9 @@ export const formatOperationPlan = (plan: OperationPlan): string =>
     `Risk: ${plan.risk}`,
     `Confirmation required: ${plan.confirmationRequired ? 'yes' : 'no'}`,
     `Fingerprint: ${plan.fingerprint}`,
+    ...(plan.confirmationRequired
+      ? [`Base confirmation flags: --yes --plan-fingerprint ${plan.fingerprint}`]
+      : []),
     '',
     'Subjects:',
     formatList(plan.subjects),

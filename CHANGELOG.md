@@ -31,4 +31,19 @@
 - Added a practical release checklist and automated release-document checks.
 - Disabled automatic web redirects so confirmed requests stay on the disclosed target.
 - Fixed numeric analysis so partially numeric text is not treated as a number.
+- Bound generated file content into CLI operation-plan fingerprints for init,
+  config, document conversion, and data cleaning previews.
+- Tightened AI provider response parsing so empty successful outputs are treated
+  as invalid provider responses.
+- Rejected missing option values such as `--output --json` with a structured
+  `OPTION_VALUE_REQUIRED` error instead of silently ignoring the option.
+- Rejected invalid constrained option values such as unsupported `--format`,
+  non-numeric `--rows`, or out-of-range `--count` with structured
+  `OPTION_VALUE_INVALID` errors.
+- Bound plugin install/remove operation plans to local target state, and bound
+  `zw dev sync` confirmations to the current HEAD and Git status digest.
+- Added structured automation execution receipts while preserving the existing
+  human-readable executed/skipped output.
+- Documented `--plan-fingerprint` in `zw init --help` and `--count` in
+  `zw teach quiz --help`.
 - No public npm package has been released yet.

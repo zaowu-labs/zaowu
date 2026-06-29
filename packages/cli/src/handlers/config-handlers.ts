@@ -8,6 +8,7 @@ import {
 } from '@zaowu/config';
 import {
   assertOperationPlanFingerprint,
+  createContentOperationSubjects,
   createOperationPlan,
   formatOperationPlan,
   hasFlag,
@@ -95,6 +96,7 @@ export const handleConfigSet: DomainActionHandler = async (args, context) => {
       `config:${preview.key}`,
       `old-value:${JSON.stringify(preview.oldValue)}`,
       `new-value:${JSON.stringify(preview.newValue)}`,
+      ...createContentOperationSubjects(preview.content),
     ],
     reads: [preview.filePath],
     writes: [preview.filePath],
@@ -134,7 +136,10 @@ export const handleConfigMigrate: DomainActionHandler = async (_args, context) =
   const operationPlan = createOperationPlan({
     risk: 'medium',
     confirmationRequired: preview.changed && !context.yes,
-    subjects: [`config:${preview.filePath}`],
+    subjects: [
+      `config:${preview.filePath}`,
+      ...(preview.changed ? createContentOperationSubjects(preview.content) : []),
+    ],
     reads: [preview.filePath],
     writes: preview.changed ? [preview.filePath] : [],
     notes: ['Config migrations are previewed unless --yes is provided.'],

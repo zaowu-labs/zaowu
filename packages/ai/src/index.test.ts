@@ -500,6 +500,39 @@ describe('AI provider registry', () => {
     ).rejects.toThrow('AI provider request failed.');
   });
 
+  it('keeps provider HTTP errors free of secret values', async () => {
+    const error = await askAI({
+      provider: 'openai',
+      prompt: 'Explain ZaoWu',
+      allowNetwork: true,
+      env: {
+        OPENAI_API_KEY: 'secret-test-key',
+      },
+      fetcher: async () => ({
+        ok: false,
+        status: 401,
+        statusText: 'Unauthorized',
+        async json() {
+          return {
+            error: {
+              message: 'bad key secret-test-key',
+            },
+          };
+        },
+      }),
+    }).catch((caught: unknown) => caught);
+
+    const rendered = [
+      error instanceof Error ? error.message : '',
+      typeof error === 'object' && error && 'why' in error ? String(error.why) : '',
+      typeof error === 'object' && error && 'fix' in error ? String(error.fix) : '',
+    ].join('\n');
+
+    expect(rendered).toContain('AI provider request failed');
+    expect(rendered).not.toContain('secret-test-key');
+    expect(rendered).not.toContain('bad key');
+  });
+
   it('includes provider retry-after hints in request failure fixes', async () => {
     const error = await askAI({
       provider: 'openai',
@@ -808,6 +841,37 @@ describe('AI provider registry', () => {
     expect(chunks).toEqual([]);
   });
 
+  it('rejects empty OpenAI choice text as invalid provider output', async () => {
+    await expect(
+      askAI({
+        provider: 'openai',
+        prompt: 'Explain ZaoWu',
+        allowNetwork: true,
+        env: {
+          OPENAI_API_KEY: 'test-key',
+        },
+        fetcher: async () => ({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          async json() {
+            return {
+              choices: [
+                {
+                  message: {
+                    content: '   ',
+                  },
+                },
+              ],
+            };
+          },
+        }),
+      })
+    ).rejects.toMatchObject({
+      code: 'AI_PROVIDER_RESPONSE_INVALID',
+    });
+  });
+
   it('supports custom OPENAI_BASE_URL endpoint', async () => {
     let requestedUrl = '';
     await askAI({
@@ -883,6 +947,35 @@ describe('AI provider registry', () => {
       },
     });
     expect(requestedUrl).toBe('https://my-anthropic-proxy.internal/v1/messages');
+  });
+
+  it('joins multiple Anthropic text blocks with newlines', async () => {
+    await expect(
+      askAI({
+        provider: 'anthropic',
+        prompt: 'Explain ZaoWu',
+        allowNetwork: true,
+        env: {
+          ANTHROPIC_API_KEY: 'test-key',
+        },
+        fetcher: async () => ({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          async json() {
+            return {
+              content: [
+                { type: 'text', text: 'First block.' },
+                { type: 'thinking', thinking: 'not returned' },
+                { type: 'text', text: 'Second block.' },
+              ],
+            };
+          },
+        }),
+      })
+    ).resolves.toMatchObject({
+      output: 'First block.\nSecond block.',
+    });
   });
 
   it('rejects Anthropic responses without text output', async () => {

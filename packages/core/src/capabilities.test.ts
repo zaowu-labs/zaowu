@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createOperationPlan } from './index';
+import { createContentOperationSubjects, createOperationPlan } from './index';
 
 describe('operation plans', () => {
   it('adds a stable fingerprint for the operational footprint', () => {
@@ -45,5 +45,12 @@ describe('operation plans', () => {
     });
 
     expect(second.fingerprint).toBe(first.fingerprint);
+  });
+
+  it('creates stable content subjects for write fingerprints', () => {
+    expect(createContentOperationSubjects('Hello ZaoWu')).toEqual([
+      'content-sha256:a7d02f19394cf02b00f12731918b84444a4b66fbb70a063dd52eb7c4525bd5eb',
+      'content-length:11',
+    ]);
   });
 });

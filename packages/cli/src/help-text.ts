@@ -376,6 +376,7 @@ Description:
 
 Options:
   --format <value>   Output format (text or canvas-csv), defaults to text
+  --count <number>   Number of questions to create (1-20), defaults to 3
   --json             Output machine-readable JSON`,
   },
   web: {

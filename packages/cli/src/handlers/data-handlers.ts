@@ -8,6 +8,7 @@ import {
 } from '@zaowu/data';
 import {
   assertOperationPlanFingerprint,
+  createContentOperationSubjects,
   createOperationPlan,
   formatObject,
   formatOperationPlan,
@@ -69,6 +70,7 @@ export const handleDataClean: DomainActionHandler = async (args, context) => {
     subjects: [
       `data:${preview.inputPath}`,
       ...(preview.sheetName ? [`sheet:${preview.sheetName}`] : []),
+      ...createContentOperationSubjects(preview.content),
     ],
     reads: [preview.inputPath],
     writes: preview.outputPath ? [preview.outputPath] : [],

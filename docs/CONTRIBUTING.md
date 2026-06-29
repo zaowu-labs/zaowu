@@ -118,6 +118,11 @@ visible before the command performs sensitive work. Confirmed sensitive commands
 that accept `--plan-fingerprint` must compare it before writing files, deleting
 files, sending network requests, or running execution.
 
+When a command previews generated file content before writing it,
+`operationPlan.subjects` should include `content-sha256:<hash>` and
+`content-length:<characters>`. This makes stale confirmations fail when the
+content changes, even if the target path is unchanged.
+
 ## Output Rules
 
 Default output should be human-readable.

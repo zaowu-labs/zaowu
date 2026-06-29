@@ -24,7 +24,7 @@ export const COMMAND_CONTRACTS: readonly CommandContract[] = [
     id: 'init',
     args: ['init'],
     helpArgs: ['init', '--help'],
-    helpIncludes: ['ZaoWu Init', 'zw init --yes'],
+    helpIncludes: ['ZaoWu Init', 'zw init --yes', '--plan-fingerprint <hash>'],
     json: true,
     sensitive: true,
     schemaFile: commandSchemaFile('init'),

@@ -1,9 +1,9 @@
-import { createHash } from 'node:crypto';
 import { readFile, realpath, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import YAML from 'yaml';
 import {
   createCapabilityLedger,
+  hashOperationContent,
   createOperationPlan,
   stripUtf8Bom,
   ZaoWuError,
@@ -75,6 +75,18 @@ export interface AutomationRunResult {
   sandbox: AutomationExecutionSandbox;
   executed: string[];
   skipped: string[];
+  receipts: AutomationExecutionReceipt[];
+}
+
+export interface AutomationExecutionReceipt {
+  index: number;
+  name: string;
+  action: AutomationPlanStep['action'];
+  status: 'executed' | 'skipped' | 'blocked';
+  detail: string;
+  targetPath?: string;
+  contentSha256?: string;
+  contentLength?: number;
 }
 
 export interface AutomationPlanStep {
@@ -344,24 +356,10 @@ const parseWorkflowJson = (content: string): ParsedAutomationWorkflow => {
 };
 
 /**
- * Manual line-based parser for the simple workflow YAML format used in
- * the foundation phase.
- *
- * This is intentionally limited (same philosophy as config's parseSimpleYaml).
- * We support exactly the structure shown in the examples and the
- * zaowu.workflow.schema.json:
- *   - version, name at top level (no indent)
- *   - vars: and permissions: sections (2-space)
- *   - steps: as a list of "- name: ..." items
- *   - message: and run: under a step (more indent)
- *
- * Comments (#), BOM, and basic scalars are handled.
- *
- * Anything outside this supported subset produces a clear
- * WORKFLOW_PARSE_FAILED.
- *
- * Long-term: when we are ready to expand workflow expressiveness, the
- * recommended path is a small real YAML parser + schema-driven validation.
+ * YAML workflow parsing is intentionally schema-shaped even though it now uses
+ * a real parser. The foundation runtime normalizes only the fields it supports
+ * and reports unsupported or unsafe behavior through warnings and operation
+ * plans instead of executing arbitrary YAML-driven actions.
  */
 const parseWorkflowYaml = (content: string): ParsedAutomationWorkflow => {
   let parsedRaw: unknown;
@@ -500,9 +498,6 @@ const substituteVariables = (value: string, variables: Record<string, string>): 
 
 const getStepActionCount = (step: AutomationStep): number =>
   [step.message, step.run, step.writeFile].filter((value) => value !== undefined).length;
-
-const hashWriteContent = (content: string): string =>
-  createHash('sha256').update(content, 'utf8').digest('hex');
 
 const resolveWorkflowWritePath = (
   workflowDirectory: string,
@@ -955,7 +950,7 @@ export const planWorkflowContent = (
         step.writeFile.content,
         validation.workflow.variables
       );
-      const contentSha256 = hashWriteContent(contentPreview);
+      const contentSha256 = hashOperationContent(contentPreview);
       const resolvedPath = resolveWorkflowWritePath(
         validation.sandbox.workflowDirectory,
         requestedPath
@@ -1051,29 +1046,69 @@ export const runWorkflowPlan = async (
 ): Promise<AutomationRunResult> => {
   const executed: string[] = [];
   const skipped: string[] = [];
+  const receipts: AutomationExecutionReceipt[] = [];
 
   for (const step of plan.steps) {
     if (step.blocked) {
-      skipped.push(`${step.name}: ${step.reason ?? 'blocked'}`);
+      const detail = step.reason ?? 'blocked';
+      skipped.push(`${step.name}: ${detail}`);
+      receipts.push({
+        index: step.index,
+        name: step.name,
+        action: step.action,
+        status: 'blocked',
+        detail,
+        targetPath: step.targetPath,
+        contentSha256: step.contentSha256,
+        contentLength: step.contentLength,
+      });
       continue;
     }
 
     if (!options.yes) {
       skipped.push(`${step.name}: dry-run`);
+      receipts.push({
+        index: step.index,
+        name: step.name,
+        action: step.action,
+        status: 'skipped',
+        detail: 'dry-run',
+        targetPath: step.targetPath,
+        contentSha256: step.contentSha256,
+        contentLength: step.contentLength,
+      });
       continue;
     }
 
     if (step.action === 'message') {
       executed.push(`${step.name}: ${step.preview}`);
+      receipts.push({
+        index: step.index,
+        name: step.name,
+        action: step.action,
+        status: 'executed',
+        detail: step.preview,
+      });
     } else if (step.action === 'writeFile') {
       const workflowStep = plan.workflow.steps[step.index - 1];
       const writeFileAction = workflowStep?.writeFile;
       if (!step.targetPath || !writeFileAction || !step.contentSha256) {
-        skipped.push(`${step.name}: missing write target`);
+        const detail = 'missing write target';
+        skipped.push(`${step.name}: ${detail}`);
+        receipts.push({
+          index: step.index,
+          name: step.name,
+          action: step.action,
+          status: 'skipped',
+          detail,
+          targetPath: step.targetPath,
+          contentSha256: step.contentSha256,
+          contentLength: step.contentLength,
+        });
         continue;
       }
       const content = substituteVariables(writeFileAction.content, plan.workflow.variables);
-      if (hashWriteContent(content) !== step.contentSha256) {
+      if (hashOperationContent(content) !== step.contentSha256) {
         throw new ZaoWuError({
           code: 'WORKFLOW_STEP_FAILED',
           message: `Workflow step \`${step.name}\` failed.`,
@@ -1105,6 +1140,16 @@ export const runWorkflowPlan = async (
       }
 
       executed.push(`${step.name}: wrote ${step.targetPath}`);
+      receipts.push({
+        index: step.index,
+        name: step.name,
+        action: step.action,
+        status: 'executed',
+        detail: `wrote ${step.targetPath}`,
+        targetPath: step.targetPath,
+        contentSha256: step.contentSha256,
+        contentLength: step.contentLength,
+      });
     }
   }
 
@@ -1117,6 +1162,7 @@ export const runWorkflowPlan = async (
     sandbox: plan.sandbox,
     executed,
     skipped,
+    receipts,
   };
 };
 

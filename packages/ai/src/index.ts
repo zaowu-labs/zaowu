@@ -623,8 +623,9 @@ const extractOpenAIOutputText = (payload: unknown): string => {
     }>;
   };
 
-  if (response.choices?.[0]?.message?.content !== undefined) {
-    return response.choices[0].message.content;
+  const choiceText = response.choices?.[0]?.message?.content;
+  if (typeof choiceText === 'string' && choiceText.trim()) {
+    return choiceText;
   }
 
   if (typeof response.output_text === 'string' && response.output_text.trim()) {
@@ -633,7 +634,9 @@ const extractOpenAIOutputText = (payload: unknown): string => {
 
   const text = response.output
     ?.flatMap((item) => item.content ?? [])
-    .map((content) => (typeof content.text === 'string' ? content.text : ''))
+    .map((content) =>
+      content.type === 'output_text' && typeof content.text === 'string' ? content.text : ''
+    )
     .filter(Boolean)
     .join('\n')
     .trim();
@@ -684,7 +687,7 @@ const extractAnthropicOutputText = (payload: unknown): string => {
       content.type === 'text' && typeof content.text === 'string' ? content.text : ''
     )
     .filter(Boolean)
-    .join('')
+    .join('\n')
     .trim();
 
   if (output) {

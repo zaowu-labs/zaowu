@@ -28,15 +28,26 @@ No files were written.
 Would create:
   zw.yml
 
+Operation plan:
+Risk: medium
+Confirmation required: yes
+Fingerprint: <fingerprint>
+Base confirmation flags: --yes --plan-fingerprint <fingerprint>
+Subjects: init:<cwd>/zw.yml, content-sha256:<hash>, content-length:<characters>
+Writes: <cwd>/zw.yml
+Deletes: none
+
 Preview:
+  version: 1
+
   project:
-    name: zaowu-project
+    name: "zaowu-project"
 
   ai:
-    provider: null
+    provider: "echo"
 
-To create this file, run:
-  zw init --yes
+To create exactly this file, run:
+  zw init --yes --plan-fingerprint <fingerprint>
 ```
 
 ## 5. Command Design
@@ -98,6 +109,7 @@ Examples:
   zw init
   zw init --dry-run
   zw init --yes
+  zw init --yes --plan-fingerprint <hash>
   zw init --json
 ```
 

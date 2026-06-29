@@ -387,6 +387,15 @@ describe('auto domain', () => {
         },
         executed: [],
         skipped: ['hello: dry-run'],
+        receipts: [
+          {
+            index: 1,
+            name: 'hello',
+            action: 'message',
+            status: 'skipped',
+            detail: 'dry-run',
+          },
+        ],
       });
     } finally {
       await rm(root, { recursive: true, force: true });
@@ -417,6 +426,22 @@ describe('auto domain', () => {
         status: 'ok',
         executed: ['hello: Hello'],
         skipped: ['build: Shell execution is disabled in this foundation version.'],
+        receipts: [
+          {
+            index: 1,
+            name: 'hello',
+            action: 'message',
+            status: 'executed',
+            detail: 'Hello',
+          },
+          {
+            index: 2,
+            name: 'build',
+            action: 'shell',
+            status: 'blocked',
+            detail: 'Shell execution is disabled in this foundation version.',
+          },
+        ],
         sandbox: {
           shellCommands: 'blocked',
           fileWrites: 'blocked',
@@ -463,6 +488,18 @@ describe('auto domain', () => {
         status: 'ok',
         executed: [`save: wrote ${outputPath}`],
         skipped: [],
+        receipts: [
+          {
+            index: 1,
+            name: 'save',
+            action: 'writeFile',
+            status: 'executed',
+            detail: `wrote ${outputPath}`,
+            targetPath: outputPath,
+            contentSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+            contentLength: 11,
+          },
+        ],
       });
       await expect(readFile(outputPath, 'utf8')).resolves.toBe('Hello ZaoWu');
       await expect(runWorkflowFile(filePath, { yes: true })).rejects.toMatchObject({
@@ -502,6 +539,38 @@ describe('auto domain', () => {
     } finally {
       await rm(root, { recursive: true, force: true });
     }
+  });
+
+  it('records receipts for skipped writeFile steps with incomplete plan data', async () => {
+    const plan = planWorkflowContent(
+      [
+        'name: demo',
+        'permissions:',
+        '  fileWrites: prompt',
+        'steps:',
+        '  - name: save',
+        '    writeFile:',
+        '      path: report.txt',
+        '      content: Hello',
+        '',
+      ].join('\n')
+    );
+    plan.steps[0].targetPath = undefined;
+
+    await expect(runWorkflowPlan(plan, { yes: true })).resolves.toMatchObject({
+      status: 'ok',
+      executed: [],
+      skipped: ['save: missing write target'],
+      receipts: [
+        {
+          index: 1,
+          name: 'save',
+          action: 'writeFile',
+          status: 'skipped',
+          detail: 'missing write target',
+        },
+      ],
+    });
   });
 
   it('rejects writeFile steps whose parent link resolves outside the workflow directory', async () => {

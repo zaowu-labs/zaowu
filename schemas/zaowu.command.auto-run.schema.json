@@ -12,7 +12,8 @@
     "policy",
     "sandbox",
     "executed",
-    "skipped"
+    "skipped",
+    "receipts"
   ],
   "properties": {
     "schemaVersion": {
@@ -45,6 +46,40 @@
       "type": "array",
       "items": {
         "type": "string"
+      }
+    },
+    "receipts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["index", "name", "action", "status", "detail"],
+        "properties": {
+          "index": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "action": {
+            "enum": ["message", "shell", "writeFile", "unsupported"]
+          },
+          "status": {
+            "enum": ["executed", "skipped", "blocked"]
+          },
+          "detail": {
+            "type": "string"
+          },
+          "targetPath": {
+            "type": "string"
+          },
+          "contentSha256": {
+            "type": "string"
+          },
+          "contentLength": {
+            "type": "number"
+          }
+        }
       }
     },
     "operationPlan": {

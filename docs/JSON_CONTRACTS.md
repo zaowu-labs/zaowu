@@ -47,6 +47,10 @@ Expected command errors use a shared envelope:
 The error code enum must stay synchronized with
 `packages/core/src/error-codes.ts`. Expected error JSON is written to stderr and
 must not include stack traces or extra fields.
+Options that require a value, such as `--output`, return
+`OPTION_VALUE_REQUIRED` instead of being silently ignored.
+Options with constrained values, such as `--format`, `--rows`, and `--count`,
+return `OPTION_VALUE_INVALID` when the value cannot be accepted safely.
 
 ### Root Help And Version JSON
 
@@ -84,6 +88,11 @@ the planned subject, reads, writes, deletes, execution, network, secrets, notes,
 and risk are unchanged. Automation can pass
 `--plan-fingerprint <operationPlan.fingerprint>` with `--yes` to reject stale or
 changed plans before any sensitive work is performed.
+
+For commands that generate content for a file write, CLI operation-plan
+`subjects` include `content-sha256:<hash>` and `content-length:<characters>`.
+This binds the preview fingerprint to the actual content ZaoWu plans to write,
+not only to the target path.
 
 ### `zw doctor --json`
 
@@ -139,7 +148,8 @@ Stable fields:
 
 `zw config set` previews by default and writes only with `--yes`. The CLI
 operation plan exposes the target config file and whether confirmation is still
-required.
+required. It also binds the previewed config content through
+`content-sha256`/`content-length` subjects.
 
 ### `zw config migrate --json`
 
@@ -160,7 +170,8 @@ Stable fields:
 
 `zw config migrate` previews rewrites when a legacy config needs canonicalizing.
 If the config is already canonical, it returns `status: "ok"` and no write is
-planned.
+planned. When a rewrite is planned, the CLI operation plan binds the canonical
+content through `content-sha256`/`content-length` subjects.
 
 ### Config Read Commands
 
@@ -358,12 +369,16 @@ Stable fields:
 - `sandbox`
 - `executed`
 - `skipped`
+- `receipts`
 - `operationPlan` when routed through the CLI
 
 In the foundation version, `message` steps and structured `writeFile` steps can
 execute after confirmation. File writes are create-only and confined to the
 real workflow directory. Shell steps remain blocked even when workflow
 permissions request `prompt`.
+`receipts` is a structured per-step ledger for executed, skipped, and blocked
+work. It preserves target paths and content fingerprints for `writeFile` steps
+without requiring callers to parse human-readable strings.
 
 ### Document Commands
 
@@ -373,7 +388,10 @@ Schema files: `schemas/zaowu.command.doc-*.schema.json`.
 
 Summary, extract, outline, and search are read-only. Convert reports its input,
 format, content, output path, and write state. CLI conversion adds the shared
-`operationPlan`; writes remain preview-first when `--output` is used.
+`operationPlan`; writes remain preview-first when `--output` is used. The CLI
+operation plan binds converted content with `content-sha256` and
+`content-length` subjects so stale confirmations are rejected when the input
+changes.
 
 ### Data Commands
 
@@ -383,7 +401,8 @@ Schema files: `schemas/zaowu.command.data-*.schema.json`.
 
 Inspect, analyze, schema, and sample expose normalized tabular results. Clean
 reports content and cleanup counts, and adds the shared `operationPlan` through
-the CLI when a write may occur.
+the CLI when a write may occur. The CLI operation plan binds cleaned output
+content with `content-sha256` and `content-length` subjects.
 Schema column types include `date`, `percent`, and `currency` in addition to the
 existing primitive, empty, and mixed classifications.
 
@@ -396,6 +415,10 @@ Schema files: `schemas/zaowu.command.plugin-*.schema.json`.
 List and validate are read-only. Install and remove expose local manifest
 changes and use the shared `operationPlan` in CLI output. Preview results never
 claim a file was written or removed.
+Install previews bind the generated manifest preview content and current target
+file state. Remove previews bind the current target manifest content when it
+exists. This makes stale plugin confirmations fail if the local manifest state
+changes between preview and confirmation.
 No plugin command-execution contract exists in the foundation version.
 
 ### Teaching Commands

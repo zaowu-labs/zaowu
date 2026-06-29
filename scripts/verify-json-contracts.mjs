@@ -883,6 +883,12 @@ try {
     'CLI init preview should expose the operation plan fingerprint algorithm.'
   );
   assert(
+    cliInitPreview.operationPlan?.subjects?.some((subject) =>
+      /^content-sha256:[a-f0-9]{64}$/.test(subject)
+    ),
+    'CLI init preview operation plan should bind the generated config content hash.'
+  );
+  assert(
     cliInitMismatch.error.code === 'OPERATION_PLAN_MISMATCH',
     'CLI init should reject mismatched operation plan fingerprints.'
   );
@@ -906,6 +912,12 @@ try {
     /^[a-f0-9]{64}$/.test(cliConfigSet.operationPlan?.fingerprint ?? ''),
     'CLI config set preview should expose an operation plan fingerprint.'
   );
+  assert(
+    cliConfigSet.operationPlan?.subjects?.some((subject) =>
+      /^content-sha256:[a-f0-9]{64}$/.test(subject)
+    ),
+    'CLI config set operation plan should bind the preview config content hash.'
+  );
   assert(cliConfigMigration.schemaVersion === 1, 'CLI config migrate schemaVersion must be 1.');
   assert(
     cliConfigMigration.operationPlan?.confirmationRequired === false,
@@ -919,8 +931,22 @@ try {
     'CLI plugin install preview should require confirmation.'
   );
   assert(
+    cliPluginInstall.operationPlan?.subjects?.includes('target-state:missing'),
+    'CLI plugin install preview should bind the plugin target state.'
+  );
+  assert(
+    cliPluginInstall.operationPlan?.subjects?.some((subject) =>
+      /^content-sha256:[a-f0-9]{64}$/.test(subject)
+    ),
+    'CLI plugin install preview should bind the generated manifest preview content.'
+  );
+  assert(
     cliPluginRemove.operationPlan?.confirmationRequired === true,
     'CLI plugin remove preview should require confirmation.'
+  );
+  assert(
+    cliPluginRemove.operationPlan?.subjects?.includes('target-state:missing'),
+    'CLI plugin remove preview should bind the missing plugin target state.'
   );
 } finally {
   await rm(cliInitFixture, { force: true, recursive: true });
@@ -978,6 +1004,10 @@ assert(
 );
 assertValid('autoRun', cliRun);
 assert(cliRun.status === 'preview', 'CLI auto run should preview by default.');
+assert(
+  Array.isArray(cliRun.receipts) && cliRun.receipts.some((receipt) => receipt.status === 'skipped'),
+  'CLI auto run should expose structured execution receipts.'
+);
 assertValid('docSummary', cliDocSummary);
 assertValid('docExtract', cliDocExtract);
 assertValid('docConvert', cliDocConvert);
@@ -987,6 +1017,12 @@ assert(cliDocConvert.schemaVersion === 1, 'CLI doc convert schemaVersion must be
 assert(
   cliDocConvert.operationPlan?.confirmationRequired === false,
   'CLI doc convert without an output path should not require confirmation.'
+);
+assert(
+  cliDocConvert.operationPlan?.subjects?.some((subject) =>
+    /^content-sha256:[a-f0-9]{64}$/.test(subject)
+  ),
+  'CLI doc convert operation plan should bind the converted content hash.'
 );
 assertValid('dataInspect', cliDataInspect);
 assertValid('dataAnalyze', cliDataAnalyze);
@@ -998,6 +1034,12 @@ assert(cliDataClean.schemaVersion === 1, 'CLI data clean schemaVersion must be 1
 assert(
   cliDataClean.operationPlan?.confirmationRequired === false,
   'CLI data clean without an output path should not require confirmation.'
+);
+assert(
+  cliDataClean.operationPlan?.subjects?.some((subject) =>
+    /^content-sha256:[a-f0-9]{64}$/.test(subject)
+  ),
+  'CLI data clean operation plan should bind the cleaned content hash.'
 );
 assertValid('pluginValidate', cliPluginValidation);
 assertValid('teachPlan', cliTeachPlan);
@@ -1036,6 +1078,16 @@ try {
     cliDevSync.operationPlan?.executes?.includes('git reset --hard origin/master') ||
       cliDevSync.operationPlan?.executes?.includes('git reset --hard origin/main'),
     'CLI dev sync preview should disclose its hard reset target.'
+  );
+  assert(
+    cliDevSync.operationPlan?.subjects?.some((subject) => subject.startsWith('git-head:')),
+    'CLI dev sync preview should bind the current HEAD.'
+  );
+  assert(
+    cliDevSync.operationPlan?.subjects?.some((subject) =>
+      /^git-status-sha256:[a-f0-9]{64}$/.test(subject)
+    ),
+    'CLI dev sync preview should bind the current Git status.'
   );
   assert(
     cliStatus.operationPlan?.executes?.includes('git status --short --branch'),
@@ -1080,6 +1132,10 @@ try {
 }
 
 runCliErrorJson(['auto', 'plan'], 'TARGET_REQUIRED');
+runCliErrorJson(['doc', 'convert', 'README.md', '--output'], 'OPTION_VALUE_REQUIRED');
+runCliErrorJson(['doc', 'convert', 'README.md', '--format', 'pdf'], 'OPTION_VALUE_INVALID');
+runCliErrorJson(['data', 'sample', 'examples/data/sales.csv', '--rows', 'abc'], 'OPTION_VALUE_INVALID');
+runCliErrorJson(['teach', 'quiz', 'TypeScript', '--count', '25'], 'OPTION_VALUE_INVALID');
 runCliErrorJson(['unknown-command'], 'UNKNOWN_COMMAND');
 runCliErrorJson(['web', 'inspect', 'not-a-url'], 'WEB_URL_INVALID');
 runCliErrorJson(['ai', 'ask'], 'AI_PROMPT_REQUIRED');

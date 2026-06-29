@@ -121,6 +121,8 @@ Safety:
   branch would be discarded, `--discard-local` is also required. Untracked
   files are preserved.
 - Its operation plan lists both Git commands and the origin network remote.
+  The fingerprint also binds the current HEAD and a normalized Git status digest
+  so stale confirmations are rejected when local state changes.
 - `zw dev commit` reads staged changes only.
 - `zw dev review --staged` and `zw dev review --worktree` keep sources explicit.
 - Commit previews include a structured Conventional Commit suggestion, suggested
@@ -266,6 +268,8 @@ Safety:
 
 - Install/remove previews by default.
 - Use `--yes` to write or remove files.
+- Operation-plan fingerprints bind the current plugin target state. Removal
+  also binds the manifest content that is about to be deleted.
 - Confirmed install refuses to overwrite an existing plugin manifest.
 - Confirmed remove refuses missing plugin manifests instead of pretending a file
   was removed.

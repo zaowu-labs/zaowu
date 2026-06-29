@@ -13,6 +13,7 @@ import {
 } from '@zaowu/config';
 import {
   assertOperationPlanFingerprint as assertOperationPlanFingerprintFromCore,
+  createContentOperationSubjects,
   createOperationPlan,
   findDomainCommand,
   isZaoWuError,
@@ -109,6 +110,89 @@ const runSystemCommand: CommandRunner = (command, args, options) => {
 };
 
 const hasFlag = (args: readonly string[], flag: string): boolean => args.includes(flag);
+
+const assertNoMissingOptionValues = (options: readonly string[]): void => {
+  if (options.length === 0) {
+    return;
+  }
+
+  const optionList = options.join(', ');
+
+  throw new ZaoWuError({
+    code: 'OPTION_VALUE_REQUIRED',
+    message: 'Option value is required.',
+    why: `The option${options.length === 1 ? '' : 's'} ${optionList} must be followed by a value.`,
+    fix: `Provide a value, for example \`${options[0]} value\`, or remove the option.`,
+  });
+};
+
+const assertOptionValue = (
+  option: string,
+  value: string | undefined,
+  isValid: (value: string) => boolean,
+  expected: string
+): void => {
+  if (value === undefined || isValid(value)) {
+    return;
+  }
+
+  throw new ZaoWuError({
+    code: 'OPTION_VALUE_INVALID',
+    message: 'Option value is invalid.',
+    why: `The option ${option} received \`${value}\`, but expected ${expected}.`,
+    fix: `Use ${option} with ${expected}, or remove the option.`,
+  });
+};
+
+const isPositiveIntegerText = (value: string): boolean => /^[1-9]\d*$/.test(value);
+
+const assertValidOptionValues = (
+  parsed: ReturnType<typeof parseArgs>,
+  commandArgs: readonly string[]
+): void => {
+  assertOptionValue(
+    '--plan-fingerprint',
+    getValue(parsed, '--plan-fingerprint'),
+    (value) => /^[a-f0-9]{64}$/i.test(value.trim()),
+    'a 64-character hexadecimal fingerprint'
+  );
+
+  const format = getValue(parsed, '--format');
+  const [domain, action] = commandArgs;
+
+  if (domain === 'data' && action === 'sample') {
+    assertOptionValue(
+      '--rows',
+      getValue(parsed, '--rows'),
+      isPositiveIntegerText,
+      'a positive integer'
+    );
+  }
+
+  if (domain === 'doc' && action === 'convert') {
+    assertOptionValue(
+      '--format',
+      format,
+      (value) => value === 'markdown' || value === 'text',
+      '`markdown` or `text`'
+    );
+  }
+
+  if (domain === 'teach' && action === 'quiz') {
+    assertOptionValue(
+      '--count',
+      getValue(parsed, '--count'),
+      (value) => isPositiveIntegerText(value) && Number(value) <= 20,
+      'a whole number between 1 and 20'
+    );
+    assertOptionValue(
+      '--format',
+      format,
+      (value) => value === 'text' || value === 'canvas-csv',
+      '`text` or `canvas-csv`'
+    );
+  }
+};
 
 const findDomain = (name: string): DomainDefinition | undefined =>
   DOMAIN_DEFINITIONS.find((domain) => domain.name === name);
@@ -504,6 +588,8 @@ Description:
 Options:
   --dry-run          Preview without writing files
   --yes              Create zw.yml
+  --plan-fingerprint <hash>
+                     Require confirmed creation to match a preview
   --json             Output machine-readable JSON
   --help             Show this help
 
@@ -511,6 +597,7 @@ Examples:
   zw init
   zw init --dry-run
   zw init --yes
+  zw init --yes --plan-fingerprint <hash>
   zw init --json`;
 
 const formatDoctorHelp = (): string => `ZaoWu Doctor
@@ -535,6 +622,9 @@ const formatInlineOperationPlan = (plan: OperationPlan): string =>
     `Risk: ${plan.risk}`,
     `Confirmation required: ${plan.confirmationRequired ? 'yes' : 'no'}`,
     `Fingerprint: ${plan.fingerprint}`,
+    ...(plan.confirmationRequired
+      ? [`Base confirmation flags: --yes --plan-fingerprint ${plan.fingerprint}`]
+      : []),
     `Subjects: ${plan.subjects.length > 0 ? plan.subjects.join(', ') : 'none'}`,
     `Writes: ${plan.writes.length > 0 ? plan.writes.join(', ') : 'none'}`,
     `Deletes: ${plan.deletes.length > 0 ? plan.deletes.join(', ') : 'none'}`,
@@ -560,8 +650,8 @@ ${content
   .map((line) => (line ? `  ${line}` : ''))
   .join('\n')}
 
-To create this file, run:
-  zw init --yes`;
+To create exactly this file, run:
+  zw init --yes --plan-fingerprint ${operationPlan.fingerprint}`;
 
 const handleInit = async (
   args: readonly string[],
@@ -576,7 +666,7 @@ const handleInit = async (
   const operationPlan = createOperationPlan({
     risk: 'medium',
     confirmationRequired: !yes || dryRun,
-    subjects: [`init:${configPath}`],
+    subjects: [`init:${configPath}`, ...createContentOperationSubjects(content)],
     writes: [configPath],
     notes: ['Init creates a config file only when --yes is provided and --dry-run is absent.'],
   });
@@ -753,6 +843,9 @@ export const executeCli = async (
         );
       }
     }
+
+    assertNoMissingOptionValues(parsed.missingValues);
+    assertValidOptionValues(parsed, commandArgs);
 
     if (command === 'doctor') {
       const doctor = await buildDoctorResult(options);

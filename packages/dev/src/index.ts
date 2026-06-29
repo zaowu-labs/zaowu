@@ -2,6 +2,7 @@ import path from 'node:path';
 import {
   createCapabilityLedger,
   createOperationPlan,
+  hashOperationContent,
   ZaoWuError,
   type DomainDefinition,
   type OperationPlan,
@@ -1126,11 +1127,26 @@ export const syncDevRepo = (
   const previousCommit = runGit(commandRunner, ['rev-parse', 'HEAD'], options.cwd).trim();
   const discardRisks = getDevSyncDiscardRisks(status);
   const hasDiscardRisk = discardRisks.length > 0;
+  const statusFingerprint = hashOperationContent(
+    JSON.stringify({
+      branch: status.branch,
+      head: previousCommit,
+      staged: status.staged,
+      unstaged: status.unstaged,
+      untracked: status.untracked,
+      ahead: status.ahead,
+    })
+  );
 
   const operationPlan = createOperationPlan({
     risk: 'high',
     confirmationRequired: !options.yes,
-    subjects: [`git:${status.branch}`],
+    subjects: [
+      `git:${status.branch}`,
+      `git-head:${previousCommit}`,
+      `git-status-sha256:${statusFingerprint}`,
+      `git-discard-risk:${hasDiscardRisk ? 'yes' : 'no'}`,
+    ],
     reads: ['current Git branch', 'current HEAD commit', 'current Git status'],
     executes: ['git fetch origin', `git reset --hard origin/${status.branch}`],
     network: ['git remote origin'],

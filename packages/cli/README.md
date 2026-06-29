@@ -9,6 +9,8 @@ operation-plan presentation.
 Safety:
 
 - Sensitive commands preview by default or require explicit confirmation.
+- File-writing previews include generated-content fingerprints in their
+  operation plans when the CLI can determine the content before confirmation.
 - Expected errors are formatted without raw stack traces.
 - JSON output is intended for automation and should stay schema-versioned where
   public contracts are defined.

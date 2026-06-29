@@ -19,6 +19,9 @@ explicitly previewed fetch and hard reset.
   - `git fetch origin`
   - `git reset --hard origin/<branch>`
   - network access to the origin remote
+- The operation plan fingerprint must bind the branch, current HEAD, and a
+  normalized Git status digest so stale confirmations fail if local state
+  changes between preview and execution.
 - Confirmed output must set `operationPlan.confirmationRequired` to `false`.
 - `--plan-fingerprint` must reject a changed branch or reset target.
 - Expected Git failures use structured ZaoWu errors without raw stack traces.

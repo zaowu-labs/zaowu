@@ -2,11 +2,13 @@ export interface ParsedArgs {
   positionals: string[];
   flags: ReadonlySet<string>;
   values: ReadonlyMap<string, string>;
+  missingValues: readonly string[];
 }
 
 const FLAGS_WITH_VALUES = new Set([
   '--file',
   '--format',
+  '--count',
   '--model',
   '--output',
   '--plan-fingerprint',
@@ -20,6 +22,7 @@ export const parseArgs = (args: readonly string[]): ParsedArgs => {
   const positionals: string[] = [];
   const flags = new Set<string>();
   const values = new Map<string, string>();
+  const missingValues: string[] = [];
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
@@ -35,14 +38,22 @@ export const parseArgs = (args: readonly string[]): ParsedArgs => {
       const val = arg.slice(eqIndex + 1);
 
       if (FLAGS_WITH_VALUES.has(key)) {
-        values.set(key, val);
+        if (val) {
+          values.set(key, val);
+        } else {
+          missingValues.push(key);
+        }
         continue;
       }
     }
 
-    if (FLAGS_WITH_VALUES.has(arg) && args[index + 1] && !args[index + 1].startsWith('--')) {
-      values.set(arg, args[index + 1]);
-      index += 1;
+    if (FLAGS_WITH_VALUES.has(arg)) {
+      if (args[index + 1] && !args[index + 1].startsWith('--')) {
+        values.set(arg, args[index + 1]);
+        index += 1;
+      } else {
+        missingValues.push(arg);
+      }
       continue;
     }
 
@@ -53,6 +64,7 @@ export const parseArgs = (args: readonly string[]): ParsedArgs => {
     positionals,
     flags,
     values,
+    missingValues,
   };
 };
 

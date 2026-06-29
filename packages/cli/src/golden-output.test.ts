@@ -20,7 +20,7 @@ describe('golden command output contracts', () => {
       const lines = getStableLines(result.stdout, root);
 
       expect(result.exitCode).toBe(0);
-      expect(lines.slice(0, 12)).toEqual([
+      expect(lines.slice(0, 13)).toEqual([
         'ZaoWu Init',
         'No files were written.',
         'Would create:',
@@ -29,13 +29,20 @@ describe('golden command output contracts', () => {
         'Risk: medium',
         'Confirmation required: yes',
         expect.stringMatching(/^Fingerprint: [a-f0-9]{64}$/),
-        `Subjects: init:<root>${path.sep}zw.yml`,
+        expect.stringMatching(/^Base confirmation flags: --yes --plan-fingerprint [a-f0-9]{64}$/),
+        expect.stringMatching(
+          new RegExp(
+            `^Subjects: init:<root>${path.sep.replace('\\', '\\\\')}zw\\.yml, content-sha256:[a-f0-9]{64}, content-length:\\d+$`
+          )
+        ),
         `Writes: <root>${path.sep}zw.yml`,
         'Deletes: none',
         'Preview:',
       ]);
-      expect(lines).toContain('To create this file, run:');
-      expect(lines).toContain('zw init --yes');
+      expect(lines).toContain('To create exactly this file, run:');
+      expect(lines).toContainEqual(
+        expect.stringMatching(/^zw init --yes --plan-fingerprint [a-f0-9]{64}$/)
+      );
       expect(result.stdout).not.toContain('undefined');
       expect(result.stdout).not.toContain('null');
     } finally {
@@ -90,7 +97,7 @@ describe('golden command output contracts', () => {
     const result = await executeCli(['ai', 'ask', 'Explain', 'ZaoWu', '--provider', 'openai']);
 
     expect(result.exitCode).toBe(0);
-    expect(getStableLines(result.stdout).slice(0, 18)).toEqual([
+    expect(getStableLines(result.stdout).slice(0, 19)).toEqual([
       'ZaoWu AI Ask',
       'Status: preview',
       'Provider: openai (OpenAI)',
@@ -99,6 +106,7 @@ describe('golden command output contracts', () => {
       'Risk: medium',
       'Confirmation required: yes',
       expect.stringMatching(/^Fingerprint: [a-f0-9]{64}$/),
+      expect.stringMatching(/^Base confirmation flags: --yes --plan-fingerprint [a-f0-9]{64}$/),
       'Subjects:',
       '- ai:openai',
       '- model:gpt-4.1-mini',

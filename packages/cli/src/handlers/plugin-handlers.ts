@@ -1,14 +1,37 @@
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 import { installPlugin, listPlugins, removePlugin, validatePluginSource } from '@zaowu/plugin';
 import {
   assertOperationPlanFingerprint,
+  createContentOperationSubjects,
   createOperationPlan,
   formatOperationPlan,
   getValue,
+  hashOperationContent,
   requireTarget,
   result,
   withOperationPlan,
   type DomainActionHandler,
 } from '../handler-utils.js';
+
+const getTargetFileSubjects = async (filePath: string): Promise<string[]> => {
+  try {
+    const content = await readFile(filePath, 'utf8');
+
+    return [
+      'target-state:exists',
+      `target-content-sha256:${hashOperationContent(content)}`,
+      `target-content-length:${content.length}`,
+    ];
+  } catch (error) {
+    return (error as { code?: string }).code === 'ENOENT'
+      ? ['target-state:missing']
+      : ['target-state:unreadable'];
+  }
+};
+
+const quoteCliValue = (value: string): string =>
+  /^[A-Za-z0-9._@:/\\=-]+$/.test(value) ? value : JSON.stringify(value);
 
 export const handlePluginList: DomainActionHandler = async (_args, context) => {
   const listed = await listPlugins({ cwd: context.cwd });
@@ -27,16 +50,25 @@ export const handlePluginList: DomainActionHandler = async (_args, context) => {
 
 export const handlePluginInstall: DomainActionHandler = async (args, context) => {
   const id = requireTarget(args, 'zw plugin install');
+  const source = getValue(context.parsed, '--source');
   const preview = await installPlugin(id, {
     cwd: context.cwd,
-    source: getValue(context.parsed, '--source'),
+    source,
   });
+  const pluginPath = path.join(preview.pluginDir, `${preview.plugin.id}.json`);
+  const previewManifestContent = `${JSON.stringify(preview.plugin, null, 2)}\n`;
+  const targetFileSubjects = await getTargetFileSubjects(pluginPath);
   const operationPlan = createOperationPlan({
     risk: 'medium',
     confirmationRequired: !context.yes,
-    subjects: [`plugin:${preview.plugin.id}`, `source:${preview.plugin.source}`],
+    subjects: [
+      `plugin:${preview.plugin.id}`,
+      `source:${preview.plugin.source}`,
+      ...createContentOperationSubjects(previewManifestContent),
+      ...targetFileSubjects,
+    ],
     reads: preview.plugin.source === preview.plugin.id ? [] : [preview.plugin.source],
-    writes: [`${preview.pluginDir}/${preview.plugin.id}.json`],
+    writes: [pluginPath],
     notes: ['Plugin installation writes a local manifest only when --yes is provided.'],
   });
   assertOperationPlanFingerprint(context, operationPlan);
@@ -44,10 +76,18 @@ export const handlePluginInstall: DomainActionHandler = async (args, context) =>
   const installed = context.yes
     ? await installPlugin(id, {
         cwd: context.cwd,
-        source: getValue(context.parsed, '--source'),
+        source,
         yes: true,
       })
     : preview;
+  const confirmCommand = [
+    'zw plugin install',
+    id,
+    ...(source ? ['--source', quoteCliValue(source)] : []),
+    '--yes',
+    '--plan-fingerprint',
+    operationPlan.fingerprint,
+  ].join(' ');
   const human = [
     'ZaoWu Plugin Install',
     '',
@@ -57,6 +97,9 @@ export const handlePluginInstall: DomainActionHandler = async (args, context) =>
     `Wrote file: ${installed.wroteFile ? 'yes' : 'no'}`,
     '',
     formatOperationPlan(operationPlan),
+    ...(context.yes
+      ? []
+      : ['', 'To execute this plugin install plan, run:', `  ${confirmCommand}`]),
   ].join('\n');
 
   return result(context, withOperationPlan(installed, operationPlan), human);
@@ -67,11 +110,14 @@ export const handlePluginRemove: DomainActionHandler = async (args, context) => 
   const preview = await removePlugin(id, {
     cwd: context.cwd,
   });
+  const pluginPath = path.join(preview.pluginDir, `${preview.plugin.id}.json`);
+  const targetFileSubjects = await getTargetFileSubjects(pluginPath);
   const operationPlan = createOperationPlan({
     risk: 'medium',
     confirmationRequired: !context.yes,
-    subjects: [`plugin:${preview.plugin.id}`],
-    deletes: [`${preview.pluginDir}/${preview.plugin.id}.json`],
+    subjects: [`plugin:${preview.plugin.id}`, ...targetFileSubjects],
+    reads: [pluginPath],
+    deletes: [pluginPath],
     notes: ['Plugin removal deletes a local manifest only when --yes is provided.'],
   });
   assertOperationPlanFingerprint(context, operationPlan);
@@ -90,6 +136,13 @@ export const handlePluginRemove: DomainActionHandler = async (args, context) => 
     `Removed file: ${removed.removedFile ? 'yes' : 'no'}`,
     '',
     formatOperationPlan(operationPlan),
+    ...(context.yes
+      ? []
+      : [
+          '',
+          'To execute this plugin removal plan, run:',
+          `  zw plugin remove ${id} --yes --plan-fingerprint ${operationPlan.fingerprint}`,
+        ]),
   ].join('\n');
 
   return result(context, withOperationPlan(removed, operationPlan), human);

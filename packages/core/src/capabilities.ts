@@ -79,6 +79,14 @@ const stableOperationPlanInput = (plan: OperationPlanFingerprintInput): string =
 export const fingerprintOperationPlan = (plan: OperationPlanFingerprintInput): string =>
   createHash('sha256').update(stableOperationPlanInput(plan), 'utf8').digest('hex');
 
+export const hashOperationContent = (content: string): string =>
+  createHash('sha256').update(content, 'utf8').digest('hex');
+
+export const createContentOperationSubjects = (content: string): string[] => [
+  `content-sha256:${hashOperationContent(content)}`,
+  `content-length:${content.length}`,
+];
+
 export const createOperationPlan = (overrides: OperationPlanOverrides = {}): OperationPlan => {
   const plan = {
     schemaVersion: 1 as const,

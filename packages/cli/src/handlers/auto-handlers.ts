@@ -97,9 +97,37 @@ export const handleAutoRun: DomainActionHandler = async (args, context) => {
     '',
     'Skipped:',
     ...(run.skipped.length > 0 ? run.skipped.map((item) => `- ${item}`) : ['- none']),
+    '',
+    'Receipts:',
+    ...(run.receipts.length > 0
+      ? run.receipts.map((receipt) => {
+          const target = receipt.targetPath ? `; target: ${receipt.targetPath}` : '';
+          const hash = receipt.contentSha256 ? `; sha256: ${receipt.contentSha256}` : '';
+          const length =
+            receipt.contentLength !== undefined ? `; length: ${receipt.contentLength}` : '';
+
+          return `- ${receipt.index}. ${receipt.name} [${receipt.action}] ${receipt.status}: ${receipt.detail}${target}${hash}${length}`;
+        })
+      : ['- none']),
   ].join('\n');
 
   return result(context, withOperationPlan(run, operationPlan), human);
+};
+
+const formatAutoPlanStep = (
+  step: Awaited<ReturnType<typeof planWorkflowFile>>['steps'][number]
+): string => {
+  const state = step.blocked ? 'blocked' : 'ready';
+  const confirmation = step.operationPlan.confirmationRequired ? 'yes' : 'no';
+  const details = [
+    step.targetPath ? `target: ${step.targetPath}` : undefined,
+    step.contentSha256 ? `sha256: ${step.contentSha256}` : undefined,
+    step.contentLength !== undefined ? `length: ${step.contentLength}` : undefined,
+    step.reason ? `reason: ${step.reason}` : undefined,
+  ].filter((item): item is string => Boolean(item));
+  const suffix = details.length > 0 ? `; ${details.join('; ')}` : '';
+
+  return `${step.index}. ${step.name} [${step.action}] ${state} (${step.policyDecision}; risk: ${step.operationPlan.risk}; confirmation: ${confirmation}${suffix}) - ${step.preview}`;
 };
 
 export const handleAutoPlan: DomainActionHandler = async (args, context) => {
@@ -118,10 +146,7 @@ export const handleAutoPlan: DomainActionHandler = async (args, context) => {
     'Sandbox:',
     formatSandbox(plan.sandbox),
     '',
-    ...plan.steps.map(
-      (step) =>
-        `${step.index}. ${step.name} [${step.action}] ${step.blocked ? 'blocked' : 'ready'} (${step.policyDecision}; risk: ${step.operationPlan.risk}; confirmation: ${step.operationPlan.confirmationRequired ? 'yes' : 'no'}) - ${step.preview}`
-    ),
+    ...plan.steps.map((step) => formatAutoPlanStep(step)),
     '',
     plan.warnings.length > 0
       ? ['Warnings:', ...plan.warnings.map((warning) => `- ${warning}`)].join('\n')
