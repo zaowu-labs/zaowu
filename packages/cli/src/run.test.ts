@@ -1375,7 +1375,9 @@ describe('executeCli', () => {
         },
       });
       expect(pluginHuman.stdout).toContain(`--source '${sourceDir}'`);
-      expect(pluginHuman.stdout).not.toContain(sourceDir.replaceAll('\\', '\\\\'));
+      if (path.sep === '\\') {
+        expect(pluginHuman.stdout).not.toContain(sourceDir.replaceAll('\\', '\\\\'));
+      }
       expect(webHuman.stdout).toContain('To fetch exactly this URL, run:');
       expect(webHuman.stdout).toContain(
         'zw web fetch https://example.com --yes --plan-fingerprint'
