@@ -94,7 +94,9 @@ describe('AI provider registry', () => {
         configured: true,
       },
       model: 'test-model',
+      endpoint: 'http://localhost:11434/api/generate',
       output: 'Ollama response text',
+      usage: null,
     });
 
     expect(calls).toEqual([
@@ -128,11 +130,13 @@ describe('AI provider registry', () => {
         id: 'echo',
       },
       model: 'echo-local',
+      endpoint: null,
       input: {
         source: 'prompt',
         promptCharacters: 13,
       },
       output: expect.stringContaining('Explain ZaoWu'),
+      usage: null,
     });
   });
 
@@ -216,6 +220,7 @@ describe('AI provider registry', () => {
           configured: true,
         },
         model: 'gpt-4.1-mini',
+        endpoint: 'https://api.openai.com/v1/responses',
         input: {
           source: 'prompt+file',
           promptCharacters: 9,
@@ -226,6 +231,7 @@ describe('AI provider registry', () => {
         validation: {
           status: 'ok',
         },
+        usage: null,
       });
     } finally {
       await rm(root, { recursive: true, force: true });
@@ -285,7 +291,14 @@ describe('AI provider registry', () => {
             status: 200,
             statusText: 'OK',
             async json() {
-              return await readAIFixture('openai-output-text');
+              return {
+                output_text: 'ZaoWu is a toolkit.',
+                usage: {
+                  input_tokens: 7,
+                  output_tokens: 5,
+                  total_tokens: 12,
+                },
+              };
             },
           };
         },
@@ -298,7 +311,13 @@ describe('AI provider registry', () => {
         configured: true,
       },
       model: 'test-model',
+      endpoint: 'https://api.openai.com/v1/responses',
       output: 'ZaoWu is a toolkit.',
+      usage: {
+        inputTokens: 7,
+        outputTokens: 5,
+        totalTokens: 12,
+      },
     });
 
     expect(calls).toEqual([
@@ -749,7 +768,13 @@ describe('AI provider registry', () => {
         configured: true,
       },
       model: 'claude-test',
+      endpoint: 'https://api.anthropic.com/v1/messages',
       output: 'Anthropic response text',
+      usage: {
+        inputTokens: 12,
+        outputTokens: 4,
+        totalTokens: 16,
+      },
     });
 
     expect(calls).toEqual([

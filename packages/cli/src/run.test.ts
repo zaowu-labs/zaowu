@@ -302,7 +302,9 @@ describe('executeCli', () => {
       provider: {
         id: 'echo',
       },
+      endpoint: null,
       output: expect.stringContaining('Explain ZaoWu'),
+      usage: null,
     });
   });
 
@@ -339,7 +341,9 @@ describe('executeCli', () => {
         id: 'openai',
         network: true,
       },
+      endpoint: 'https://api.openai.com/v1/responses',
       output: null,
+      usage: null,
       operationPlan: {
         risk: 'medium',
         confirmationRequired: true,
@@ -1039,6 +1043,11 @@ describe('executeCli', () => {
         ])
       );
 
+      const humanPreview = await executeCli(['doc', 'convert', filePath, '--output', outputPath]);
+      expect(humanPreview.stdout).toContain('To write exactly this converted output, run:');
+      expect(humanPreview.stdout).toContain('zw doc convert');
+      expect(humanPreview.stdout).toContain('--yes --plan-fingerprint');
+
       await writeFile(filePath, '# Note\n\nChanged.\n', 'utf8');
       const staleConfirm = await executeCli([
         'doc',
@@ -1139,6 +1148,11 @@ describe('executeCli', () => {
           expect.stringMatching(/^content-length:\d+$/),
         ])
       );
+
+      const humanPreview = await executeCli(['data', 'clean', filePath, '--output', outputPath]);
+      expect(humanPreview.stdout).toContain('To write exactly this cleaned output, run:');
+      expect(humanPreview.stdout).toContain('zw data clean');
+      expect(humanPreview.stdout).toContain('--yes --plan-fingerprint');
 
       await writeFile(filePath, 'name,amount\nA,20\n', 'utf8');
       const staleConfirm = await executeCli([
@@ -1323,10 +1337,25 @@ describe('executeCli', () => {
 
   it('previews sensitive plugin and web commands by default', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
+    const sourceDir = path.join(root, 'plugin source');
 
     try {
+      await mkdir(sourceDir, { recursive: true });
+      await writeFile(
+        path.join(sourceDir, 'zaowu.plugin.json'),
+        JSON.stringify({ schemaVersion: 1, id: 'local-tool' }),
+        'utf8'
+      );
+
       const plugin = await executeCli(['plugin', 'install', 'readme-gen', '--json'], { cwd: root });
+      const pluginHuman = await executeCli(
+        ['plugin', 'install', 'local-tool', '--source', sourceDir],
+        {
+          cwd: root,
+        }
+      );
       const web = await executeCli(['web', 'inspect', 'https://example.com', '--json']);
+      const webHuman = await executeCli(['web', 'fetch', 'https://example.com']);
 
       expect(JSON.parse(plugin.stdout)).toMatchObject({
         status: 'preview',
@@ -1345,6 +1374,12 @@ describe('executeCli', () => {
           network: ['https://example.com/'],
         },
       });
+      expect(pluginHuman.stdout).toContain(`--source '${sourceDir}'`);
+      expect(pluginHuman.stdout).not.toContain(sourceDir.replaceAll('\\', '\\\\'));
+      expect(webHuman.stdout).toContain('To fetch exactly this URL, run:');
+      expect(webHuman.stdout).toContain(
+        'zw web fetch https://example.com --yes --plan-fingerprint'
+      );
     } finally {
       await rm(root, { recursive: true, force: true });
     }

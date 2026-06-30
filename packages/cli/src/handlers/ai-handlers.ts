@@ -9,6 +9,7 @@ import {
 import {
   assertOperationPlanFingerprint,
   createOperationPlan,
+  formatConfirmCommand,
   formatOperationPlan,
   getValue,
   result,
@@ -51,20 +52,38 @@ export const handleAiAsk: DomainActionHandler = async (args, context) => {
       status: 'preview',
       provider,
       model: preview.model,
+      endpoint: preview.endpoint,
       input: preview.input,
       output: null,
+      usage: null,
       validation: preview.validation,
     };
+    const confirmCommand = formatConfirmCommand([
+      'zw',
+      'ai',
+      'ask',
+      ...args,
+      ...(filePath ? ['--file', filePath] : []),
+      ...(requestedProvider ? ['--provider', requestedProvider] : []),
+      ...(requestedModel ? ['--model', requestedModel] : []),
+      '--yes',
+      '--plan-fingerprint',
+      operationPlan.fingerprint,
+    ]);
     const human = [
       'ZaoWu AI Ask',
       '',
       'Status: preview',
       `Provider: ${provider.id} (${provider.name})`,
       `Model: ${preview.model}`,
+      `Endpoint: ${preview.endpoint ?? 'local'}`,
       '',
       formatOperationPlan(operationPlan),
       '',
-      'No provider request was sent. Re-run with --yes to send it.',
+      'No provider request was sent.',
+      '',
+      'To send exactly this AI request, run:',
+      `  ${confirmCommand}`,
     ].join('\n');
 
     return result(context, withOperationPlan(payload, operationPlan), human);
@@ -74,11 +93,13 @@ export const handleAiAsk: DomainActionHandler = async (args, context) => {
 
   if (context.onChunk && !context.json) {
     const onChunk = context.onChunk;
+    const plannedEndpoint = operationPlan.network[0] ?? null;
     const header = [
       'ZaoWu AI Ask',
       '',
       `Provider: ${provider.id} (${provider.name})`,
       `Model: ${resolvedModel}`,
+      `Endpoint: ${plannedEndpoint ?? 'local'}`,
       '',
       formatOperationPlan(operationPlan),
       '',
@@ -125,6 +146,7 @@ export const handleAiAsk: DomainActionHandler = async (args, context) => {
     '',
     `Provider: ${response.provider.id} (${response.provider.name})`,
     `Model: ${response.model}`,
+    `Endpoint: ${response.endpoint ?? 'local'}`,
     '',
     formatOperationPlan(operationPlan),
     '',

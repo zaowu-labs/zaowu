@@ -9,6 +9,7 @@ import {
   assertOperationPlanFingerprint,
   createContentOperationSubjects,
   createOperationPlan,
+  formatConfirmCommand,
   formatObject,
   formatOperationPlan,
   getValue,
@@ -132,6 +133,21 @@ export const handleDocConvert: DomainActionHandler = async (args, context) => {
           yes: true,
         })
       : preview;
+  const confirmCommand =
+    preview.outputPath && !context.yes
+      ? formatConfirmCommand([
+          'zw',
+          'doc',
+          'convert',
+          target,
+          ...(format ? ['--format', format] : []),
+          '--output',
+          preview.outputPath,
+          '--yes',
+          '--plan-fingerprint',
+          operationPlan.fingerprint,
+        ])
+      : undefined;
   const human = [
     'ZaoWu Doc Convert',
     '',
@@ -141,6 +157,9 @@ export const handleDocConvert: DomainActionHandler = async (args, context) => {
     `Wrote file: ${converted.wroteFile ? 'yes' : 'no'}`,
     '',
     formatOperationPlan(operationPlan),
+    ...(confirmCommand
+      ? ['', 'To write exactly this converted output, run:', `  ${confirmCommand}`]
+      : []),
     '',
     converted.wroteFile ? 'Conversion complete.' : converted.content,
   ].join('\n');

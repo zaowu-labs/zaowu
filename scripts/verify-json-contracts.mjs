@@ -489,6 +489,8 @@ const aiProviders = {
 
 assert(localAIAsk.schemaVersion === 1, 'ai ask result schemaVersion must be 1.');
 assert(localAIAsk.status === 'ok', 'ai ask local provider output should be ok.');
+assert(localAIAsk.endpoint === null, 'local ai ask should expose a null endpoint.');
+assert(localAIAsk.usage === null, 'local ai ask should expose null usage.');
 assertValid('aiAsk', localAIAsk);
 assertValid('aiProviders', aiProviders);
 
@@ -965,12 +967,19 @@ assert(
 );
 assert(cliAIAsk.schemaVersion === 1, 'CLI ai ask schemaVersion must be 1.');
 assert(cliAIAsk.status === 'ok', 'CLI local ai ask should be ok.');
+assert(cliAIAsk.endpoint === null, 'CLI local ai ask should expose a null endpoint.');
+assert(cliAIAsk.usage === null, 'CLI local ai ask should expose null usage.');
 assert(
   cliAIAsk.operationPlan?.network?.length === 0,
   'CLI local ai ask should not report network access.'
 );
 assert(cliAIPreview.status === 'preview', 'CLI network ai ask should preview by default.');
+assert(
+  cliAIPreview.endpoint === 'https://api.openai.com/v1/responses',
+  'CLI network ai preview should disclose the resolved endpoint.'
+);
 assert(cliAIPreview.output === null, 'CLI network ai preview should not expose provider output.');
+assert(cliAIPreview.usage === null, 'CLI network ai preview should expose null usage.');
 assert(
   cliAIPreview.operationPlan?.confirmationRequired === true,
   'CLI network ai preview should require confirmation.'

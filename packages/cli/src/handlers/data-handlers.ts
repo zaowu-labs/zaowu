@@ -10,6 +10,7 @@ import {
   assertOperationPlanFingerprint,
   createContentOperationSubjects,
   createOperationPlan,
+  formatConfirmCommand,
   formatObject,
   formatOperationPlan,
   getValue,
@@ -60,9 +61,11 @@ export const handleDataAnalyze: DomainActionHandler = async (args, context) => {
 
 export const handleDataClean: DomainActionHandler = async (args, context) => {
   const target = requireTarget(args, 'zw data clean');
+  const outputPath = getValue(context.parsed, '--output');
+  const sheet = getValue(context.parsed, '--sheet');
   const preview = await cleanData(target, {
-    outputPath: getValue(context.parsed, '--output'),
-    sheet: getValue(context.parsed, '--sheet'),
+    outputPath,
+    sheet,
   });
   const operationPlan = createOperationPlan({
     risk: preview.outputPath ? 'medium' : 'low',
@@ -81,11 +84,26 @@ export const handleDataClean: DomainActionHandler = async (args, context) => {
   const cleaned =
     context.yes && preview.outputPath
       ? await cleanData(target, {
-          outputPath: getValue(context.parsed, '--output'),
-          sheet: getValue(context.parsed, '--sheet'),
+          outputPath,
+          sheet,
           yes: true,
         })
       : preview;
+  const confirmCommand =
+    preview.outputPath && !context.yes
+      ? formatConfirmCommand([
+          'zw',
+          'data',
+          'clean',
+          target,
+          ...(sheet ? ['--sheet', sheet] : []),
+          '--output',
+          preview.outputPath,
+          '--yes',
+          '--plan-fingerprint',
+          operationPlan.fingerprint,
+        ])
+      : undefined;
   const human = [
     'ZaoWu Data Clean',
     '',
@@ -95,6 +113,9 @@ export const handleDataClean: DomainActionHandler = async (args, context) => {
     `Wrote file: ${cleaned.wroteFile ? 'yes' : 'no'}`,
     '',
     formatOperationPlan(operationPlan),
+    ...(confirmCommand
+      ? ['', 'To write exactly this cleaned output, run:', `  ${confirmCommand}`]
+      : []),
     '',
     cleaned.wroteFile ? 'Clean complete.' : cleaned.content,
   ].join('\n');

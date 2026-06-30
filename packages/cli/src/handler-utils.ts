@@ -106,6 +106,12 @@ export const assertOperationPlanFingerprint = (
 export const formatList = (items: readonly string[]): string =>
   items.length > 0 ? items.map((item) => `- ${item}`).join('\n') : '- none';
 
+export const quoteCliValue = (value: string): string =>
+  /^[A-Za-z0-9._@:/\\=-]+$/.test(value) ? value : `'${value.replaceAll("'", "''")}'`;
+
+export const formatConfirmCommand = (parts: readonly string[]): string =>
+  parts.map((part) => (part.startsWith('--') ? part : quoteCliValue(part))).join(' ');
+
 export const formatCounts = (items: Record<string, number>): string => {
   const lines = Object.entries(items)
     .filter(([, count]) => count > 0)

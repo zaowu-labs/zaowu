@@ -54,6 +54,7 @@ export interface AIAskResponse {
   status: 'ok';
   provider: AIProviderDescriptor;
   model: string;
+  endpoint: string | null;
   input: {
     source: 'prompt' | 'file' | 'prompt+file';
     promptCharacters: number;
@@ -63,6 +64,13 @@ export interface AIAskResponse {
     maxInputCharacters: number;
   };
   output: string;
+  usage: AIUsage | null;
+}
+
+export interface AIUsage {
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
 }
 
 export interface AIProviderValidation {
@@ -100,8 +108,10 @@ export interface AIAskPreview {
   status: 'preview';
   provider: AIProviderDescriptor;
   model: string;
+  endpoint: string | null;
   input: AIAskResponse['input'];
   validation: AIProviderValidation;
+  usage: null;
 }
 
 export const AI_DOMAIN: DomainDefinition = {
@@ -271,10 +281,12 @@ const ECHO_PROVIDER: AIProvider = {
       status: 'ok',
       provider: this.descriptor,
       model: request.model ?? 'echo-local',
+      endpoint: null,
       input: prepared.input,
       output:
         'This is the local echo provider. It does not call an external AI service.\n\n' +
         `Prompt received:\n${prepared.combinedPrompt}`,
+      usage: null,
     };
   },
 };
@@ -666,6 +678,37 @@ const parseOpenAIJsonResponse = async (response: AIFetchResponse): Promise<unkno
   }
 };
 
+const asUsageNumber = (value: unknown): number | undefined =>
+  typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
+
+const extractProviderUsage = (payload: unknown): AIUsage | null => {
+  if (!payload || typeof payload !== 'object') {
+    return null;
+  }
+
+  const rawUsage = (payload as { usage?: unknown }).usage;
+  if (!rawUsage || typeof rawUsage !== 'object') {
+    return null;
+  }
+
+  const usage = rawUsage as Record<string, unknown>;
+  const result: AIUsage = {
+    inputTokens: asUsageNumber(usage.input_tokens ?? usage.prompt_tokens),
+    outputTokens: asUsageNumber(usage.output_tokens ?? usage.completion_tokens),
+    totalTokens: asUsageNumber(usage.total_tokens),
+  };
+
+  if (
+    result.totalTokens === undefined &&
+    result.inputTokens !== undefined &&
+    result.outputTokens !== undefined
+  ) {
+    result.totalTokens = result.inputTokens + result.outputTokens;
+  }
+
+  return Object.values(result).some((value) => value !== undefined) ? result : null;
+};
+
 const extractAnthropicOutputText = (payload: unknown): string => {
   if (!payload || typeof payload !== 'object') {
     throw new ZaoWuError({
@@ -749,7 +792,8 @@ const OPENAI_PROVIDER: AIProvider = {
       request.timeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS
     );
 
-    const output = extractOpenAIOutputText(await parseOpenAIJsonResponse(response));
+    const payload = await parseOpenAIJsonResponse(response);
+    const output = extractOpenAIOutputText(payload);
     const descriptor = createProviderDescriptor(OPENAI_PROVIDER_DESCRIPTOR, env);
 
     return {
@@ -757,8 +801,10 @@ const OPENAI_PROVIDER: AIProvider = {
       status: 'ok',
       provider: descriptor,
       model,
+      endpoint: url,
       input: prepared.input,
       output,
+      usage: extractProviderUsage(payload),
     };
   },
 };
@@ -836,8 +882,10 @@ const OLLAMA_PROVIDER: AIProvider = {
       status: 'ok',
       provider: descriptor,
       model,
+      endpoint: url,
       input: prepared.input,
       output,
+      usage: extractProviderUsage(payload),
     };
   },
 };
@@ -920,8 +968,10 @@ const ANTHROPIC_PROVIDER: AIProvider = {
       status: 'ok',
       provider: descriptor,
       model,
+      endpoint: url,
       input: prepared.input,
       output,
+      usage: extractProviderUsage(payload),
     };
   },
 };
@@ -999,8 +1049,12 @@ export const previewAIRequest = async (request: AIAskRequest): Promise<AIAskPrev
     status: 'preview',
     provider: validation.provider,
     model: getPreviewModel(validation.provider, request, env),
+    endpoint: validation.provider.network
+      ? (resolveAIProviderNetworkTarget(validation.provider.id, env) ?? null)
+      : null,
     input: prepared.input,
     validation,
+    usage: null,
   };
 };
 

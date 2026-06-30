@@ -97,11 +97,13 @@ describe('golden command output contracts', () => {
     const result = await executeCli(['ai', 'ask', 'Explain', 'ZaoWu', '--provider', 'openai']);
 
     expect(result.exitCode).toBe(0);
-    expect(getStableLines(result.stdout).slice(0, 19)).toEqual([
+    const lines = getStableLines(result.stdout);
+    expect(lines.slice(0, 20)).toEqual([
       'ZaoWu AI Ask',
       'Status: preview',
       'Provider: openai (OpenAI)',
       'Model: gpt-4.1-mini',
+      'Endpoint: https://api.openai.com/v1/responses',
       'Operation plan:',
       'Risk: medium',
       'Confirmation required: yes',
@@ -119,6 +121,12 @@ describe('golden command output contracts', () => {
       'Execute:',
     ]);
     expect(result.stdout).toContain('No provider request was sent.');
+    expect(lines).toContain('To send exactly this AI request, run:');
+    expect(lines).toContainEqual(
+      expect.stringMatching(
+        /^zw ai ask Explain ZaoWu --provider openai --yes --plan-fingerprint [a-f0-9]{64}$/
+      )
+    );
   });
 
   it('keeps dev review findings prioritized in human output', async () => {

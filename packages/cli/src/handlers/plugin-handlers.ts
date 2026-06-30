@@ -5,6 +5,7 @@ import {
   assertOperationPlanFingerprint,
   createContentOperationSubjects,
   createOperationPlan,
+  formatConfirmCommand,
   formatOperationPlan,
   getValue,
   hashOperationContent,
@@ -29,9 +30,6 @@ const getTargetFileSubjects = async (filePath: string): Promise<string[]> => {
       : ['target-state:unreadable'];
   }
 };
-
-const quoteCliValue = (value: string): string =>
-  /^[A-Za-z0-9._@:/\\=-]+$/.test(value) ? value : JSON.stringify(value);
 
 export const handlePluginList: DomainActionHandler = async (_args, context) => {
   const listed = await listPlugins({ cwd: context.cwd });
@@ -80,14 +78,16 @@ export const handlePluginInstall: DomainActionHandler = async (args, context) =>
         yes: true,
       })
     : preview;
-  const confirmCommand = [
-    'zw plugin install',
+  const confirmCommand = formatConfirmCommand([
+    'zw',
+    'plugin',
+    'install',
     id,
-    ...(source ? ['--source', quoteCliValue(source)] : []),
+    ...(source ? ['--source', source] : []),
     '--yes',
     '--plan-fingerprint',
     operationPlan.fingerprint,
-  ].join(' ');
+  ]);
   const human = [
     'ZaoWu Plugin Install',
     '',

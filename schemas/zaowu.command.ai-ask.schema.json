@@ -4,7 +4,16 @@
   "title": "ZaoWu AI Ask Result",
   "type": "object",
   "additionalProperties": true,
-  "required": ["schemaVersion", "status", "provider", "model", "input", "output"],
+  "required": [
+    "schemaVersion",
+    "status",
+    "provider",
+    "model",
+    "endpoint",
+    "input",
+    "output",
+    "usage"
+  ],
   "properties": {
     "schemaVersion": {
       "const": 1
@@ -18,11 +27,29 @@
     "model": {
       "type": "string"
     },
+    "endpoint": {
+      "type": ["string", "null"]
+    },
     "input": {
       "$ref": "https://schemas.zaowu.dev/zaowu.command.shared.schema.json#/$defs/aiInput"
     },
     "output": {
       "type": ["string", "null"]
+    },
+    "usage": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "inputTokens": {
+          "type": "number"
+        },
+        "outputTokens": {
+          "type": "number"
+        },
+        "totalTokens": {
+          "type": "number"
+        }
+      }
     },
     "validation": {
       "$ref": "https://schemas.zaowu.dev/zaowu.command.shared.schema.json#/$defs/aiProviderValidation"

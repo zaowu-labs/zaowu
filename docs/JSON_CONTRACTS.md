@@ -198,18 +198,23 @@ Stable fields:
 - `status`
 - `provider`
 - `model`
+- `endpoint`
 - `input`
 - `output`
+- `usage`
 - `validation` for preview output
 - `operationPlan` when routed through the CLI
 
 The local echo provider can return `status: "ok"` without network access.
 HTTP-backed providers, including Ollama, preview by default and return
 `status: "preview"` with `output: null` until the user confirms with `--yes`.
-Their operation plans disclose the resolved endpoint. For provider-backed requests, `model` and
-the `operationPlan.subjects` model entry use the same resolved value: explicit
-`--model`, then provider-specific environment defaults such as `OPENAI_MODEL`,
-then the provider default.
+`endpoint` is the resolved HTTP URL for network-backed providers and `null` for
+local providers. `usage` is either `null` or a normalized token object with
+`inputTokens`, `outputTokens`, and `totalTokens` when a provider returns token
+usage. Operation plans disclose the same resolved endpoint. For provider-backed
+requests, `model` and the `operationPlan.subjects` model entry use the same
+resolved value: explicit `--model`, then provider-specific environment defaults
+such as `OPENAI_MODEL`, then the provider default.
 
 ### `zw ai providers --json`
 

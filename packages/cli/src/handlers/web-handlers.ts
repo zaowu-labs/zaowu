@@ -2,6 +2,7 @@ import { fetchWebTarget, inspectWebTarget } from '@zaowu/web';
 import {
   assertOperationPlanFingerprint,
   createOperationPlan,
+  formatConfirmCommand,
   formatObject,
   formatOperationPlan,
   requireTarget,
@@ -23,6 +24,17 @@ export const handleWebInspect: DomainActionHandler = async (args, context) => {
   assertOperationPlanFingerprint(context, operationPlan);
 
   const inspected = context.yes ? await inspectWebTarget(target, { yes: true }) : preview;
+  const confirmCommand = !context.yes
+    ? formatConfirmCommand([
+        'zw',
+        'web',
+        'inspect',
+        target,
+        '--yes',
+        '--plan-fingerprint',
+        operationPlan.fingerprint,
+      ])
+    : undefined;
   const human = [
     'ZaoWu Web Inspect',
     '',
@@ -33,6 +45,7 @@ export const handleWebInspect: DomainActionHandler = async (args, context) => {
       : 'HTTP: not requested',
     '',
     formatOperationPlan(operationPlan),
+    ...(confirmCommand ? ['', 'To inspect exactly this URL, run:', `  ${confirmCommand}`] : []),
     '',
     Object.keys(inspected.headers).length > 0 ? formatObject(inspected.headers) : 'Headers: none',
   ].join('\n');
@@ -53,6 +66,17 @@ export const handleWebFetch: DomainActionHandler = async (args, context) => {
   assertOperationPlanFingerprint(context, operationPlan);
 
   const fetched = context.yes ? await fetchWebTarget(target, { yes: true }) : preview;
+  const confirmCommand = !context.yes
+    ? formatConfirmCommand([
+        'zw',
+        'web',
+        'fetch',
+        target,
+        '--yes',
+        '--plan-fingerprint',
+        operationPlan.fingerprint,
+      ])
+    : undefined;
   const human = [
     'ZaoWu Web Fetch',
     '',
@@ -66,6 +90,7 @@ export const handleWebFetch: DomainActionHandler = async (args, context) => {
       : 'Body: not requested',
     '',
     formatOperationPlan(operationPlan),
+    ...(confirmCommand ? ['', 'To fetch exactly this URL, run:', `  ${confirmCommand}`] : []),
     '',
     fetched.body ?? '',
   ].join('\n');

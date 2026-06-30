@@ -12,6 +12,8 @@
 - Restored the foundation safety boundary that keeps all automation shell steps blocked.
 - Classified Ollama as an HTTP-backed provider that requires preview and confirmation.
 - Restored the non-streaming OpenAI Responses API adapter and disclosed resolved AI endpoints.
+- Stabilized `zw ai ask --json` endpoint and provider usage fields for preview
+  and confirmed responses.
 - Hardened YAML config serialization and bound config confirmation fingerprints to values.
 - Expanded `zw dev sync` operation plans to disclose fetch, hard reset, and origin access.
 - Added a second `--discard-local` acknowledgement when `zw dev sync --yes`
