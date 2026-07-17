@@ -1,6 +1,6 @@
 {
   "name": "@zaowu-labs/cli",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "ZaoWu command-line interface",
   "type": "module",
   "license": "Apache-2.0",
@@ -14,7 +14,7 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "zw": "./dist/index.js"
+    "zw": "dist/index.js"
   },
   "exports": {
     ".": {
@@ -46,7 +46,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/zaowu-labs/zaowu.git",
+    "url": "git+https://github.com/zaowu-labs/zaowu.git",
     "directory": "packages/cli"
   },
   "homepage": "https://github.com/zaowu-labs/zaowu",

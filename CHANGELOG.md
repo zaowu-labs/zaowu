@@ -4,6 +4,11 @@
 
 - No unreleased changes.
 
+## 1.0.2 - 2026-07-17
+
+- Republished the npm package family with workspace dependencies converted to installable `1.0.2` versions.
+- Preserved the `zw` executable mapping in the published CLI package.
+
 ## 1.0.1 - 2026-07-17
 
 - Published the first public npm release of the ZaoWu package family.

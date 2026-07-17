@@ -159,7 +159,7 @@ for (const dir of packageDirs) {
   }
 
   if (dir === 'cli') {
-    assert(pkg.bin?.zw === './dist/index.js', '@zaowu-labs/cli must expose the zw binary.');
+    assert(pkg.bin?.zw === 'dist/index.js', '@zaowu-labs/cli must expose the zw binary.');
   } else {
     assert(!pkg.bin, `${pkg.name} must not expose an accidental binary.`);
   }

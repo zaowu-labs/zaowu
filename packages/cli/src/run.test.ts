@@ -22,7 +22,7 @@ describe('executeCli', () => {
     const result = await executeCli(['--version']);
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toBe('1.0.1');
+    expect(result.stdout).toBe('1.0.2');
   });
 
   it('shows version output as JSON', async () => {
@@ -32,7 +32,7 @@ describe('executeCli', () => {
     expect(JSON.parse(result.stdout)).toEqual({
       schemaVersion: 1,
       status: 'ok',
-      version: '1.0.1',
+      version: '1.0.2',
     });
   });
 

@@ -99,7 +99,7 @@ try {
 
   const version = JSON.parse(run(['pnpm', 'exec', 'zw', '--version', '--json'], { cwd: appDir, capture: true }));
   assert(version.status === 'ok', 'Packed CLI should return version JSON.');
-  assert(version.version === '1.0.1', 'Packed CLI should report the package version.');
+  assert(version.version === '1.0.2', 'Packed CLI should report the package version.');
 
   const help = run(['pnpm', 'exec', 'zw', '--help'], { cwd: appDir, capture: true });
   assert(help.includes('ZaoWu'), 'Packed CLI help should mention ZaoWu.');
