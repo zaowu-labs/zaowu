@@ -1,4 +1,4 @@
-import { createCapabilityLedger, ZaoWuError, type DomainDefinition } from '@zaowu/core';
+import { createCapabilityLedger, ZaoWuError, type DomainDefinition } from '@zaowu-labs/core';
 
 export interface WebResponseLike {
   status: number;
@@ -6,6 +6,12 @@ export interface WebResponseLike {
   headers?: {
     forEach(callback: (value: string, key: string) => void): void;
   };
+  body?: {
+    getReader(): {
+      read(): Promise<{ done: boolean; value?: Uint8Array }>;
+      cancel?(): Promise<void> | void;
+    };
+  } | null;
   text(): Promise<string>;
 }
 
@@ -35,8 +41,11 @@ export interface WebFetchResult {
   statusText?: string;
   body?: string;
   bodyLength?: number;
+  bodyLengthExact?: boolean;
   bodyTruncated?: boolean;
   maxBodyLength?: number;
+  responseBytesRead?: number;
+  maxResponseBytes?: number;
 }
 
 interface WebRequestContext {
@@ -67,6 +76,7 @@ export const WEB_DOMAIN: DomainDefinition = {
 };
 
 const DEFAULT_MAX_BODY_LENGTH = 4000;
+const DEFAULT_MAX_RESPONSE_BYTES = 1024 * 1024;
 const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 
 class WebRequestTimeoutError extends Error {
@@ -84,6 +94,11 @@ const normalizeTimeoutMs = (value: number | undefined): number =>
   Number.isFinite(value) && value !== undefined && value > 0
     ? Math.floor(value)
     : DEFAULT_REQUEST_TIMEOUT_MS;
+
+const normalizeMaxResponseBytes = (value: number | undefined): number =>
+  Number.isFinite(value) && value !== undefined && value > 0
+    ? Math.floor(value)
+    : DEFAULT_MAX_RESPONSE_BYTES;
 
 const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
   let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -232,7 +247,13 @@ export const inspectWebTarget = async (
 
 export const fetchWebTarget = async (
   url: string,
-  options: { yes?: boolean; fetcher?: WebFetcher; maxBodyLength?: number; timeoutMs?: number } = {}
+  options: {
+    yes?: boolean;
+    fetcher?: WebFetcher;
+    maxBodyLength?: number;
+    maxResponseBytes?: number;
+    timeoutMs?: number;
+  } = {}
 ): Promise<WebFetchResult> => {
   const normalizedUrl = assertWebUrl(url);
   const timeoutMs = normalizeTimeoutMs(options.timeoutMs);
@@ -247,10 +268,63 @@ export const fetchWebTarget = async (
 
   const request = await requestWebTarget(normalizedUrl, 'GET', options.fetcher, timeoutMs);
   const response = request.response;
+  const maxBodyLength = normalizeMaxBodyLength(options.maxBodyLength);
+  const maxResponseBytes = normalizeMaxResponseBytes(options.maxResponseBytes);
   let body: string;
+  let bodyLength: number;
+  let bodyLengthExact = true;
+  let responseBytesRead: number;
 
   try {
-    body = await withTimeout(response.text(), timeoutMs);
+    if (response.body) {
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      const bodyDeadline = Date.now() + timeoutMs;
+      let preview = '';
+      let observedCharacters = 0;
+      let observedBytes = 0;
+
+      while (true) {
+        const remainingMs = bodyDeadline - Date.now();
+
+        if (remainingMs <= 0) {
+          throw new WebRequestTimeoutError(timeoutMs);
+        }
+
+        const chunk = await withTimeout(reader.read(), remainingMs);
+
+        if (chunk.done) {
+          const finalText = decoder.decode();
+          observedCharacters += finalText.length;
+          preview += finalText.slice(0, Math.max(0, maxBodyLength - preview.length));
+          break;
+        }
+
+        const value = chunk.value ?? new Uint8Array();
+        const remainingBytes = maxResponseBytes - observedBytes;
+        const accepted = value.subarray(0, Math.max(0, remainingBytes));
+        observedBytes += accepted.byteLength;
+        const text = decoder.decode(accepted, { stream: true });
+        observedCharacters += text.length;
+        preview += text.slice(0, Math.max(0, maxBodyLength - preview.length));
+
+        if (accepted.byteLength < value.byteLength) {
+          bodyLengthExact = false;
+          await reader.cancel?.();
+          request.abort();
+          break;
+        }
+      }
+
+      body = preview;
+      bodyLength = observedCharacters;
+      responseBytesRead = observedBytes;
+    } else {
+      const fullBody = await withTimeout(response.text(), timeoutMs);
+      body = fullBody.slice(0, maxBodyLength);
+      bodyLength = fullBody.length;
+      responseBytesRead = Buffer.byteLength(fullBody, 'utf8');
+    }
   } catch (error) {
     request.abort();
 
@@ -271,8 +345,7 @@ export const fetchWebTarget = async (
     });
   }
 
-  const maxBodyLength = normalizeMaxBodyLength(options.maxBodyLength);
-  const bodyTruncated = body.length > maxBodyLength;
+  const bodyTruncated = !bodyLengthExact || bodyLength > maxBodyLength;
 
   return {
     schemaVersion: 1,
@@ -280,9 +353,12 @@ export const fetchWebTarget = async (
     url: normalizedUrl,
     statusCode: response.status,
     statusText: response.statusText,
-    body: body.slice(0, maxBodyLength),
-    bodyLength: body.length,
+    body,
+    bodyLength,
+    bodyLengthExact,
     bodyTruncated,
     maxBodyLength,
+    responseBytesRead,
+    maxResponseBytes,
   };
 };

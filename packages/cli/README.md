@@ -1,4 +1,4 @@
-# @zaowu/cli
+# @zaowu-labs/cli
 
 Command-line interface for ZaoWu.
 

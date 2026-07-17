@@ -30,12 +30,23 @@
       "type": "integer",
       "minimum": 0
     },
+    "bodyLengthExact": {
+      "type": "boolean"
+    },
     "bodyTruncated": {
       "type": "boolean"
     },
     "maxBodyLength": {
       "type": "integer",
       "minimum": 0
+    },
+    "responseBytesRead": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "maxResponseBytes": {
+      "type": "integer",
+      "minimum": 1
     },
     "operationPlan": {
       "$ref": "https://schemas.zaowu.dev/zaowu.command.shared.schema.json#/$defs/operationPlan"

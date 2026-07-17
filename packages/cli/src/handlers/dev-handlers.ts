@@ -3,8 +3,8 @@ import {
   resolveAIModel,
   resolveAIProviderNetworkTarget,
   validateAIProviderConfig,
-} from '@zaowu/ai';
-import { loadResolvedConfig } from '@zaowu/config';
+} from '@zaowu-labs/ai';
+import { loadResolvedConfig } from '@zaowu-labs/config';
 import {
   getDevStatus,
   isDevFindingCategory,
@@ -14,7 +14,7 @@ import {
   reviewDevChanges,
   syncDevRepo,
   type DevReviewMode,
-} from '@zaowu/dev';
+} from '@zaowu-labs/dev';
 import {
   assertOperationPlanFingerprint,
   createOperationPlan,

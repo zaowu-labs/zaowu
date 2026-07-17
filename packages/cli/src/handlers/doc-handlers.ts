@@ -4,7 +4,7 @@ import {
   outlineDocument,
   searchDocument,
   summarizeDocument,
-} from '@zaowu/doc';
+} from '@zaowu-labs/doc';
 import {
   assertOperationPlanFingerprint,
   createContentOperationSubjects,

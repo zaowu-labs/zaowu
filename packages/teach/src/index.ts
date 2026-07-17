@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { createCapabilityLedger, ZaoWuError, type DomainDefinition } from '@zaowu/core';
+import { createCapabilityLedger, ZaoWuError, type DomainDefinition } from '@zaowu-labs/core';
 
 export interface TeachPlanResult {
   schemaVersion: 1;

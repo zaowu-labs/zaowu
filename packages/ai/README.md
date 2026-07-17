@@ -1,4 +1,4 @@
-# @zaowu/ai
+# @zaowu-labs/ai
 
 AI provider boundary for ZaoWu.
 

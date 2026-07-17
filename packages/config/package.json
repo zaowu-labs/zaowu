@@ -1,9 +1,12 @@
 {
-  "name": "@zaowu/config",
-  "version": "1.0.0",
+  "name": "@zaowu-labs/config",
+  "version": "1.0.1",
   "description": "ZaoWu configuration management",
   "type": "module",
   "license": "Apache-2.0",
+  "publishConfig": {
+    "access": "public"
+  },
   "files": [
     "dist",
     "README.md"
@@ -22,7 +25,7 @@
     "dev": "tsc -b --watch"
   },
   "dependencies": {
-    "@zaowu/core": "workspace:*",
+    "@zaowu-labs/core": "workspace:*",
     "yaml": "^2.9.0"
   },
   "keywords": [

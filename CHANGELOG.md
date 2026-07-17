@@ -2,13 +2,21 @@
 
 ## Unreleased
 
-- Foundation hardening is in progress.
+- No unreleased changes.
+
+## 1.0.1 - 2026-07-17
+
+- Published the first public npm release of the ZaoWu package family.
 - Added versioned JSON contracts for `zw ai ask`, `zw ai providers`,
   `zw dev commit`, and `zw dev status`.
 - Hardened document/data/AI/automation boundary coverage and release-readiness
   checks.
+- Upgraded SheetJS from the vulnerable npm `xlsx@0.18.5` build to the official
+  `0.20.3` distribution and cleared production dependency audit findings.
 - Hardened web request failures and bounded fetch response reporting.
 - Added default timeouts for confirmed web requests and response body reads.
+- Stopped native streaming web responses at a bounded download limit and exposed
+  whether the observed body length is exact.
 - Restored the foundation safety boundary that keeps all automation shell steps blocked.
 - Classified Ollama as an HTTP-backed provider that requires preview and confirmation.
 - Restored the non-streaming OpenAI Responses API adapter and disclosed resolved AI endpoints.
@@ -42,10 +50,13 @@
 - Rejected invalid constrained option values such as unsupported `--format`,
   non-numeric `--rows`, or out-of-range `--count` with structured
   `OPTION_VALUE_INVALID` errors.
+- Rejected unsupported or misspelled command options with a structured
+  `OPTION_UNSUPPORTED` error instead of silently ignoring them.
 - Bound plugin install/remove operation plans to local target state, and bound
   `zw dev sync` confirmations to the current HEAD and Git status digest.
+- Rejected linked plugin directories so install, list, and remove operations
+  cannot escape the project `.zaowu/plugins` boundary.
 - Added structured automation execution receipts while preserving the existing
   human-readable executed/skipped output.
 - Documented `--plan-fingerprint` in `zw init --help` and `--count` in
   `zw teach quiz --help`.
-- No public npm package has been released yet.

@@ -12,7 +12,7 @@ import {
   hashOperationContent,
   ZaoWuError,
   type OperationPlan,
-} from '@zaowu/core';
+} from '@zaowu-labs/core';
 import { getValue, hasFlag, type ParsedArgs } from './args.js';
 import { createResult, stringifyJSON } from './output.js';
 import type { CliResult, CommandRunner } from './types.js';

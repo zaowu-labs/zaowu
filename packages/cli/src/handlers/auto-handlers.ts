@@ -1,4 +1,4 @@
-import { planWorkflowFile, runWorkflowPlan, validateWorkflowFile } from '@zaowu/auto';
+import { planWorkflowFile, runWorkflowPlan, validateWorkflowFile } from '@zaowu-labs/auto';
 import {
   assertOperationPlanFingerprint,
   createOperationPlan,

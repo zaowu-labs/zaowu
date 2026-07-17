@@ -38,8 +38,8 @@ Legend:
 | `zw data sample`     | data file              | none          | none      | none              | none             | none              | read-only                           |
 | `zw data sheets`     | data file              | none          | none      | none              | none             | none              | read-only                           |
 | `zw dev status`      | git status             | none          | read-only | fixed git         | none             | none              | read-only                           |
-| `zw dev review`      | git diff               | none          | read-only | fixed git         | none             | none              | read-only                           |
-| `zw dev commit`      | staged git diff        | none          | read-only | fixed git         | none             | none              | read-only preview                   |
+| `zw dev review`      | git diff               | none          | read-only | fixed git         | with `--ai`      | with `--ai`       | local read-only; AI preview first   |
+| `zw dev commit`      | staged git diff        | none          | read-only | fixed git         | with `--ai`      | with `--ai`       | local read-only; AI preview first   |
 | `zw dev sync`        | branch and HEAD        | none          | modifies  | fixed git         | origin fetch     | none              | preview, discard acknowledgement    |
 | `zw doc summary`     | document file          | none          | none      | none              | none             | none              | read-only                           |
 | `zw doc extract`     | document file          | none          | none      | none              | none             | none              | read-only                           |

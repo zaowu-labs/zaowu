@@ -19,6 +19,8 @@ by domain so future work does not mix unrelated tools.
   sensitive action when the current operation plan no longer matches the
   previewed plan.
 - `--dry-run` forces preview mode when it is used with `--yes`.
+- Unsupported or misspelled options fail with an actionable error instead of
+  being silently ignored.
 - Unsupported formats return actionable errors instead of pretending to work.
 
 ## Root Commands
@@ -260,6 +262,8 @@ Manifest support:
   names, and non-string command summaries are validation errors.
 - The public manifest shape is documented in `schemas/zaowu.plugin.schema.json`.
 - Install/remove writes only under `.zaowu/plugins`.
+- Linked `.zaowu` or `.zaowu/plugins` directories are rejected to prevent
+  reads, writes, or removals from escaping that directory.
 - Plugin manifests are metadata only; no package or CLI API executes manifest
   commands in this foundation version.
 - There is no public marketplace in this foundation version.
@@ -299,6 +303,9 @@ Safety:
 - Use `--yes` to make the request.
 - Redirects are not followed automatically, so the confirmed target remains the
   only requested URL.
+- Fetch output is previewed up to 4,000 characters, and native streaming
+  responses stop after 1 MiB by default. JSON output reports whether the
+  observed body length is exact.
 
 ## Contract Guards
 

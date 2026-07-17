@@ -41,7 +41,7 @@ It verifies:
 - package names, versions, license, ESM exports, files, README files, and
   keywords stay aligned
 - workspace package dependencies use `workspace:*`
-- only `@zaowu/cli` exposes the `zw` binary
+- only `@zaowu-labs/cli` exposes the `zw` binary
 - `docs/RELEASE_POLICY.md` includes the release policy sections
 - `docs/RELEASE_POLICY.md` includes provenance and publish-permission sections
 - `docs/RELEASE_POLICY.md` includes release workflow requirements and rollback

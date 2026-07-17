@@ -8,7 +8,7 @@ import {
   stripUtf8Bom,
   ZaoWuError,
   type DomainDefinition,
-} from '@zaowu/core';
+} from '@zaowu-labs/core';
 
 export const CONFIG_FILE_NAMES = ['zw.yml', 'zw.yaml', 'zaowu.config.json', '.zaowurc'] as const;
 

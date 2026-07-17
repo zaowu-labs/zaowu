@@ -1,11 +1,11 @@
-import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, readFile, readdir, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
   createCapabilityLedger,
   stripUtf8Bom,
   ZaoWuError,
   type DomainDefinition,
-} from '@zaowu/core';
+} from '@zaowu-labs/core';
 
 export interface PluginManifest {
   id: string;
@@ -89,6 +89,61 @@ const PLUGIN_ID_PATTERN = /^[a-z0-9][a-z0-9._-]*$/;
 const SUPPORTED_PLUGIN_SCHEMA_VERSION = 1;
 
 const getPluginDir = (cwd: string): string => path.join(cwd, '.zaowu', 'plugins');
+
+const normalizeComparisonPath = (value: string): string => {
+  const resolved = path.resolve(value);
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+};
+
+const throwUnsafePluginPath = (pluginDir: string): never => {
+  throw new ZaoWuError({
+    code: 'PLUGIN_PATH_UNSAFE',
+    message: 'Plugin directory is unsafe.',
+    why: `The plugin directory \`${pluginDir}\` is redirected through a symbolic link or junction.`,
+    fix: 'Replace the linked `.zaowu` or `.zaowu/plugins` directory with a real directory inside the project.',
+  });
+};
+
+const assertSafePluginDir = async (cwd: string, pluginDir: string): Promise<void> => {
+  const resolvedCwd = path.resolve(cwd);
+  const zaowuDir = path.join(resolvedCwd, '.zaowu');
+
+  for (const candidate of [zaowuDir, pluginDir]) {
+    try {
+      if ((await lstat(candidate)).isSymbolicLink()) {
+        throwUnsafePluginPath(pluginDir);
+      }
+    } catch (error) {
+      if (error instanceof ZaoWuError) {
+        throw error;
+      }
+
+      if ((error as { code?: string }).code !== 'ENOENT') {
+        throw error;
+      }
+    }
+  }
+
+  try {
+    const [realCwd, realPluginDir] = await Promise.all([
+      realpath(resolvedCwd),
+      realpath(pluginDir),
+    ]);
+    const expectedPluginDir = path.join(realCwd, '.zaowu', 'plugins');
+
+    if (normalizeComparisonPath(realPluginDir) !== normalizeComparisonPath(expectedPluginDir)) {
+      throwUnsafePluginPath(pluginDir);
+    }
+  } catch (error) {
+    if (error instanceof ZaoWuError) {
+      throw error;
+    }
+
+    if ((error as { code?: string }).code !== 'ENOENT') {
+      throw error;
+    }
+  }
+};
 
 const assertPluginId = (id: string): void => {
   if (!PLUGIN_ID_PATTERN.test(id)) {
@@ -257,6 +312,8 @@ export const listPlugins = async (options: { cwd?: string } = {}): Promise<Plugi
   const pluginDir = getPluginDir(cwd);
   let entries: string[] = [];
 
+  await assertSafePluginDir(cwd, pluginDir);
+
   try {
     entries = await readdir(pluginDir);
   } catch {
@@ -304,6 +361,8 @@ export const installPlugin = async (
   const pluginPath = getPluginPath(pluginDir, id);
   const sourceValidation = isPathLike(source) ? await validatePluginSource(source) : null;
 
+  await assertSafePluginDir(cwd, pluginDir);
+
   if (sourceValidation?.errors.length) {
     throw new ZaoWuError({
       code: 'PLUGIN_SOURCE_INVALID',
@@ -330,6 +389,7 @@ export const installPlugin = async (
 
   if (options.yes) {
     await mkdir(pluginDir, { recursive: true });
+    await assertSafePluginDir(cwd, pluginDir);
 
     if (await fileExists(pluginPath)) {
       throw new ZaoWuError({
@@ -391,6 +451,8 @@ export const removePlugin = async (
     source: id,
     installedAt: null,
   };
+
+  await assertSafePluginDir(cwd, pluginDir);
 
   if (options.yes) {
     if (!(await fileExists(pluginPath))) {

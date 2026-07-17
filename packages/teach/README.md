@@ -1,4 +1,4 @@
-# @zaowu/teach
+# @zaowu-labs/teach
 
 Teaching workflow package for ZaoWu.
 
@@ -8,5 +8,5 @@ the first CLI foundation.
 Safety:
 
 - It does not call external AI services.
-- Future AI-backed teaching behavior should go through `@zaowu/ai`.
+- Future AI-backed teaching behavior should go through `@zaowu-labs/ai`.
 - User-facing commands should keep output readable before adding complexity.

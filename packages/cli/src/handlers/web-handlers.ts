@@ -1,4 +1,4 @@
-import { fetchWebTarget, inspectWebTarget } from '@zaowu/web';
+import { fetchWebTarget, inspectWebTarget } from '@zaowu-labs/web';
 import {
   assertOperationPlanFingerprint,
   createOperationPlan,
@@ -77,6 +77,11 @@ export const handleWebFetch: DomainActionHandler = async (args, context) => {
         operationPlan.fingerprint,
       ])
     : undefined;
+  const bodyLengthPrefix = fetched.bodyLengthExact === false ? 'at least ' : '';
+  const bodyTruncation = fetched.bodyTruncated
+    ? ` (preview truncated to ${fetched.maxBodyLength ?? 0})`
+    : '';
+  const bodySummary = `Body: ${bodyLengthPrefix}${fetched.bodyLength ?? 0} characters${bodyTruncation}`;
   const human = [
     'ZaoWu Web Fetch',
     '',
@@ -85,9 +90,10 @@ export const handleWebFetch: DomainActionHandler = async (args, context) => {
     fetched.statusCode
       ? `HTTP: ${fetched.statusCode} ${fetched.statusText ?? ''}`
       : 'HTTP: not requested',
-    fetched.status === 'ok'
-      ? `Body: ${fetched.bodyLength ?? 0} characters${fetched.bodyTruncated ? ` (truncated to ${fetched.maxBodyLength ?? 0})` : ''}`
-      : 'Body: not requested',
+    fetched.status === 'ok' ? bodySummary : 'Body: not requested',
+    ...(fetched.bodyLengthExact === false
+      ? [`Download: stopped at the ${fetched.maxResponseBytes ?? 0}-byte safety limit`]
+      : []),
     '',
     formatOperationPlan(operationPlan),
     ...(confirmCommand ? ['', 'To fetch exactly this URL, run:', `  ${confirmCommand}`] : []),

@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { installPlugin, listPlugins, removePlugin, validatePluginSource } from '@zaowu/plugin';
+import { installPlugin, listPlugins, removePlugin, validatePluginSource } from '@zaowu-labs/plugin';
 import {
   assertOperationPlanFingerprint,
   createContentOperationSubjects,

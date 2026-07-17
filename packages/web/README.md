@@ -1,4 +1,4 @@
-# @zaowu/web
+# @zaowu-labs/web
 
 Web workflow package for ZaoWu.
 
@@ -13,4 +13,6 @@ Safety:
 - Confirmed requests use a bounded default timeout.
 - Redirects are not followed automatically, so the confirmed network target stays the disclosed URL.
 - Request failures use structured ZaoWu errors instead of raw network errors.
-- Fetched response bodies are bounded and report whether truncation happened.
+- Fetched response previews are bounded to 4,000 characters by default.
+- Native streaming responses stop after 1 MiB by default instead of buffering an
+  unbounded response; results report bytes read and whether the body length is exact.

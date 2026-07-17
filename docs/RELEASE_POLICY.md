@@ -5,7 +5,7 @@ that must be true before the first publish and every publish after that.
 
 ## Versioning
 
-- The root package and every `@zaowu/*` workspace package use the same version.
+- The root package and every `@zaowu-labs/*` workspace package use the same version.
 - Before `1.0.0`, breaking command or JSON contract changes must be called out
   in the changelog even when semver still permits `0.x` movement.
 - Patch releases are for bug fixes, docs corrections, and validation hardening.
@@ -49,7 +49,7 @@ that must be true before the first publish and every publish after that.
 - Prefer npm Trusted Publishing through GitHub Actions OIDC over long-lived npm
   tokens when the first publish workflow is intentionally enabled.
 - Trusted publishing setup must be tied to this repository, the release
-  workflow name, and the `@zaowu/*` package scope. Do not reuse credentials or
+  workflow name, and the `@zaowu-labs/*` package scope. Do not reuse credentials or
   trust relationships from a personal fork.
 
 References:
@@ -80,7 +80,7 @@ Do not add or enable a publishing workflow until all of these are true:
 - The workflow runs `corepack pnpm verify`.
 - The workflow performs package dry-run and packed CLI install smoke before any
   publish step.
-- The workflow publishes only `@zaowu/*` workspace packages and never publishes
+- The workflow publishes only `@zaowu-labs/*` workspace packages and never publishes
   the private root package.
 - The workflow uses Trusted Publishing or another reviewed provenance mechanism
   instead of storing a long-lived npm token in the repository.

@@ -1,141 +1,20 @@
 import { readFile } from 'node:fs/promises';
-import {
-  createCapabilityLedger,
-  stripUtf8Bom,
-  ZaoWuError,
-  type DomainDefinition,
-} from '@zaowu/core';
+import { stripUtf8Bom, ZaoWuError } from '@zaowu-labs/core';
+import type {
+  AIAskPreview,
+  AIAskRequest,
+  AIAskResponse,
+  AIFetcher,
+  AIFetchResponse,
+  AIProvider,
+  AIProviderDescriptor,
+  AIProviderFailure,
+  AIProviderValidation,
+  AIUsage,
+} from './contracts.js';
 
-export interface AIProviderDescriptor {
-  id: string;
-  name: string;
-  network: boolean;
-  configured: boolean;
-  requiredEnv: string[];
-  defaultModel?: string;
-}
-
-export interface AIFetchResponse {
-  ok: boolean;
-  status: number;
-  statusText: string;
-  headers?: {
-    get(name: string): string | null;
-  };
-  json(): Promise<unknown>;
-  body?: unknown;
-}
-
-export type AIFetcher = (
-  url: string,
-  init: {
-    method: string;
-    headers: Record<string, string>;
-    body: string;
-    signal?: AbortSignal;
-  }
-) => Promise<AIFetchResponse>;
-
-export interface AIAskRequest {
-  prompt: string;
-  provider?: string | null;
-  model?: string;
-  filePath?: string;
-  env?: NodeJS.ProcessEnv;
-  fetcher?: AIFetcher;
-  allowNetwork?: boolean;
-  timeoutMs?: number;
-  maxInputCharacters?: number;
-  onChunk?: (chunk: string) => void;
-}
-
-export interface AIAskResponse {
-  schemaVersion: 1;
-  status: 'ok';
-  provider: AIProviderDescriptor;
-  model: string;
-  endpoint: string | null;
-  input: {
-    source: 'prompt' | 'file' | 'prompt+file';
-    promptCharacters: number;
-    filePath?: string;
-    fileCharacters?: number;
-    combinedCharacters: number;
-    maxInputCharacters: number;
-  };
-  output: string;
-  usage: AIUsage | null;
-}
-
-export interface AIUsage {
-  inputTokens?: number;
-  outputTokens?: number;
-  totalTokens?: number;
-}
-
-export interface AIProviderValidation {
-  status: 'ok' | 'warning';
-  provider: AIProviderDescriptor;
-  warnings: string[];
-}
-
-export type AIProviderFailureKind =
-  | 'auth'
-  | 'rate-limit'
-  | 'bad-request'
-  | 'server'
-  | 'transport'
-  | 'timeout'
-  | 'invalid-response'
-  | 'unknown';
-
-export interface AIProviderFailure {
-  kind: AIProviderFailureKind;
-  retryable: boolean;
-  safeSummary: string;
-  retryAfterMs?: number;
-  why: string;
-  fix: string;
-}
-
-export interface AIProvider {
-  descriptor: AIProviderDescriptor;
-  ask(request: AIAskRequest): Promise<AIAskResponse>;
-}
-
-export interface AIAskPreview {
-  schemaVersion: 1;
-  status: 'preview';
-  provider: AIProviderDescriptor;
-  model: string;
-  endpoint: string | null;
-  input: AIAskResponse['input'];
-  validation: AIProviderValidation;
-  usage: null;
-}
-
-export const AI_DOMAIN: DomainDefinition = {
-  name: 'ai',
-  summary: 'AI-assisted question answering and provider-backed workflows',
-  capabilities: createCapabilityLedger({
-    readsFiles: true,
-    usesNetwork: true,
-    accessesSecrets: true,
-  }),
-  commands: [
-    {
-      name: 'ask',
-      summary: 'Ask an AI provider a question',
-      status: 'available',
-      sensitive: true,
-    },
-    {
-      name: 'providers',
-      summary: 'List registered AI providers and configuration status',
-      status: 'available',
-    },
-  ],
-};
+export * from './contracts.js';
+export { AI_DOMAIN } from './domain.js';
 
 const getConfigured = (requiredEnv: readonly string[], env: NodeJS.ProcessEnv): boolean =>
   requiredEnv.every((name) => Boolean(env[name]?.trim()));

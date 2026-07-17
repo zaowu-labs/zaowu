@@ -1,9 +1,12 @@
 {
-  "name": "@zaowu/data",
-  "version": "1.0.0",
+  "name": "@zaowu-labs/data",
+  "version": "1.0.1",
   "description": "ZaoWu data workflows",
   "type": "module",
   "license": "Apache-2.0",
+  "publishConfig": {
+    "access": "public"
+  },
   "files": [
     "dist",
     "README.md"
@@ -22,8 +25,8 @@
     "dev": "tsc -b --watch"
   },
   "dependencies": {
-    "@zaowu/core": "workspace:*",
-    "xlsx": "^0.18.5"
+    "@zaowu-labs/core": "workspace:*",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "keywords": [
     "zaowu",

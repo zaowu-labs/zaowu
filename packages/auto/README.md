@@ -1,4 +1,4 @@
-# @zaowu/auto
+# @zaowu-labs/auto
 
 Automation workflow package for ZaoWu.
 

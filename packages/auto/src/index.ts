@@ -2,145 +2,32 @@ import { readFile, realpath, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import YAML from 'yaml';
 import {
-  createCapabilityLedger,
   hashOperationContent,
   createOperationPlan,
   stripUtf8Bom,
   ZaoWuError,
-  type DomainDefinition,
   type OperationPlan,
-} from '@zaowu/core';
+} from '@zaowu-labs/core';
+import type {
+  AutomationExecutionPolicy,
+  AutomationExecutionReceipt,
+  AutomationExecutionSandbox,
+  AutomationPermissionMode,
+  AutomationPermissionName,
+  AutomationPlanResult,
+  AutomationPlanStep,
+  AutomationRunResult,
+  AutomationStep,
+  AutomationValidationResult,
+  AutomationWorkflow,
+  AutomationWorkflowPermissions,
+  ParsedAutomationWorkflow,
+} from './contracts.js';
+import { checkShellSafety } from './shell-safety.js';
 
-export interface AutomationStep {
-  name: string;
-  message?: string;
-  run?: string;
-  writeFile?: {
-    path: string;
-    content: string;
-  };
-}
-
-export type AutomationPermissionMode = 'blocked' | 'prompt';
-export type AutomationPermissionName = 'shell' | 'fileWrites' | 'network';
-
-export interface AutomationWorkflowPermissions {
-  shell: AutomationPermissionMode;
-  fileWrites: AutomationPermissionMode;
-  network: AutomationPermissionMode;
-}
-
-export interface AutomationExecutionPolicy extends AutomationWorkflowPermissions {
-  schemaVersion: 1;
-}
-
-export interface AutomationExecutionSandbox {
-  schemaVersion: 1;
-  root: 'workflow-directory';
-  workflowDirectory: string;
-  shellCommands: 'blocked';
-  fileWrites: 'blocked' | 'workflow-directory';
-  network: 'blocked';
-}
-
-export interface AutomationWorkflow {
-  version: number;
-  name: string;
-  variables: Record<string, string>;
-  permissions: AutomationWorkflowPermissions;
-  steps: AutomationStep[];
-}
-
-interface ParsedAutomationWorkflow extends AutomationWorkflow {
-  versionWarning?: string;
-  permissionWarnings: string[];
-}
-
-export interface AutomationValidationResult {
-  schemaVersion: 1;
-  status: 'ok';
-  filePath: string;
-  workflow: AutomationWorkflow;
-  policy: AutomationExecutionPolicy;
-  sandbox: AutomationExecutionSandbox;
-  warnings: string[];
-}
-
-export interface AutomationRunResult {
-  schemaVersion: 1;
-  status: 'ok' | 'preview';
-  filePath: string;
-  workflow: AutomationWorkflow;
-  policy: AutomationExecutionPolicy;
-  sandbox: AutomationExecutionSandbox;
-  executed: string[];
-  skipped: string[];
-  receipts: AutomationExecutionReceipt[];
-}
-
-export interface AutomationExecutionReceipt {
-  index: number;
-  name: string;
-  action: AutomationPlanStep['action'];
-  status: 'executed' | 'skipped' | 'blocked';
-  detail: string;
-  targetPath?: string;
-  contentSha256?: string;
-  contentLength?: number;
-}
-
-export interface AutomationPlanStep {
-  index: number;
-  name: string;
-  action: 'message' | 'shell' | 'writeFile' | 'unsupported';
-  preview: string;
-  targetPath?: string;
-  contentLength?: number;
-  contentSha256?: string;
-  blocked: boolean;
-  requiredPermission?: AutomationPermissionName;
-  policyDecision: 'allowed' | 'blocked';
-  reason?: string;
-  operationPlan: OperationPlan;
-}
-
-export interface AutomationPlanResult {
-  schemaVersion: 1;
-  status: 'ok';
-  filePath: string;
-  workflow: AutomationWorkflow;
-  policy: AutomationExecutionPolicy;
-  sandbox: AutomationExecutionSandbox;
-  steps: AutomationPlanStep[];
-  warnings: string[];
-}
-
-export const AUTO_DOMAIN: DomainDefinition = {
-  name: 'auto',
-  summary: 'Automation workflows with validation, dry-run, and confirmation',
-  capabilities: createCapabilityLedger({
-    readsFiles: true,
-    writesFiles: true,
-  }),
-  commands: [
-    {
-      name: 'validate',
-      summary: 'Validate an automation workflow file',
-      status: 'available',
-    },
-    {
-      name: 'plan',
-      summary: 'Preview the execution plan for an automation workflow',
-      status: 'available',
-    },
-    {
-      name: 'run',
-      summary: 'Run an automation workflow with dry-run and confirmation',
-      status: 'available',
-      sensitive: true,
-    },
-  ],
-};
+export * from './contracts.js';
+export { AUTO_DOMAIN } from './domain.js';
+export { checkShellSafety } from './shell-safety.js';
 
 const SUPPORTED_WORKFLOW_VERSION = 1;
 const AUTO_RESULT_SCHEMA_VERSION = 1;
@@ -626,107 +513,6 @@ const createStepOperationPlan = (step: {
     notes: [...blockedNote, 'Unsupported steps have no executable action.'],
   });
 };
-
-/**
- * Scans a shell command for dangerous patterns like rm -rf, sudo, chmod, chown, or piped shell executions.
- * Returns a reason string if a dangerous pattern is found, or undefined if it is clean.
- */
-export function checkShellSafety(command: string): string | undefined {
-  const normalized = command.toLowerCase().trim();
-
-  // 1. rm -rf, rm -r, rm -f, rm --recursive, rm --force
-  if (
-    /\brm\s+-[a-z]*[rf]/i.test(normalized) ||
-    /\brm\s+--recursive/i.test(normalized) ||
-    /\brm\s+--force/i.test(normalized)
-  ) {
-    return 'Dangerous command pattern found: `rm` with recursive/force flags.';
-  }
-
-  // 2. Windows recursive deletions: del /s, erase /s, rd /s, rmdir /s
-  if (
-    /\b(del|erase|rd|rmdir)\b/i.test(normalized) &&
-    (/\/[a-z]*s/i.test(normalized) || /\b-(recurse|s)\b/i.test(normalized))
-  ) {
-    return 'Dangerous command pattern found: recursive deletion (`del`, `rd`, or `rmdir` with `/s` or `-recurse`).';
-  }
-
-  // 3. Windows format drive: format c: etc.
-  if (/\bformat\s+[a-z]:/i.test(normalized)) {
-    return 'Dangerous command pattern found: disk formatting (`format`).';
-  }
-
-  // 4. sudo
-  if (/\bsudo\b/i.test(normalized)) {
-    return 'Dangerous command pattern found: execution with administrative privileges (`sudo`).';
-  }
-
-  // 5. chmod or chown
-  if (/\bchmod\b/i.test(normalized)) {
-    return 'Dangerous command pattern found: modifying file permissions (`chmod`).';
-  }
-  if (/\bchown\b/i.test(normalized)) {
-    return 'Dangerous command pattern found: changing file ownership (`chown`).';
-  }
-
-  // 6. piped shell execution like curl | sh, wget | bash, or iex/invoke-expression
-  if (
-    /\|\s*(sh|bash|zsh|fish|cmd|powershell|pwsh|iex)\b/i.test(normalized) ||
-    /\biex\b/i.test(normalized) ||
-    /\binvoke-expression\b/i.test(normalized)
-  ) {
-    return 'Dangerous command pattern found: piped shell execution or dynamic command evaluation.';
-  }
-
-  // 7. Base64 obfuscation decoding into shell execution
-  if (
-    /\bbase64\b/i.test(normalized) &&
-    (/\|\s*(sh|bash|zsh|fish|cmd|powershell|pwsh|iex)\b/i.test(normalized) ||
-      /\b--decode\b/i.test(normalized) ||
-      /\b-d\b/i.test(normalized))
-  ) {
-    return 'Dangerous command pattern found: decoding base64 payload into shell execution.';
-  }
-
-  // 8. Reverse shell or TCP/UDP redirection pattern (e.g., /dev/tcp/ or /dev/udp/)
-  if (/\/dev\/(tcp|udp)\//i.test(normalized)) {
-    return 'Dangerous command pattern found: network redirect / reverse shell redirection (`/dev/tcp` or `/dev/udp`).';
-  }
-
-  // 9. Netcat backdoor execution (e.g., nc -e or netcat -e)
-  if (/\b(nc|netcat|ncat)\b/i.test(normalized) && /\s+-e\b/i.test(normalized)) {
-    return 'Dangerous command pattern found: netcat executable execution flag (`-e` redirection).';
-  }
-
-  // 10. Interactive shell spawn commands (e.g. bash -i, sh -i)
-  if (/\b(bash|sh|zsh|dash|ksh)\s+-i\b/i.test(normalized)) {
-    return 'Dangerous command pattern found: interactive shell spawn (`-i` flag).';
-  }
-
-  // 11. Download and execute scripts sequentially (e.g. curl ... -o x && sh x, wget ... && bash x)
-  if (
-    /\b(curl|wget)\b/i.test(normalized) &&
-    /\b(sh|bash|zsh|cmd|powershell|pwsh)\b/i.test(normalized) &&
-    (/\.sh\b/i.test(normalized) || /\.ps1\b/i.test(normalized) || /\.bat\b/i.test(normalized))
-  ) {
-    return 'Dangerous command pattern found: download and sequential script execution.';
-  }
-
-  // 12. Write redirection to sensitive system paths (e.g. > /etc/ or > c:\windows)
-  if (
-    />>\s*([/\\]etc[/\\]|c:[/\\]windows[/\\])/i.test(normalized) ||
-    />\s*([/\\]etc[/\\]|c:[/\\]windows[/\\])/i.test(normalized)
-  ) {
-    return 'Dangerous command pattern found: write redirection to sensitive system directory.';
-  }
-
-  // 13. Writing to sensitive files using tee (e.g. tee /etc/passwd)
-  if (/\btee\b.*([/\\]etc[/\\]|c:[/\\]windows[/\\])/i.test(normalized)) {
-    return 'Dangerous command pattern found: writing to sensitive system path using tee.';
-  }
-
-  return undefined;
-}
 
 export const validateWorkflowContent = (
   content: string,

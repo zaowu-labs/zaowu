@@ -1,3 +1,4 @@
+import * as fs from 'node:fs';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -12,6 +13,8 @@ import {
   sampleData,
   listSheets,
 } from './index';
+
+XLSX.set_fs(fs);
 
 describe('data domain', () => {
   it('declares data workflow commands', () => {

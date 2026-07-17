@@ -1,4 +1,4 @@
-import { createTeachingPlan, createTeachingQuiz } from '@zaowu/teach';
+import { createTeachingPlan, createTeachingQuiz } from '@zaowu-labs/teach';
 import {
   getValue,
   parsePositiveInteger,

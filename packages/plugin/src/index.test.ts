@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -36,6 +36,26 @@ describe('plugin domain', () => {
       });
     } finally {
       await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects plugin directories redirected through a symbolic link or junction', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-plugin-'));
+    const outside = await mkdtemp(path.join(os.tmpdir(), 'zaowu-plugin-outside-'));
+
+    try {
+      await symlink(outside, path.join(root, '.zaowu'), 'junction');
+
+      await expect(installPlugin('readme-gen', { cwd: root, yes: true })).rejects.toMatchObject({
+        code: 'PLUGIN_PATH_UNSAFE',
+        message: 'Plugin directory is unsafe.',
+      });
+      await expect(listPlugins({ cwd: root })).rejects.toMatchObject({
+        code: 'PLUGIN_PATH_UNSAFE',
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+      await rm(outside, { recursive: true, force: true });
     }
   });
 

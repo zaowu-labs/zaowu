@@ -42,7 +42,7 @@ full gate. Do not continue if any check fails.
 - Confirm the reviewed release workflow checks out the tagged commit.
 - Confirm the publish job uses npm Trusted Publishing or the approved
   provenance mechanism.
-- Confirm only `@zaowu/*` workspace packages are selected; the private root
+- Confirm only `@zaowu-labs/*` workspace packages are selected; the private root
   package must never publish.
 - Verify package name, version, tag, commit SHA, provenance, and workflow URL
   before approving any protected publish environment.

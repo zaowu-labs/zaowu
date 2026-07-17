@@ -5,7 +5,7 @@ import {
   migrateResolvedConfig,
   setResolvedConfigValue,
   validateResolvedConfig,
-} from '@zaowu/config';
+} from '@zaowu-labs/config';
 import {
   assertOperationPlanFingerprint,
   createContentOperationSubjects,

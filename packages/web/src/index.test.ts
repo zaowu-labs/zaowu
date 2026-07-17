@@ -98,9 +98,62 @@ describe('web domain', () => {
       status: 'ok',
       body: 'abc',
       bodyLength: 6,
+      bodyLengthExact: true,
       bodyTruncated: true,
       maxBodyLength: 3,
     });
+  });
+
+  it('stops streaming responses at the download limit without buffering the full body', async () => {
+    let readIndex = 0;
+    let cancelled = false;
+    let aborted = false;
+    const chunks = [new TextEncoder().encode('abc'), new TextEncoder().encode('def')];
+    const fetcher: WebFetcher = async (_url, init) => {
+      init?.signal?.addEventListener('abort', () => {
+        aborted = true;
+      });
+
+      return {
+        status: 200,
+        statusText: 'OK',
+        body: {
+          getReader() {
+            return {
+              async read() {
+                const value = chunks[readIndex];
+                readIndex += 1;
+                return value ? { done: false, value } : { done: true };
+              },
+              async cancel() {
+                cancelled = true;
+              },
+            };
+          },
+        },
+        async text() {
+          throw new Error('streaming response should not use text()');
+        },
+      };
+    };
+
+    await expect(
+      fetchWebTarget('https://example.com', {
+        yes: true,
+        fetcher,
+        maxBodyLength: 3,
+        maxResponseBytes: 4,
+      })
+    ).resolves.toMatchObject({
+      body: 'abc',
+      bodyLength: 4,
+      bodyLengthExact: false,
+      bodyTruncated: true,
+      responseBytesRead: 4,
+      maxResponseBytes: 4,
+    });
+    expect(cancelled).toBe(true);
+    expect(aborted).toBe(true);
   });
 
   it('maps network failures to structured web errors', async () => {

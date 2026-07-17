@@ -1,9 +1,12 @@
 {
-  "name": "@zaowu/cli",
-  "version": "1.0.0",
+  "name": "@zaowu-labs/cli",
+  "version": "1.0.1",
   "description": "ZaoWu command-line interface",
   "type": "module",
   "license": "Apache-2.0",
+  "publishConfig": {
+    "access": "public"
+  },
   "files": [
     "dist",
     "README.md"
@@ -25,16 +28,16 @@
     "dev": "tsc -b --watch"
   },
   "dependencies": {
-    "@zaowu/ai": "workspace:*",
-    "@zaowu/auto": "workspace:*",
-    "@zaowu/config": "workspace:*",
-    "@zaowu/core": "workspace:*",
-    "@zaowu/data": "workspace:*",
-    "@zaowu/dev": "workspace:*",
-    "@zaowu/doc": "workspace:*",
-    "@zaowu/plugin": "workspace:*",
-    "@zaowu/teach": "workspace:*",
-    "@zaowu/web": "workspace:*"
+    "@zaowu-labs/ai": "workspace:*",
+    "@zaowu-labs/auto": "workspace:*",
+    "@zaowu-labs/config": "workspace:*",
+    "@zaowu-labs/core": "workspace:*",
+    "@zaowu-labs/data": "workspace:*",
+    "@zaowu-labs/dev": "workspace:*",
+    "@zaowu-labs/doc": "workspace:*",
+    "@zaowu-labs/plugin": "workspace:*",
+    "@zaowu-labs/teach": "workspace:*",
+    "@zaowu-labs/web": "workspace:*"
   },
   "keywords": [
     "zaowu",

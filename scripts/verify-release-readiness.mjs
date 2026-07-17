@@ -109,7 +109,7 @@ assert(packageDirs.includes('cli'), 'Workspace packages must include cli.');
 
 for (const dir of packageDirs) {
   const pkg = await readJson('packages', dir, 'package.json');
-  const expectedName = `@zaowu/${dir}`;
+  const expectedName = `@zaowu-labs/${dir}`;
 
   assert(pkg.name === expectedName, `${dir} package name must be ${expectedName}.`);
   assert(pkg.version === rootPackage.version, `${pkg.name} version must match the root version.`);
@@ -150,7 +150,7 @@ for (const dir of packageDirs) {
   );
 
   for (const [dependency, version] of Object.entries(pkg.dependencies ?? {})) {
-    if (dependency.startsWith('@zaowu/')) {
+    if (dependency.startsWith('@zaowu-labs/')) {
       assert(
         version === 'workspace:*',
         `${pkg.name} must reference ${dependency} through workspace:*.`
@@ -159,7 +159,7 @@ for (const dir of packageDirs) {
   }
 
   if (dir === 'cli') {
-    assert(pkg.bin?.zw === './dist/index.js', '@zaowu/cli must expose the zw binary.');
+    assert(pkg.bin?.zw === './dist/index.js', '@zaowu-labs/cli must expose the zw binary.');
   } else {
     assert(!pkg.bin, `${pkg.name} must not expose an accidental binary.`);
   }

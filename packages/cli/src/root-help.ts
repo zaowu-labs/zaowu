@@ -1,0 +1,146 @@
+import type { DomainDefinition, OperationPlan } from '@zaowu-labs/core';
+import { DOMAIN_DEFINITIONS } from './domains.js';
+import { ACTION_HELP } from './help-text.js';
+import { formatRows } from './output.js';
+
+const toTitleCase = (value: string): string => `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
+
+export const formatHelp = (): string => {
+  const commands = formatRows([
+    ['zw init', 'Preview or create a ZaoWu config file'],
+    ['zw doctor', 'Check local environment health'],
+    ['zw help', 'Show this help'],
+  ]);
+  const domains = formatRows(
+    DOMAIN_DEFINITIONS.map((domain) => [`zw ${domain.name}`, domain.summary])
+  );
+
+  return `ZaoWu / 造物
+
+Usage:
+  zw <command> [options]
+
+Commands:
+${commands}
+
+Domains:
+${domains}
+
+Global options:
+  --help             Show help
+  --version          Show version
+  --json             Output machine-readable JSON
+  --dry-run          Preview without applying changes
+  --yes              Apply a safe confirmed action
+  --plan-fingerprint <hash>
+                     Require confirmed actions to match a previewed plan
+
+Examples:
+  zw doctor
+  zw doctor --json
+  zw init --dry-run
+  zw init --yes
+  zw dev --help`;
+};
+
+export const formatDomainHelp = (domain: DomainDefinition): string => {
+  const commands = formatRows(
+    domain.commands.map((command) => {
+      const flags = [command.status, command.sensitive ? 'sensitive' : undefined]
+        .filter(Boolean)
+        .join(', ');
+
+      return [`zw ${domain.name} ${command.name}`, `${flags} - ${command.summary}`];
+    })
+  );
+  const capabilities = domain.capabilities
+    ? Object.entries(domain.capabilities)
+        .filter(([, enabled]) => enabled)
+        .map(([name]) => `- ${name}`)
+        .join('\n') || '- none'
+    : '- none';
+
+  return `ZaoWu ${toTitleCase(domain.name)} Domain
+
+Usage:
+  zw ${domain.name} <action> [target] [options]
+
+Description:
+  ${domain.summary}
+
+Commands:
+${commands}
+
+Capabilities:
+${capabilities}
+
+Global options:
+  --help             Show help
+  --json             Output machine-readable JSON
+  --dry-run          Preview without applying changes
+  --yes              Apply a safe confirmed action`;
+};
+
+export const formatActionHelp = (domain: DomainDefinition, action: string): string =>
+  ACTION_HELP[domain.name]?.[action] ??
+  `ZaoWu ${toTitleCase(domain.name)} ${toTitleCase(action)}
+
+Usage:
+  zw ${domain.name} ${action} [target] [options]
+
+Options:
+  --help             Show help
+  --json             Output machine-readable JSON`;
+
+export const formatInitHelp = (): string => `ZaoWu Init
+
+Usage:
+  zw init [options]
+
+Description:
+  Preview or create a starter ZaoWu config file.
+
+Options:
+  --dry-run          Preview without writing files
+  --yes              Create zw.yml
+  --plan-fingerprint <hash>
+                     Require confirmed creation to match a preview
+  --json             Output machine-readable JSON
+  --help             Show this help
+
+Examples:
+  zw init
+  zw init --dry-run
+  zw init --yes
+  zw init --yes --plan-fingerprint <hash>
+  zw init --json`;
+
+export const formatDoctorHelp = (): string => `ZaoWu Doctor
+
+Usage:
+  zw doctor [options]
+
+Description:
+  Check local environment health.
+
+Options:
+  --json             Output machine-readable JSON
+  --help             Show this help
+
+Examples:
+  zw doctor
+  zw doctor --json`;
+
+export const formatInlineOperationPlan = (plan: OperationPlan): string =>
+  [
+    'Operation plan:',
+    `Risk: ${plan.risk}`,
+    `Confirmation required: ${plan.confirmationRequired ? 'yes' : 'no'}`,
+    `Fingerprint: ${plan.fingerprint}`,
+    ...(plan.confirmationRequired
+      ? [`Base confirmation flags: --yes --plan-fingerprint ${plan.fingerprint}`]
+      : []),
+    `Subjects: ${plan.subjects.length > 0 ? plan.subjects.join(', ') : 'none'}`,
+    `Writes: ${plan.writes.length > 0 ? plan.writes.join(', ') : 'none'}`,
+    `Deletes: ${plan.deletes.length > 0 ? plan.deletes.join(', ') : 'none'}`,
+  ].join('\n');

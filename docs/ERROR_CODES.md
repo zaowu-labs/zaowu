@@ -27,6 +27,7 @@ registry.
 | `COMMAND_HANDLER_MISSING` | A known command has no registered handler.        |
 | `COMMAND_NOT_IMPLEMENTED` | A planned command is not runnable yet.            |
 | `OPERATION_PLAN_MISMATCH` | A confirmed operation did not match preview.      |
+| `OPTION_UNSUPPORTED`      | A command received an option it does not support. |
 | `OPTION_VALUE_INVALID`    | A value-bearing option received an invalid value. |
 | `OPTION_VALUE_REQUIRED`   | A value-bearing option was provided no value.     |
 | `TARGET_REQUIRED`         | A command target or second argument is absent.    |
@@ -84,6 +85,7 @@ registry.
 | `PLUGIN_ALREADY_INSTALLED`  | A plugin manifest already exists.             |
 | `PLUGIN_ID_INVALID`         | A plugin id failed validation.                |
 | `PLUGIN_NOT_INSTALLED`      | A confirmed plugin removal target is missing. |
+| `PLUGIN_PATH_UNSAFE`        | The plugin directory is redirected by a link. |
 | `PLUGIN_SOURCE_ID_MISMATCH` | Source manifest id differs from target.       |
 | `PLUGIN_SOURCE_INVALID`     | A plugin source path or manifest failed.      |
 | `PLUGIN_WRITE_FAILED`       | A plugin manifest could not be written.       |

@@ -22,7 +22,7 @@ describe('executeCli', () => {
     const result = await executeCli(['--version']);
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toBe('1.0.0');
+    expect(result.stdout).toBe('1.0.1');
   });
 
   it('shows version output as JSON', async () => {
@@ -32,7 +32,7 @@ describe('executeCli', () => {
     expect(JSON.parse(result.stdout)).toEqual({
       schemaVersion: 1,
       status: 'ok',
-      version: '1.0.0',
+      version: '1.0.1',
     });
   });
 
@@ -58,6 +58,7 @@ describe('executeCli', () => {
     expect(parsed.positionals).toEqual(['data', 'sample', 'workbook.xlsx']);
     expect(getValue(parsed, '--sheet')).toBe('Details');
     expect(getValue(parsed, '--rows')).toBe('5');
+    expect([...parsed.options]).toEqual(['--sheet', '--rows']);
   });
 
   it('tracks options that are missing required values', () => {
@@ -115,6 +116,26 @@ describe('executeCli', () => {
     expect(JSON.parse(rows.stderr).error.code).toBe('OPTION_VALUE_INVALID');
     expect(count.exitCode).toBe(1);
     expect(JSON.parse(count.stderr).error.code).toBe('OPTION_VALUE_INVALID');
+  });
+
+  it('rejects unsupported and misspelled options instead of silently ignoring them', async () => {
+    const misspelled = await executeCli(['web', 'fetch', 'https://example.com', '--yse', '--json']);
+    const wrongCommand = await executeCli(['doctor', '--output=result.json', '--json']);
+
+    expect(misspelled.exitCode).toBe(1);
+    expect(JSON.parse(misspelled.stderr)).toMatchObject({
+      error: {
+        code: 'OPTION_UNSUPPORTED',
+        message: 'Option is not supported by this command.',
+        why: 'The option --yse cannot be used with `zw web fetch`.',
+        fix: 'Run `zw web fetch --help` to see the supported options.',
+      },
+    });
+    expect(wrongCommand.exitCode).toBe(1);
+    expect(JSON.parse(wrongCommand.stderr).error).toMatchObject({
+      code: 'OPTION_UNSUPPORTED',
+      why: 'The option --output cannot be used with `zw doctor`.',
+    });
   });
 
   it('shows command-specific init help', async () => {
@@ -188,6 +209,16 @@ describe('executeCli', () => {
       expect(result.stdout).toContain(expectedText);
     }
   });
+
+  it.each(COMMAND_CONTRACTS.filter((contract) => contract.sensitive))(
+    'documents plan fingerprint confirmation for sensitive command: $id',
+    async (contract) => {
+      const result = await executeCli(contract.helpArgs);
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('--plan-fingerprint <hash>');
+    }
+  );
 
   it.each(COMMAND_CONTRACTS.filter((contract) => contract.json))(
     'keeps JSON help contract stable: $id',

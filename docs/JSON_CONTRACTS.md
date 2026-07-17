@@ -51,6 +51,8 @@ Options that require a value, such as `--output`, return
 `OPTION_VALUE_REQUIRED` instead of being silently ignored.
 Options with constrained values, such as `--format`, `--rows`, and `--count`,
 return `OPTION_VALUE_INVALID` when the value cannot be accepted safely.
+Options that are not supported by the selected command return
+`OPTION_UNSUPPORTED` instead of being silently ignored.
 
 ### Root Help And Version JSON
 
@@ -444,6 +446,9 @@ Schema files: `schemas/zaowu.command.web-*.schema.json`.
 Inspect and fetch preview without network access by default. CLI output includes
 the shared `operationPlan`, including the normalized URL and confirmation
 requirement. Redirects are not followed automatically.
+Confirmed fetch results bound the displayed body preview and report
+`responseBytesRead`, `maxResponseBytes`, and `bodyLengthExact`. Native streaming
+responses stop at the byte limit instead of buffering an unbounded body.
 
 ## Verification
 

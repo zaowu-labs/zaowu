@@ -5,7 +5,7 @@ import {
   resolveAIProviderNetworkTarget,
   resolveAIModel,
   validateAIProviderConfig,
-} from '@zaowu/ai';
+} from '@zaowu-labs/ai';
 import {
   assertOperationPlanFingerprint,
   createOperationPlan,

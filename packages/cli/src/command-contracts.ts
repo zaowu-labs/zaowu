@@ -57,7 +57,7 @@ export const COMMAND_CONTRACTS: readonly CommandContract[] = [
     ['data', 'sample', 'ZaoWu Data Sample', false],
     ['data', 'sheets', 'ZaoWu Data Sheets', false],
     ['dev', 'status', 'ZaoWu Dev Status', false],
-    ['dev', 'review', 'ZaoWu Dev Review', false],
+    ['dev', 'review', 'ZaoWu Dev Review', true],
     ['dev', 'commit', 'ZaoWu Dev Commit', true],
     ['dev', 'sync', 'ZaoWu Dev Sync', true],
     ['doc', 'summary', 'ZaoWu Doc Summary', false],

@@ -17,6 +17,12 @@ describe('dev domain', () => {
       'status',
       'sync',
     ]);
+    expect(DEV_DOMAIN.capabilities).toMatchObject({
+      modifiesGit: true,
+      usesNetwork: true,
+      accessesSecrets: true,
+    });
+    expect(DEV_DOMAIN.commands.find((command) => command.name === 'review')?.sensitive).toBe(true);
   });
 
   it('previews a commit message from staged changes', () => {

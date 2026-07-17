@@ -3,6 +3,7 @@ export interface ParsedArgs {
   flags: ReadonlySet<string>;
   values: ReadonlyMap<string, string>;
   missingValues: readonly string[];
+  options: ReadonlySet<string>;
 }
 
 const FLAGS_WITH_VALUES = new Set([
@@ -23,6 +24,7 @@ export const parseArgs = (args: readonly string[]): ParsedArgs => {
   const flags = new Set<string>();
   const values = new Map<string, string>();
   const missingValues: string[] = [];
+  const options = new Set<string>();
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
@@ -36,6 +38,7 @@ export const parseArgs = (args: readonly string[]): ParsedArgs => {
       const eqIndex = arg.indexOf('=');
       const key = arg.slice(0, eqIndex);
       const val = arg.slice(eqIndex + 1);
+      options.add(key);
 
       if (FLAGS_WITH_VALUES.has(key)) {
         if (val) {
@@ -45,7 +48,12 @@ export const parseArgs = (args: readonly string[]): ParsedArgs => {
         }
         continue;
       }
+
+      flags.add(key);
+      continue;
     }
+
+    options.add(arg);
 
     if (FLAGS_WITH_VALUES.has(arg)) {
       if (args[index + 1] && !args[index + 1].startsWith('--')) {
@@ -65,6 +73,7 @@ export const parseArgs = (args: readonly string[]): ParsedArgs => {
     flags,
     values,
     missingValues,
+    options,
   };
 };
 

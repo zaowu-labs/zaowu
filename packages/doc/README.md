@@ -1,4 +1,4 @@
-# @zaowu/doc
+# @zaowu-labs/doc
 
 Document workflow package for ZaoWu.
 

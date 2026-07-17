@@ -1,9 +1,12 @@
 {
-  "name": "@zaowu/core",
-  "version": "1.0.0",
+  "name": "@zaowu-labs/core",
+  "version": "1.0.1",
   "description": "ZaoWu core types and error handling",
   "type": "module",
   "license": "Apache-2.0",
+  "publishConfig": {
+    "access": "public"
+  },
   "files": [
     "dist",
     "README.md"

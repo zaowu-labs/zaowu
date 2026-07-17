@@ -5,7 +5,7 @@ import {
   inspectData,
   sampleData,
   listSheets,
-} from '@zaowu/data';
+} from '@zaowu-labs/data';
 import {
   assertOperationPlanFingerprint,
   createContentOperationSubjects,

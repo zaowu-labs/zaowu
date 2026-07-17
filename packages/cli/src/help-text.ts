@@ -12,6 +12,10 @@ Options:
   --file <path>      Include a readable text file as input
   --provider <id>    Provider id, defaults to echo
   --model <name>     Provider model hint
+  --dry-run          Force preview mode
+  --yes              Confirm a network provider request
+  --plan-fingerprint <hash>
+                     Require the current plan to match a prior preview
   --json             Output machine-readable JSON`,
     providers: `ZaoWu AI Providers
 
@@ -57,6 +61,8 @@ Description:
 Options:
   --dry-run          Force preview mode
   --yes              Confirm supported non-shell steps
+  --plan-fingerprint <hash>
+                     Require the current plan to match a prior preview
   --json             Output machine-readable JSON`,
   },
   config: {
@@ -112,6 +118,8 @@ Options:
   --dry-run          Force preview mode
   --yes              Write the updated config file
   --global           Write the user-level config instead of the project config
+  --plan-fingerprint <hash>
+                     Require the current plan to match a prior preview
   --json             Output machine-readable JSON`,
     migrate: `ZaoWu Config Migrate
 
@@ -124,6 +132,8 @@ Description:
 Options:
   --dry-run          Force preview mode
   --yes              Write the migrated config file
+  --plan-fingerprint <hash>
+                     Require the current plan to match a prior preview
   --json             Output machine-readable JSON`,
   },
   data: {
@@ -162,6 +172,8 @@ Options:
   --sheet <name>     XLSX sheet name, defaults to the first sheet
   --dry-run          Force preview mode
   --yes              Write the cleaned output file
+  --plan-fingerprint <hash>
+                     Require the current plan to match a prior preview
   --json             Output machine-readable JSON`,
     schema: `ZaoWu Data Schema
 
@@ -222,6 +234,10 @@ Options:
   --ai               Use AI assistance to review changes
   --provider <id>    Specify AI provider (e.g. openai, anthropic, ollama, echo)
   --model <name>     Specify AI model hint
+  --dry-run          Force preview mode
+  --yes              Confirm an AI provider request
+  --plan-fingerprint <hash>
+                     Require the current plan to match a prior preview
   --json             Output machine-readable JSON`,
     commit: `ZaoWu Dev Commit
 
@@ -235,6 +251,10 @@ Options:
   --ai               Use AI assistance to generate the commit message
   --provider <id>    Specify AI provider (e.g. openai, anthropic, ollama, echo)
   --model <name>     Specify AI model hint
+  --dry-run          Force preview mode
+  --yes              Confirm an AI provider request
+  --plan-fingerprint <hash>
+                     Require the current plan to match a prior preview
   --json             Output machine-readable JSON`,
     sync: `ZaoWu Dev Sync
 
@@ -286,6 +306,8 @@ Options:
   --output <path>    Output file path
   --dry-run          Force preview mode
   --yes              Write the output file
+  --plan-fingerprint <hash>
+                     Require the current plan to match a prior preview
   --json             Output machine-readable JSON`,
     outline: `ZaoWu Doc Outline
 
@@ -331,6 +353,8 @@ Options:
   --source <value>   Plugin source id or local directory
   --dry-run          Force preview mode
   --yes              Write the local plugin manifest
+  --plan-fingerprint <hash>
+                     Require the current plan to match a prior preview
   --json             Output machine-readable JSON`,
     remove: `ZaoWu Plugin Remove
 
@@ -343,6 +367,8 @@ Description:
 Options:
   --dry-run          Force preview mode
   --yes              Remove the local plugin manifest
+  --plan-fingerprint <hash>
+                     Require the current plan to match a prior preview
   --json             Output machine-readable JSON`,
     validate: `ZaoWu Plugin Validate
 
@@ -391,6 +417,8 @@ Description:
 Options:
   --dry-run          Force preview mode
   --yes              Perform the network request
+  --plan-fingerprint <hash>
+                     Require the current plan to match a prior preview
   --json             Output machine-readable JSON`,
     fetch: `ZaoWu Web Fetch
 
@@ -403,6 +431,8 @@ Description:
 Options:
   --dry-run          Force preview mode
   --yes              Perform the network request
+  --plan-fingerprint <hash>
+                     Require the current plan to match a prior preview
   --json             Output machine-readable JSON`,
   },
 };

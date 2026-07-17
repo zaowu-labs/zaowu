@@ -1,167 +1,30 @@
 import path from 'node:path';
+import { ZaoWuError } from '@zaowu-labs/core';
+
+export { DEV_DOMAIN } from './domain.js';
+
 import {
-  createCapabilityLedger,
-  createOperationPlan,
-  hashOperationContent,
-  ZaoWuError,
-  type DomainDefinition,
-  type OperationPlan,
-} from '@zaowu/core';
+  DEV_CHANGE_CATEGORIES,
+  type DevChangeCategories,
+  type DevChangeCategory,
+  type DevCommandRunner,
+  type DevCommitResult,
+  type DevCommitSuggestion,
+  type DevDiffHunk,
+  type DevReviewFinding,
+  type DevReviewMode,
+  type DevReviewResult,
+  type DevStatusResult,
+  type DevSyncResult,
+  type GitChangeSummary,
+} from './contracts.js';
+import { syncDevRepoInternal, type DevSyncOptions } from './sync.js';
 
-export type DevCommandRunner = (
-  command: string,
-  args: readonly string[],
-  options?: { cwd?: string }
-) => string;
-
-export const DEV_CHANGE_CATEGORIES = [
-  'source',
-  'test',
-  'docs',
-  'dependency',
-  'workflow',
-  'config',
-  'other',
-] as const;
-
-export type DevChangeCategory = (typeof DEV_CHANGE_CATEGORIES)[number];
-
-export type DevChangeCategories = Record<DevChangeCategory, number>;
-
-export interface GitChangeSummary {
-  files: string[];
-  untrackedFiles: string[];
-  additions: number;
-  deletions: number;
-  categories: DevChangeCategories;
-}
-
-export interface DevCommitSuggestion {
-  type: string;
-  scope: string;
-  subject: string;
-  title: string;
-  body: string[];
-}
-
-export interface DevCommitResult {
-  schemaVersion: 1;
-  status: 'ok';
-  source: 'staged';
-  summary: GitChangeSummary;
-  suggestion: DevCommitSuggestion;
-  message: string;
-  findings: DevReviewFinding[];
-  recommendedChecks: string[];
-}
-
-export interface DevStatusResult {
-  schemaVersion: 1;
-  status: 'ok';
-  branch: string;
-  clean: boolean;
-  ahead: number;
-  behind: number;
-  staged: string[];
-  unstaged: string[];
-  untracked: string[];
-}
-
-export interface DevReviewFinding {
-  severity: 'info' | 'warning';
-  priority: 'low' | 'medium' | 'high';
-  category:
-    | 'summary'
-    | 'test'
-    | 'dependency'
-    | 'quality'
-    | 'performance' // reserved for future use
-    | 'execution'
-    | 'filesystem'
-    | 'network'
-    | 'security'
-    | 'git';
-  title: string;
-  detail: string;
-  filePath?: string;
-  hunkHeader?: string;
-  line?: number;
-}
-
-export const isDevFindingSeverity = (val: unknown): val is DevReviewFinding['severity'] =>
-  val === 'info' || val === 'warning';
-
-export const isDevFindingPriority = (val: unknown): val is DevReviewFinding['priority'] =>
-  val === 'low' || val === 'medium' || val === 'high';
-
-export const isDevFindingCategory = (val: unknown): val is DevReviewFinding['category'] =>
-  val === 'summary' ||
-  val === 'test' ||
-  val === 'dependency' ||
-  val === 'quality' ||
-  val === 'performance' ||
-  val === 'execution' ||
-  val === 'filesystem' ||
-  val === 'network' ||
-  val === 'security' ||
-  val === 'git';
-
-export interface DevDiffHunk {
-  filePath: string;
-  header: string;
-  addedLines: number;
-  removedLines: number;
-  startLine: number;
-  endLine: number;
-}
-
-export interface DevReviewResult {
-  schemaVersion: 1;
-  status: 'ok';
-  source: 'staged' | 'working-tree';
-  summary: GitChangeSummary;
-  diffHunks: DevDiffHunk[];
-  findings: DevReviewFinding[];
-  recommendedChecks: string[];
-}
-
-export type DevReviewMode = 'auto' | 'staged' | 'worktree';
+export * from './contracts.js';
 
 const DEV_REVIEW_SCHEMA_VERSION = 1;
 const DEV_COMMIT_SCHEMA_VERSION = 1;
 const DEV_STATUS_SCHEMA_VERSION = 1;
-
-export const DEV_DOMAIN: DomainDefinition = {
-  name: 'dev',
-  summary: 'Developer workflows for review, commit, and repository assistance',
-  capabilities: createCapabilityLedger({
-    modifiesGit: true,
-  }),
-  commands: [
-    {
-      name: 'commit',
-      summary: 'Preview and prepare a Git commit message',
-      status: 'available',
-      sensitive: true,
-    },
-    {
-      name: 'review',
-      summary: 'Review a repository change without modifying files',
-      status: 'available',
-    },
-    {
-      name: 'status',
-      summary: 'Show Git working tree status for the current project',
-      status: 'available',
-    },
-    {
-      name: 'sync',
-      summary: 'Synchronize the local branch with the same-named branch on origin',
-      status: 'available',
-      sensitive: true,
-    },
-  ],
-};
 
 const runGit = (commandRunner: DevCommandRunner, args: readonly string[], cwd?: string): string => {
   try {
@@ -1081,137 +944,7 @@ export const reviewDevChanges = (
   };
 };
 
-export interface DevSyncResult {
-  schemaVersion: 1;
-  status: 'ok' | 'preview';
-  branch: string;
-  previousCommit: string;
-  currentCommit: string;
-  output: string;
-  operationPlan?: OperationPlan;
-}
-
-const getDevSyncDiscardRisks = (status: DevStatusResult): string[] => {
-  const risks: string[] = [];
-
-  if (status.staged.length > 0) {
-    risks.push(`${status.staged.length} staged file(s)`);
-  }
-
-  if (status.unstaged.length > 0) {
-    risks.push(`${status.unstaged.length} unstaged file(s)`);
-  }
-
-  if (status.ahead > 0) {
-    risks.push(`${status.ahead} local commit(s) ahead of origin/${status.branch}`);
-  }
-
-  return risks;
-};
-
 export const syncDevRepo = (
   commandRunner: DevCommandRunner,
-  options: { cwd?: string; yes?: boolean; discardLocal?: boolean } = {}
-): DevSyncResult => {
-  const status = getDevStatus(commandRunner, options);
-
-  if (status.branch === 'unknown') {
-    throw new ZaoWuError({
-      code: 'GIT_COMMAND_FAILED',
-      message: 'Could not determine current branch.',
-      why: 'ZaoWu tried to read the current Git branch, but it is not a valid branch (possibly detached HEAD).',
-      fix: 'Switch to a valid branch (e.g., `git checkout main`) and try again.',
-    });
-  }
-
-  const previousCommit = runGit(commandRunner, ['rev-parse', 'HEAD'], options.cwd).trim();
-  const discardRisks = getDevSyncDiscardRisks(status);
-  const hasDiscardRisk = discardRisks.length > 0;
-  const statusFingerprint = hashOperationContent(
-    JSON.stringify({
-      branch: status.branch,
-      head: previousCommit,
-      staged: status.staged,
-      unstaged: status.unstaged,
-      untracked: status.untracked,
-      ahead: status.ahead,
-    })
-  );
-
-  const operationPlan = createOperationPlan({
-    risk: 'high',
-    confirmationRequired: !options.yes,
-    subjects: [
-      `git:${status.branch}`,
-      `git-head:${previousCommit}`,
-      `git-status-sha256:${statusFingerprint}`,
-      `git-discard-risk:${hasDiscardRisk ? 'yes' : 'no'}`,
-    ],
-    reads: ['current Git branch', 'current HEAD commit', 'current Git status'],
-    executes: ['git fetch origin', `git reset --hard origin/${status.branch}`],
-    network: ['git remote origin'],
-    notes: [
-      `This command will fetch remote updates and hard-reset your local \`${status.branch}\` branch to \`origin/${status.branch}\`.`,
-      'WARNING: Any local uncommitted changes or diverged local commits will be discarded.',
-      ...(hasDiscardRisk
-        ? [
-            `Local discard risk: ${discardRisks.join(', ')}.`,
-            'Confirmed sync requires both --yes and --discard-local while local discard risk is present.',
-          ]
-        : ['No tracked local changes or local ahead commits detected.']),
-      ...(status.untracked.length > 0
-        ? [
-            `Untracked files detected: ${status.untracked.length}; git reset --hard will not delete them.`,
-          ]
-        : []),
-    ],
-  });
-
-  if (!options.yes) {
-    return {
-      schemaVersion: 1,
-      status: 'preview',
-      branch: status.branch,
-      previousCommit,
-      currentCommit: previousCommit,
-      output: hasDiscardRisk
-        ? `Preview: ZaoWu will run \`git fetch origin\` and \`git reset --hard origin/${status.branch}\`. Re-run with --yes --discard-local only if the local discard risk is acceptable.`
-        : `Preview: ZaoWu will run \`git fetch origin\` and \`git reset --hard origin/${status.branch}\`.`,
-      operationPlan,
-    };
-  }
-
-  if (hasDiscardRisk && !options.discardLocal) {
-    throw new ZaoWuError({
-      code: 'GIT_SYNC_DISCARD_CONFIRMATION_REQUIRED',
-      message: 'Local Git changes require explicit discard confirmation.',
-      why: `ZaoWu found local state that would be discarded by the hard reset: ${discardRisks.join(', ')}.`,
-      fix: 'Review the preview output. If discarding that local state is intended, re-run with `--yes --discard-local --plan-fingerprint <hash>`.',
-    });
-  }
-
-  runGit(commandRunner, ['fetch', 'origin'], options.cwd);
-
-  try {
-    runGit(commandRunner, ['reset', '--hard', `origin/${status.branch}`], options.cwd);
-  } catch {
-    throw new ZaoWuError({
-      code: 'GIT_COMMAND_FAILED',
-      message: 'Git reset failed.',
-      why: `ZaoWu ran \`git reset --hard origin/${status.branch}\`, but origin/${status.branch} does not exist or fetch failed.`,
-      fix: `Verify the remote branch origin/${status.branch} exists and you have internet access.`,
-    });
-  }
-
-  const currentCommit = runGit(commandRunner, ['rev-parse', 'HEAD'], options.cwd).trim();
-
-  return {
-    schemaVersion: 1,
-    status: 'ok',
-    branch: status.branch,
-    previousCommit,
-    currentCommit,
-    output: `Successfully synchronized branch \`${status.branch}\` to \`origin/${status.branch}\`.`,
-    operationPlan,
-  };
-};
+  options: DevSyncOptions = {}
+): DevSyncResult => syncDevRepoInternal(commandRunner, options, getDevStatus);

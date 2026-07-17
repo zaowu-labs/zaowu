@@ -48,7 +48,7 @@ const getForbiddenWorkspaceImports = (packageName: string): string[] => {
     forbidden.push(...featurePackages);
   }
 
-  return forbidden.map((candidate) => `@zaowu/${candidate}`);
+  return forbidden.map((candidate) => `@zaowu-labs/${candidate}`);
 };
 
 const readPackageDependencies = async (packageName: string): Promise<string[]> => {
@@ -61,7 +61,7 @@ const readPackageDependencies = async (packageName: string): Promise<string[]> =
   return [
     ...Object.keys(packageJson.dependencies ?? {}),
     ...Object.keys(packageJson.devDependencies ?? {}),
-  ].filter((dependency) => dependency.startsWith('@zaowu/'));
+  ].filter((dependency) => dependency.startsWith('@zaowu-labs/'));
 };
 
 describe('package boundary guard', () => {

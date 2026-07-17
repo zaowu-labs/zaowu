@@ -1,6 +1,6 @@
 {
   "name": "zaowu",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "packageManager": "pnpm@10.34.1",
   "description": "Open-source AI toolkit for development, automation, documents, data, teaching, plugins, and workflows.",
@@ -31,7 +31,8 @@
     "lint": "eslint .",
     "format": "prettier --write \"**/*.{ts,tsx,json,md,yml,yaml}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,json,md,yml,yaml}\"",
-    "verify": "corepack pnpm build && corepack pnpm verify:schemas && corepack pnpm verify:fixtures && corepack pnpm verify:json-contracts && corepack pnpm verify:capabilities && corepack pnpm verify:smoke && corepack pnpm test && corepack pnpm lint && corepack pnpm format:check && corepack pnpm verify:release && corepack pnpm pack:check && corepack pnpm verify:pack-install",
+    "verify": "corepack pnpm build && corepack pnpm verify:structure && corepack pnpm verify:schemas && corepack pnpm verify:fixtures && corepack pnpm verify:json-contracts && corepack pnpm verify:capabilities && corepack pnpm verify:smoke && corepack pnpm test && corepack pnpm lint && corepack pnpm format:check && corepack pnpm verify:release && corepack pnpm pack:check && corepack pnpm verify:pack-install",
+    "verify:structure": "node scripts/verify-source-structure.mjs",
     "verify:schemas": "node scripts/verify-schemas.mjs",
     "verify:fixtures": "node scripts/verify-rich-fixtures.mjs",
     "verify:json-contracts": "node scripts/verify-json-contracts.mjs",

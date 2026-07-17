@@ -1,9 +1,11 @@
-# @zaowu/data
+# @zaowu-labs/data
 
 Data workflow package for ZaoWu.
 
 This package reads CSV, TSV, JSON, and XLSX inputs for inspection, lightweight
 analysis, schema inference, sampling, and preview-first cleaning.
+XLSX support uses the official SheetJS `0.20.3` distribution because the npm
+registry package is no longer the current upstream release channel.
 
 Schema inference recognizes numbers, booleans, ISO or `MM/DD/YYYY` calendar
 dates, percentages, common currency values, strings, empty columns, and mixed

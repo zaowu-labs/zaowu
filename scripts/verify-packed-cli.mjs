@@ -10,17 +10,17 @@ const scratch = mkdtempSync(path.join(tmpdir(), 'zaowu-pack-install-'));
 const appDir = path.join(scratch, 'app');
 const tarballDir = path.join(appDir, 'tarballs');
 const packageNamesByTarballPrefix = new Map([
-  ['zaowu-ai-', '@zaowu/ai'],
-  ['zaowu-auto-', '@zaowu/auto'],
-  ['zaowu-cli-', '@zaowu/cli'],
-  ['zaowu-config-', '@zaowu/config'],
-  ['zaowu-core-', '@zaowu/core'],
-  ['zaowu-data-', '@zaowu/data'],
-  ['zaowu-dev-', '@zaowu/dev'],
-  ['zaowu-doc-', '@zaowu/doc'],
-  ['zaowu-plugin-', '@zaowu/plugin'],
-  ['zaowu-teach-', '@zaowu/teach'],
-  ['zaowu-web-', '@zaowu/web'],
+  ['zaowu-labs-ai-', '@zaowu-labs/ai'],
+  ['zaowu-labs-auto-', '@zaowu-labs/auto'],
+  ['zaowu-labs-cli-', '@zaowu-labs/cli'],
+  ['zaowu-labs-config-', '@zaowu-labs/config'],
+  ['zaowu-labs-core-', '@zaowu-labs/core'],
+  ['zaowu-labs-data-', '@zaowu-labs/data'],
+  ['zaowu-labs-dev-', '@zaowu-labs/dev'],
+  ['zaowu-labs-doc-', '@zaowu-labs/doc'],
+  ['zaowu-labs-plugin-', '@zaowu-labs/plugin'],
+  ['zaowu-labs-teach-', '@zaowu-labs/teach'],
+  ['zaowu-labs-web-', '@zaowu-labs/web'],
 ]);
 
 const getCorepackCommand = (args) =>
@@ -56,7 +56,7 @@ try {
     .sort();
 
   assert(
-    tarballs.some((filePath) => path.basename(filePath).startsWith('zaowu-cli-')),
+    tarballs.some((filePath) => path.basename(filePath).startsWith('zaowu-labs-cli-')),
     'CLI tarball should be present.'
   );
   assert(
@@ -99,7 +99,7 @@ try {
 
   const version = JSON.parse(run(['pnpm', 'exec', 'zw', '--version', '--json'], { cwd: appDir, capture: true }));
   assert(version.status === 'ok', 'Packed CLI should return version JSON.');
-  assert(version.version === '1.0.0', 'Packed CLI should report the package version.');
+  assert(version.version === '1.0.1', 'Packed CLI should report the package version.');
 
   const help = run(['pnpm', 'exec', 'zw', '--help'], { cwd: appDir, capture: true });
   assert(help.includes('ZaoWu'), 'Packed CLI help should mention ZaoWu.');

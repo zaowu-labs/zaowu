@@ -1,4 +1,4 @@
-# @zaowu/core
+# @zaowu-labs/core
 
 Core shared package for ZaoWu.
 

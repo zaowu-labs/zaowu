@@ -1,4 +1,4 @@
-# @zaowu/config
+# @zaowu-labs/config
 
 Configuration lifecycle package for ZaoWu.
 

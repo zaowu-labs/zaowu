@@ -1,4 +1,4 @@
-# @zaowu/dev
+# @zaowu-labs/dev
 
 Developer workflow package for ZaoWu.
 
