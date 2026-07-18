@@ -1,7 +1,6 @@
 # ZaoWu Release Readiness
 
-ZaoWu is not ready for public npm publishing yet. This document defines the
-foundation checks that must pass before any future release work starts.
+ZaoWu publishes public packages under `@zaowu-labs`. This document defines the gates that must pass for every release.
 
 ## Current Gate
 
@@ -63,19 +62,18 @@ representative expected-error JSON and checks the error schema code enum
 against the core error registry. It also checks repeated command schema
 fragments reference the shared command schema definitions.
 
-## Not Yet Ready
+## Trusted publishing setup
 
-Do not publish packages until these are intentionally designed:
+The repository includes `.github/workflows/release.yml`. Before using it, configure every npm package to trust:
 
-- reviewed release workflow with Trusted Publishing or an equivalent provenance
-  mechanism
-- npm publish permissions and rollback procedure
-- public support policy
-- backward compatibility policy beyond the current versioned JSON contracts
+- repository `zaowu-labs/zaowu`
+- workflow filename `release.yml`
+- GitHub environment `npm-production`
 
-Versioning, changelog, branch, tag, and local preflight rules are defined in
-`docs/RELEASE_POLICY.md`.
-The operational sequence is defined in `docs/RELEASE_CHECKLIST.md`.
+Protect the environment with required reviewers. The workflow is manual-only, checks out an existing tag, verifies tag/package version alignment, runs the full release gate, and publishes in dependency order with npm provenance.
+
+The workflow uses Node.js 24 so its bundled npm satisfies Trusted Publishing's
+Node.js 22.14.0+ and npm 11.5.1+ requirements.
 
 ## Manual Preflight
 

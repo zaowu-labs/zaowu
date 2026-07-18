@@ -251,3 +251,17 @@ corepack pnpm verify
 ```
 
 Any command behavior change should also include manual CLI verification.
+
+## Commercial Product Track
+
+Commercial work proceeds alongside the open-source quality bar without making the local CLI cloud-dependent.
+
+Preferred order:
+
+1. reliable npm onboarding and trusted releases
+2. documented security, privacy, support, and compatibility commitments
+3. opt-in organization policy and audit contracts that exclude user content by default
+4. team configuration, approvals, usage controls, and supported release channels
+5. enterprise identity and compliance integrations only after the team contracts are stable
+
+The boundary between the community CLI and future paid layers is maintained in `docs/COMMERCIALIZATION.md`.

@@ -40,7 +40,13 @@ Examples:
   zw doctor --json
   zw init --dry-run
   zw init --yes
-  zw dev --help`;
+  zw dev --help
+
+Documentation:
+  https://github.com/zaowu-labs/zaowu#quick-start
+
+Support:
+  https://github.com/zaowu-labs/zaowu/issues`;
 };
 
 export const formatDomainHelp = (domain: DomainDefinition): string => {

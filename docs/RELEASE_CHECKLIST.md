@@ -1,8 +1,6 @@
 # ZaoWu Release Checklist
 
-Use this checklist only after the release workflow and organization publishing
-permissions described in `docs/RELEASE_POLICY.md` are intentionally enabled.
-Until then, public npm publishing remains blocked.
+Use this checklist with the protected `npm-production` environment and npm Trusted Publisher configuration described in `docs/RELEASE_POLICY.md`.
 
 ## Candidate Preparation
 

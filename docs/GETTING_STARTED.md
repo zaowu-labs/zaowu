@@ -1,32 +1,34 @@
 ﻿# Getting Started
 
-This guide is for local development of ZaoWu while the CLI foundation is still
-run from the repository workspace.
+This guide starts with the published CLI. Repository development instructions are provided separately below.
 
 ## Requirements
 
 - Node.js 20.19.0 or newer
-- pnpm `>=10.34.1 <11`
 - Git
 
-Use Corepack so pnpm follows the version pinned in `package.json`:
+## Install
+
+```bash
+npm install -g @zaowu-labs/cli@1.0.2
+zw --version
+zw doctor
+```
+
+To try the CLI without installing globally:
+
+```bash
+npx --package @zaowu-labs/cli@1.0.2 zw --help
+```
+
+## Repository development
+
+Contributors also need pnpm `>=10.34.1 <11`. Use Corepack so the workspace follows the pinned version:
 
 ```bash
 corepack enable
 corepack pnpm install --frozen-lockfile
-```
-
-## Build And Run
-
-Build all packages:
-
-```bash
 corepack pnpm build
-```
-
-Run the workspace `zw` binary:
-
-```bash
 corepack pnpm --silent zw --help
 ```
 

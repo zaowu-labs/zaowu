@@ -2,7 +2,10 @@
 
 ## Unreleased
 
-- No unreleased changes.
+- Added a protected, manual Trusted Publishing workflow with tag/version validation and provenance.
+- Reworked public onboarding around the published npm CLI instead of repository-only commands.
+- Added explicit security reporting, support, privacy, and open-core commercialization boundaries.
+- Added documentation and support links to root CLI help.
 
 ## 1.0.2 - 2026-07-17
 

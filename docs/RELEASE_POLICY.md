@@ -1,7 +1,6 @@
 # ZaoWu Release Policy
 
-ZaoWu is not ready for public npm publishing yet. This policy defines the rules
-that must be true before the first publish and every publish after that.
+ZaoWu publishes public npm packages under `@zaowu-labs`. This policy defines the rules for every subsequent release.
 
 ## Versioning
 
@@ -39,8 +38,7 @@ that must be true before the first publish and every publish after that.
 
 ## Provenance
 
-- The first public npm publish must happen from a reviewed GitHub Actions
-  release workflow, not from an ad hoc local shell.
+- Future public releases should use the reviewed GitHub Actions release workflow rather than an ad hoc local shell.
 - npm provenance must be enabled for public packages once publishing is turned
   on.
 - Release artifacts must be built from the exact commit tagged for the release.
@@ -61,17 +59,16 @@ References:
 
 ## Publish Permissions
 
-- npm publishing credentials must be scoped to the `@zaowu` packages and held by
+- npm publishing credentials must be scoped to the `@zaowu-labs` packages and held by
   the organization, not an individual workstation.
 - GitHub release workflow permissions must be least-privilege and limited to the
   publish job that needs them.
 - The publish job must not run on pull requests, forks, or unreviewed branches.
-- Manual local publish is blocked until the release workflow, permissions, and
-  rollback procedure are documented and tested.
+- Manual local publish is reserved for documented recovery when Trusted Publishing is unavailable.
 
 ## Release Workflow Requirements
 
-Do not add or enable a publishing workflow until all of these are true:
+The publishing workflow must preserve all of these rules:
 
 - The workflow is triggered only by reviewed release tags from `main`.
 - The workflow checks out the exact tagged commit.

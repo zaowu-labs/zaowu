@@ -40,20 +40,19 @@ ZaoWu is structured as a monorepo containing specialized domain modules. Here is
 ### 1. Prerequisites
 
 - **Node.js**: `v20.19.0` or newer
-- **pnpm**: `v10.34.1` or newer (Corepack-managed)
+- **npm**: included with Node.js
 
 ### 2. Installation
 
-Initialize the workspace and compile all packages:
+Install the public CLI:
 
 ```bash
-# Enable corepack and install dependencies
-corepack enable
-corepack pnpm install
-
-# Build all packages and run checks
-corepack pnpm verify
+npm install -g @zaowu-labs/cli@1.0.2
+zw --version
+zw doctor
 ```
+
+Use `npx --package @zaowu-labs/cli@1.0.2 zw --help` when you want to try ZaoWu without a global install.
 
 ### 3. Basic CLI Executions
 
@@ -61,10 +60,10 @@ Everything starts with `zw`. Try these diagnostics to verify your local environm
 
 ```bash
 # Run environment diagnostics and check config
-corepack pnpm zw doctor
+zw doctor
 
 # Get command-line help
-corepack pnpm zw --help
+zw --help
 ```
 
 ---
@@ -78,11 +77,11 @@ local Ollama daemon and run:
 
 ```bash
 # Set your active provider to Ollama
-corepack pnpm zw config set ai.provider ollama --yes
+zw config set ai.provider ollama --yes
 
 # Perform an AI-assisted code review of your current branch diffs
-corepack pnpm zw dev review --ai --provider echo
-corepack pnpm zw dev review --ai --provider ollama --yes
+zw dev review --ai --provider echo
+zw dev review --ai --provider ollama --yes
 ```
 
 ### 📄 Document Conversion (DOCX to Markdown)
@@ -91,7 +90,7 @@ Extract semantic Markdown documents from DOCX without bloated office dependencie
 
 ```bash
 # Convert a document and print the structure
-corepack pnpm zw doc convert report.docx --format markdown
+zw doc convert report.docx --format markdown
 ```
 
 ### 📝 Canvas LMS Quiz Export
@@ -99,7 +98,7 @@ corepack pnpm zw doc convert report.docx --format markdown
 Generate mock questions from raw study material and export directly to a Canvas-compliant CSV quiz template:
 
 ```bash
-corepack pnpm zw teach quiz "Variables store values. Functions group behavior." --format canvas-csv
+zw teach quiz "Variables store values. Functions group behavior." --format canvas-csv
 ```
 
 ### ⚙️ Safe Workflow Automation
@@ -110,10 +109,10 @@ visible but blocked:
 
 ```bash
 # Preview the execution plan of a workflow
-corepack pnpm zw auto plan examples/workflows/blocked-shell.yml
+zw auto plan examples/workflows/blocked-shell.yml
 
 # Preview the exact file target of a structured write workflow
-corepack pnpm zw auto plan examples/workflows/write-file.yml
+zw auto plan examples/workflows/write-file.yml
 ```
 
 ---
@@ -142,6 +141,14 @@ The project code is divided into modular domain packages using pnpm workspaces:
 
 ## 🧑‍💻 Developer Contribution
 
+Repository development uses Corepack and pnpm:
+
+```bash
+corepack enable
+corepack pnpm install --frozen-lockfile
+corepack pnpm verify
+```
+
 ### Adding a New Command
 
 1. Define the action capabilities in your domain's ledger (e.g. `packages/dev/src/index.ts`).
@@ -159,3 +166,5 @@ The project code is divided into modular domain packages using pnpm workspaces:
 Made with ❤️ by ZaoWu Labs.
 
 </div>
+
+Security: [SECURITY.md](SECURITY.md) · Support: [SUPPORT.md](SUPPORT.md) · Privacy: [docs/PRIVACY.md](docs/PRIVACY.md) · Commercial direction: [docs/COMMERCIALIZATION.md](docs/COMMERCIALIZATION.md)

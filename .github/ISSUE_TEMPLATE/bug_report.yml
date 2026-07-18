@@ -1,0 +1,71 @@
+name: Bug report
+description: Report a reproducible ZaoWu defect
+title: '[Bug]: '
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: Do not include API keys, tokens, private files, or unredacted prompts. Security vulnerabilities belong in private vulnerability reporting.
+  - type: input
+    id: version
+    attributes:
+      label: ZaoWu version
+      description: Output from `zw --version`.
+      placeholder: 1.0.2
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Operating system, Node.js version, and installation method.
+      placeholder: Windows 11, Node.js 20.19.0, npm global install
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Redacted diagnostics
+      description: Paste relevant `zw doctor --json` output after removing private paths or identifiers.
+      render: json
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Include the command shape and smallest safe input needed to reproduce the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: dropdown
+    id: impact
+    attributes:
+      label: Safety impact
+      options:
+        - No file, network, secret, Git, or execution impact
+        - File read or write behavior
+        - Network or AI provider behavior
+        - Git or shell execution behavior
+        - Possible security vulnerability (use private reporting instead)
+    validations:
+      required: true
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: Checklist
+      options:
+        - label: I removed secrets, private content, and identifying paths.
+          required: true
+        - label: I checked that the issue is not already reported.
+          required: true

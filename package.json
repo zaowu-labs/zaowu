@@ -38,6 +38,7 @@
     "verify:json-contracts": "node scripts/verify-json-contracts.mjs",
     "verify:capabilities": "node scripts/verify-command-capability-matrix.mjs",
     "verify:release": "node scripts/verify-release-readiness.mjs",
+    "verify:release-candidate": "node scripts/verify-release-candidate.mjs",
     "verify:smoke": "node scripts/verify-cli-smoke.mjs",
     "verify:pack-install": "node scripts/verify-packed-cli.mjs",
     "pack:check": "corepack pnpm --filter \"./packages/*\" pack --dry-run",

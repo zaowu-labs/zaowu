@@ -28,12 +28,18 @@ const rootPackage = await readJson('package.json');
 assert(rootPackage.private === true, 'Root package must stay private.');
 assert(rootPackage.packageManager === 'pnpm@10.34.1', 'Root packageManager must pin pnpm.');
 assert(rootPackage.engines?.node === '>=20.19.0', 'Root package must require Node.js >=20.19.0.');
-assert(rootPackage.engines?.pnpm === '>=10.34.1 <11', 'Root package must require pnpm >=10.34.1 <11.');
+assert(
+  rootPackage.engines?.pnpm === '>=10.34.1 <11',
+  'Root package must require pnpm >=10.34.1 <11.'
+);
 assert(
   rootPackage.repository?.url === 'https://github.com/zaowu-labs/zaowu.git',
   'Root repository URL must point to zaowu-labs/zaowu.'
 );
-assert(rootPackage.homepage === 'https://github.com/zaowu-labs/zaowu', 'Root homepage must point to the org repo.');
+assert(
+  rootPackage.homepage === 'https://github.com/zaowu-labs/zaowu',
+  'Root homepage must point to the org repo.'
+);
 assert(rootPackage.license === 'Apache-2.0', 'Root license must be Apache-2.0.');
 
 const releasePolicy = await readText(
@@ -59,7 +65,7 @@ for (const requiredText of [
   'https://docs.github.com/en/actions/concepts/security/openid-connect',
   'corepack pnpm install --frozen-lockfile',
   'corepack pnpm verify',
-  'Do not add or enable a publishing workflow until all of these are true',
+  'The publishing workflow must preserve all of these rules',
   'Re-run the full release gate before publishing a corrective version',
 ]) {
   assert(
@@ -70,6 +76,54 @@ for (const requiredText of [
 
 const changelog = await readText('CHANGELOG.md must exist before release work.', 'CHANGELOG.md');
 assert(changelog.includes('## Unreleased'), 'CHANGELOG.md must include an Unreleased section.');
+
+const releaseWorkflow = await readText(
+  'A protected release workflow must exist.',
+  '.github',
+  'workflows',
+  'release.yml'
+);
+for (const requiredText of [
+  'workflow_dispatch:',
+  'environment: npm-production',
+  'id-token: write',
+  'node-version: 24.x',
+  'package-manager-cache: false',
+  'fetch-depth: 0',
+  'corepack pnpm verify:release-candidate',
+  'corepack pnpm verify',
+  'publish --access public --provenance --no-git-checks',
+]) {
+  assert(
+    releaseWorkflow.includes(requiredText),
+    `Release workflow must include protected publishing text: ${requiredText}.`
+  );
+}
+
+const securityPolicy = await readText('SECURITY.md must exist.', 'SECURITY.md');
+assert(
+  securityPolicy.includes('/security/advisories/new'),
+  'SECURITY.md must link to private vulnerability reporting.'
+);
+const supportPolicy = await readText('SUPPORT.md must exist.', 'SUPPORT.md');
+assert(supportPolicy.includes('zw doctor --json'), 'SUPPORT.md must request diagnostic output.');
+for (const template of ['bug_report.yml', 'feature_request.yml', 'config.yml']) {
+  await readText(`Issue template ${template} must exist.`, '.github', 'ISSUE_TEMPLATE', template);
+}
+const privacyPolicy = await readText('Privacy policy must exist.', 'docs', 'PRIVACY.md');
+assert(
+  privacyPolicy.includes('does not collect product analytics or telemetry by default'),
+  'Privacy policy must disclose the telemetry default.'
+);
+const commercialization = await readText(
+  'Commercialization boundary must exist.',
+  'docs',
+  'COMMERCIALIZATION.md'
+);
+assert(
+  commercialization.includes('No cloud dependency for basic local CLI use.'),
+  'Commercialization boundary must preserve local CLI use.'
+);
 
 const releaseChecklist = await readText(
   'Release checklist must be documented before release work.',

@@ -16,6 +16,7 @@ describe('executeCli', () => {
     expect(result.stdout).toContain('Usage:');
     expect(result.stdout).toContain('zw doctor');
     expect(result.stdout).toContain('zw dev');
+    expect(result.stdout).toContain('https://github.com/zaowu-labs/zaowu#quick-start');
   });
 
   it('shows version output', async () => {
