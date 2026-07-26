@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- Added macOS to the CI matrix alongside Ubuntu and Windows.
+- Supported the standard `--` end-of-options separator so targets beginning
+  with dashes stay expressible, and hardened option parsing edge cases.
+- Derived command-contract sensitivity from each domain package's own command
+  declaration instead of a second hand-maintained boolean table, and added a
+  contract test keeping every command's help text in exact sync with its
+  supported option list.
+- Refused `zw data clean` on JSON input instead of silently converting it to
+  CSV output.
+- Decoded numeric HTML entities (`&#233;`, `&#x2014;`) during document text
+  extraction, and reported a missing mammoth markdown capability as an
+  actionable error instead of "file was not readable".
+- Kept dotted names and decimals (`Node.js`, `3.14`) whole when splitting
+  teaching material into sentences.
+- Honored the response `Content-Type` charset when decoding streamed web
+  bodies, with UTF-8 fallback for unknown labels.
+- Added direct tests for the Windows command sanitizer and CLI version
+  resolution.
 - Capped AI provider retry waits at 30 seconds so a server-controlled
   `Retry-After` header can no longer stall the CLI indefinitely.
 - Fixed dormant shell-safety rules for standalone `base64 -d`/`--decode` and

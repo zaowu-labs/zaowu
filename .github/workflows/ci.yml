@@ -22,6 +22,7 @@ jobs:
         os:
           - ubuntu-latest
           - windows-latest
+          - macos-latest
         node-version:
           - 20.19.0
           - 24.x

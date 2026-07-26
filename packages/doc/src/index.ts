@@ -279,20 +279,33 @@ const stripHtmlTags = (html: string): string => {
   clean = clean.replace(/<\/(p|div|li)>\s*/gi, '\n');
   clean = clean.replace(/<br\s*\/?>\s*/gi, '\n');
   clean = clean.replace(/<[^>]+>/g, ' ');
+  const decodeCodePoint = (match: string, codePoint: number): string => {
+    if (!Number.isInteger(codePoint) || codePoint <= 0 || codePoint > 0x10ffff) {
+      return match;
+    }
+
+    try {
+      return String.fromCodePoint(codePoint);
+    } catch {
+      return match;
+    }
+  };
+
+  // Decode numeric entities generically, then named entities. `&amp;` is
+  // decoded last so `&amp;#60;` stays literal text instead of becoming `<`.
   clean = clean
     .replaceAll('&nbsp;', ' ')
-    .replaceAll('&amp;', '&')
+    .replace(/&#x([0-9a-f]+);/gi, (match, hex: string) =>
+      decodeCodePoint(match, Number.parseInt(hex, 16))
+    )
+    .replace(/&#(\d+);/g, (match, decimal: string) =>
+      decodeCodePoint(match, Number.parseInt(decimal, 10))
+    )
     .replaceAll('&lt;', '<')
     .replaceAll('&gt;', '>')
     .replaceAll('&quot;', '"')
     .replaceAll('&apos;', "'")
-    .replaceAll('&#39;', "'")
-    .replaceAll('&#x27;', "'")
-    .replaceAll('&#x22;', '"')
-    .replaceAll('&#34;', '"')
-    .replaceAll('&#38;', '&')
-    .replaceAll('&#60;', '<')
-    .replaceAll('&#62;', '>');
+    .replaceAll('&amp;', '&');
   return clean
     .split(/\r?\n/)
     .map((line) =>
@@ -357,16 +370,28 @@ const readTextDocument = async (
 
     if (extension === '.docx') {
       const mammoth = await import('mammoth');
+      const mammothModule = mammoth as unknown as {
+        extractRawText: (options: { buffer: Buffer }) => Promise<{ value: string }>;
+        convertToMarkdown?: (options: { buffer: Buffer }) => Promise<{ value: string }>;
+      };
+
+      // convertToMarkdown is a version-dependent mammoth export. Distinguish a
+      // missing capability from an unreadable file so the error is actionable.
+      if (format !== 'text' && typeof mammothModule.convertToMarkdown !== 'function') {
+        throw new ZaoWuError({
+          code: 'DOCUMENT_FORMAT_UNSUPPORTED',
+          message: 'DOCX markdown conversion is not available.',
+          why: 'The installed mammoth build does not provide `convertToMarkdown`, so ZaoWu cannot produce Markdown from this DOCX.',
+          fix: 'Use `--format text` for raw text extraction, or update the `mammoth` dependency to a build with markdown support.',
+        });
+      }
+
       const parsed =
         format === 'text'
-          ? await mammoth.extractRawText({
+          ? await mammothModule.extractRawText({
               buffer: await readFile(filePath),
             })
-          : await (
-              mammoth as unknown as {
-                convertToMarkdown: (options: { buffer: Buffer }) => Promise<{ value: string }>;
-              }
-            ).convertToMarkdown({
+          : await mammothModule.convertToMarkdown!({
               buffer: await readFile(filePath),
             });
 

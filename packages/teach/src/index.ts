@@ -70,7 +70,10 @@ const getTopic = (content: string): string => {
 
 const getSentences = (content: string): string[] =>
   content
-    .split(/[.!?\n。！？]+/)
+    // Latin sentence enders only split when followed by whitespace or end of
+    // text, so `Node.js`, `3.14`, and `v1.0` stay whole. CJK enders and
+    // newlines split anywhere, since CJK text has no inter-word spaces.
+    .split(/[.!?]+(?=\s|$)|[。！？]+|\r?\n/)
     .map((sentence) => sentence.trim())
     .filter(Boolean);
 

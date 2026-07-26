@@ -245,6 +245,32 @@ export const inspectWebTarget = async (
   };
 };
 
+/**
+ * Text decoder honoring the response `Content-Type` charset. Unknown or
+ * missing charsets fall back to UTF-8 so decoding never fails outright.
+ */
+const createResponseTextDecoder = (response: WebResponseLike): InstanceType<typeof TextDecoder> => {
+  let contentType: string | undefined;
+
+  response.headers?.forEach((value, key) => {
+    if (key.toLowerCase() === 'content-type') {
+      contentType = value;
+    }
+  });
+
+  const charset = /charset=["']?([^;"'\s]+)/i.exec(contentType ?? '')?.[1];
+
+  if (charset) {
+    try {
+      return new TextDecoder(charset);
+    } catch {
+      // Unrecognized charset label — fall through to UTF-8.
+    }
+  }
+
+  return new TextDecoder();
+};
+
 export const fetchWebTarget = async (
   url: string,
   options: {
@@ -278,7 +304,7 @@ export const fetchWebTarget = async (
   try {
     if (response.body) {
       const reader = response.body.getReader();
-      const decoder = new TextDecoder();
+      const decoder = createResponseTextDecoder(response);
       const bodyDeadline = Date.now() + timeoutMs;
       let preview = '';
       let observedCharacters = 0;

@@ -9,6 +9,45 @@ import { ACTION_HELP } from './help-text';
 import { BOOLEAN_OPTIONS, COMMAND_OPTIONS, VALUE_OPTIONS } from './option-registry';
 import { DEFAULT_CONFIG_FILE_NAME, DOMAIN_DEFINITIONS, executeCli } from './run';
 
+describe('action help / option registry consistency', () => {
+  it('documents exactly the options each command supports', () => {
+    for (const [commandKey, allowed] of Object.entries(COMMAND_OPTIONS)) {
+      if (!commandKey.includes(':')) {
+        continue; // Root commands (init, doctor) have dedicated help builders.
+      }
+
+      const [domainName, action] = commandKey.split(':');
+      const helpText = ACTION_HELP[domainName]?.[action];
+
+      expect(helpText, `missing ACTION_HELP for ${commandKey}`).toBeTruthy();
+
+      const documented = new Set([...helpText!.matchAll(/--[a-z][a-z-]*/g)].map((m) => m[0]));
+      const allowedSet = new Set(allowed);
+
+      // Every option shown in help must actually be supported.
+      for (const option of documented) {
+        expect(
+          allowedSet.has(option),
+          `${commandKey} help documents unsupported option ${option}`
+        ).toBe(true);
+      }
+
+      // Every supported option must be documented, except the universal
+      // --help/--version which the root help surface covers.
+      for (const option of allowedSet) {
+        if (option === '--help' || option === '--version') {
+          continue;
+        }
+
+        expect(
+          documented.has(option),
+          `${commandKey} supports ${option} but its help does not document it`
+        ).toBe(true);
+      }
+    }
+  });
+});
+
 describe('option registry', () => {
   it('declares every command option exactly once as value-taking or boolean', () => {
     const valueOptions = new Set<string>(VALUE_OPTIONS);
@@ -90,6 +129,32 @@ describe('executeCli', () => {
     expect(getValue(parsed, '--sheet')).toBe('Details');
     expect(getValue(parsed, '--rows')).toBe('5');
     expect([...parsed.options]).toEqual(['--sheet', '--rows']);
+  });
+
+  it('treats everything after a bare -- separator as positionals', () => {
+    const parsed = parseArgs(['teach', 'plan', '--json', '--', '--not-an-option', '--file']);
+
+    expect(parsed.positionals).toEqual(['teach', 'plan', '--not-an-option', '--file']);
+    expect(parsed.flags.has('--json')).toBe(true);
+    expect(parsed.flags.has('--file')).toBe(false);
+    expect(parsed.missingValues).toEqual([]);
+  });
+
+  it('records an option value that starts with -- as missing, not swallowed', () => {
+    const parsed = parseArgs(['ai', 'ask', 'question', '--file', '--json']);
+
+    // `--json` must stay a flag rather than becoming the --file value.
+    expect(parsed.missingValues).toEqual(['--file']);
+    expect(parsed.flags.has('--json')).toBe(true);
+  });
+
+  it('records an empty =value as missing and keeps last duplicate value', () => {
+    const empty = parseArgs(['data', 'sample', 'file.csv', '--sheet=']);
+    expect(empty.missingValues).toEqual(['--sheet']);
+
+    // Duplicate value options follow common CLI convention: last one wins.
+    const duplicated = parseArgs(['data', 'sample', 'file.csv', '--sheet', 'A', '--sheet', 'B']);
+    expect(getValue(duplicated, '--sheet')).toBe('B');
   });
 
   it('tracks options that are missing required values', () => {

@@ -660,6 +660,17 @@ export const cleanData = async (
   inputPath: string,
   options: { outputPath?: string; yes?: boolean; sheet?: string } = {}
 ): Promise<DataCleanResult> => {
+  // Clean emits delimited output. JSON input would be silently converted to
+  // CSV, which violates "no magic without control" — refuse instead.
+  if (path.extname(inputPath).toLowerCase() === '.json') {
+    throw new ZaoWuError({
+      code: 'DATA_FORMAT_UNSUPPORTED',
+      message: 'Data clean does not support JSON input yet.',
+      why: '`zw data clean` writes delimited CSV/TSV output, so cleaning a `.json` file would silently change its format.',
+      fix: 'Export the data as `.csv`, `.tsv`, or `.xlsx` first, then run `zw data clean` again.',
+    });
+  }
+
   const table = await loadDataTable(inputPath, options);
   const lines = [
     serializeDelimitedLine(table.headers, table.delimiter),
