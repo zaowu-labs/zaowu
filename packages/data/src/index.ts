@@ -508,7 +508,9 @@ export const loadDataTable = async (
         delimiter: source.delimiter,
         headers,
         rows: dataRows,
-        emptyLineCount: normalizedRows.length - 1 - dataRows.length,
+        // Math.max guards the fully-empty-sheet case, where zero rows minus
+        // the header slot would otherwise report -1 removed rows.
+        emptyLineCount: Math.max(0, normalizedRows.length - 1 - dataRows.length),
         trimmedCellCount: 0,
       };
     } catch (error) {
@@ -610,9 +612,8 @@ export const analyzeData = async (
   for (const [index, header] of table.headers.entries()) {
     const numbers = table.rows
       .map((row) => (row[index] ?? '').trim())
-      .filter(Boolean)
-      .map((value) => Number(value))
-      .filter((value) => Number.isFinite(value));
+      .filter((value) => value && isNumericText(value))
+      .map((value) => Number(value));
 
     if (numbers.length === 0) {
       continue;
@@ -740,8 +741,17 @@ const isCurrencyLike = (value: string): boolean => {
   );
 };
 
+/**
+ * Strict numeric predicate for schema inference and numeric analysis.
+ * `Number()` alone misclassifies real-world identifier columns: it accepts
+ * leading-zero values (`01234` ZIP codes, phone fragments, SKUs) and hex
+ * (`0x1A`). Decimal and scientific notation stay supported.
+ */
+const isNumericText = (value: string): boolean =>
+  /^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/.test(value) && !/^[+-]?0\d/.test(value);
+
 const getValueType = (value: string): Exclude<DataColumnSchema['type'], 'empty' | 'mixed'> => {
-  if (Number.isFinite(Number(value))) {
+  if (isNumericText(value)) {
     return 'number';
   }
 

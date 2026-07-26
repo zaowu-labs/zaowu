@@ -5,7 +5,9 @@ export function checkShellSafety(command: string): string | undefined {
     return 'Dangerous command pattern found: `rm` with recursive/force flags.';
   if (
     /\b(del|erase|rd|rmdir)\b/i.test(normalized) &&
-    (/\/[a-z]*s/i.test(normalized) || /\b-(recurse|s)\b/i.test(normalized))
+    // (?:^|\s) instead of \b: a word boundary can never precede a leading `-`
+    // (both sides are non-word characters), which silently disabled this rule.
+    (/\/[a-z]*s/i.test(normalized) || /(?:^|\s)-(recurse|s)\b/i.test(normalized))
   )
     return 'Dangerous command pattern found: recursive deletion (`del`, `rd`, or `rmdir` with `/s` or `-recurse`).';
   if (/\bformat\s+[a-z]:/i.test(normalized))
@@ -25,8 +27,10 @@ export function checkShellSafety(command: string): string | undefined {
   if (
     /\bbase64\b/i.test(normalized) &&
     (/\|\s*(sh|bash|zsh|fish|cmd|powershell|pwsh|iex)\b/i.test(normalized) ||
-      /\b--decode\b/i.test(normalized) ||
-      /\b-d\b/i.test(normalized))
+      // (?:^|\s) instead of \b: a word boundary can never precede a leading
+      // `-`, so the flag-only variants of this rule never fired.
+      /(?:^|\s)--decode\b/i.test(normalized) ||
+      /(?:^|\s)-d\b/i.test(normalized))
   )
     return 'Dangerous command pattern found: decoding base64 payload into shell execution.';
   if (/\/dev\/(tcp|udp)\//i.test(normalized))

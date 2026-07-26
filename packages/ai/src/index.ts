@@ -29,6 +29,10 @@ const createProviderDescriptor = (
 const DEFAULT_PROVIDER_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_INPUT_CHARACTERS = 200_000;
 const AI_RESULT_SCHEMA_VERSION = 1;
+// Upper bound on any retry sleep. Retry-After is server-controlled input, so
+// without a cap a hostile or misconfigured endpoint could stall the CLI for
+// hours with a single header.
+const MAX_RETRY_WAIT_MS = 30_000;
 
 const createCombinedPrompt = (
   prompt: string,
@@ -485,7 +489,7 @@ export async function fetchWithRetry(
     );
 
     if (failure.retryable && attempt < maxRetries) {
-      const waitMs = retryAfterMs ?? delay;
+      const waitMs = Math.min(retryAfterMs ?? delay, MAX_RETRY_WAIT_MS);
       await new Promise((resolve) => setTimeout(resolve, waitMs));
       delay *= 2;
       continue;

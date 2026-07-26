@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Capped AI provider retry waits at 30 seconds so a server-controlled
+  `Retry-After` header can no longer stall the CLI indefinitely.
+- Fixed dormant shell-safety rules for standalone `base64 -d`/`--decode` and
+  `del -s`/`rd -recurse` flags that a word-boundary regex could never match.
+- Classified test-only staged changes as `test` commits; the previous check
+  order made that branch unreachable for tests under `src/`.
+- Stopped classifying leading-zero identifiers (ZIP codes, SKUs) and hex text
+  as numbers in data schema inference and numeric analysis.
+- Flushed the streaming text decoder when a web response hits the download
+  cap, so a trailing multibyte character is no longer dropped.
+- Reported empty XLSX sheets with zero removed rows instead of a negative
+  count, and read BOM-prefixed plugin manifests consistently in `plugin list`.
 - Verified the capability matrix's safety columns (reads, writes, Git, shell,
   network, secrets, safety mode) against each domain's capability ledger and
   the sensitive-command contracts, instead of only checking command names.

@@ -310,6 +310,12 @@ export const fetchWebTarget = async (
 
         if (accepted.byteLength < value.byteLength) {
           bodyLengthExact = false;
+          // Flush the streaming decoder so a trailing partial multibyte
+          // character it is still holding is not silently dropped, matching
+          // the clean end-of-stream path above.
+          const flushed = decoder.decode();
+          observedCharacters += flushed.length;
+          preview += flushed.slice(0, Math.max(0, maxBodyLength - preview.length));
           await reader.cancel?.();
           request.abort();
           break;

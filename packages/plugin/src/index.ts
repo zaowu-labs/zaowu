@@ -330,9 +330,8 @@ export const listPlugins = async (options: { cwd?: string } = {}): Promise<Plugi
 
   for (const entry of entries.filter((name) => name.endsWith('.json'))) {
     try {
-      plugins.push(
-        JSON.parse(await readFile(path.join(pluginDir, entry), 'utf8')) as PluginManifest
-      );
+      // readJson strips a UTF-8 BOM, matching how validate reads manifests.
+      plugins.push((await readJson(path.join(pluginDir, entry))) as PluginManifest);
     } catch {
       plugins.push({
         id: path.basename(entry, '.json'),

@@ -258,12 +258,14 @@ const inferCommitType = (files: readonly string[]): string => {
     return 'chore';
   }
 
-  if (files.some((file) => file.startsWith('packages/') && file.includes('/src/'))) {
-    return 'feat';
+  // Test-only changes must be classified before the general src/ check;
+  // test files live under src/, so the previous order made `test` unreachable.
+  if (files.every((file) => file.includes('.test.') || file.includes('.spec.'))) {
+    return 'test';
   }
 
-  if (files.some((file) => file.includes('.test.') || file.includes('.spec.'))) {
-    return 'test';
+  if (files.some((file) => file.startsWith('packages/') && file.includes('/src/'))) {
+    return 'feat';
   }
 
   return 'chore';

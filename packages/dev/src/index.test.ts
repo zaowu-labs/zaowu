@@ -700,6 +700,25 @@ describe('dev domain', () => {
     });
   });
 
+  it('classifies test-only staged changes as a test commit', () => {
+    const runner: DevCommandRunner = (_command, args) => {
+      if (args.join(' ') === 'diff --cached --name-only') {
+        return 'packages/dev/src/index.test.ts';
+      }
+      if (args.join(' ') === 'diff --cached --numstat') {
+        return '5\t1\tpackages/dev/src/index.test.ts';
+      }
+      if (args.join(' ') === 'diff --cached --unified=0') {
+        return '';
+      }
+      throw new Error('unexpected git command: ' + args.join(' '));
+    };
+
+    expect(previewDevCommit(runner)).toMatchObject({
+      suggestion: expect.objectContaining({ type: 'test' }),
+    });
+  });
+
   it('applies an AI commit suggestion without mutating the preview', () => {
     const preview: DevCommitResult = {
       schemaVersion: 1,

@@ -118,6 +118,29 @@ describe('data domain', () => {
     }
   });
 
+  it('treats leading-zero identifiers as text, not numbers', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-data-'));
+    const filePath = path.join(root, 'zips.csv');
+
+    // ZIP codes with leading zeros must not be classified or averaged as numbers.
+    await writeFile(filePath, 'zip,amount\n01234,10\n02138,20\n', 'utf8');
+
+    try {
+      const schema = await inferDataSchema(filePath);
+      const zipColumn = schema.columns.find((column) => column.column === 'zip');
+      const amountColumn = schema.columns.find((column) => column.column === 'amount');
+
+      expect(zipColumn?.type).not.toBe('number');
+      expect(amountColumn?.type).toBe('number');
+
+      const analysis = await analyzeData(filePath);
+
+      expect(analysis.numericColumns.map((column) => column.column)).toEqual(['amount']);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('analyzes a large numeric column without a call-stack overflow', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-data-'));
     const filePath = path.join(root, 'large.csv');
