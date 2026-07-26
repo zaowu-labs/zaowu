@@ -6,6 +6,13 @@
  */
 
 import {
+  resolveAIModel,
+  resolveAIProviderNetworkTarget,
+  validateAIProviderConfig,
+  type AIProviderDescriptor,
+} from '@zaowu-labs/ai';
+import { loadResolvedConfig } from '@zaowu-labs/config';
+import {
   assertOperationPlanFingerprint as assertOperationPlanFingerprintFromCore,
   createContentOperationSubjects,
   createOperationPlan,
@@ -43,6 +50,47 @@ export type DomainActionHandler = (
   args: readonly string[],
   context: DomainHandlerContext
 ) => Promise<CliResult>;
+
+export interface ResolvedAiProvider {
+  providerId: string;
+  requestedModel?: string;
+  provider: AIProviderDescriptor;
+  resolvedModel: string;
+  networkTarget?: string;
+}
+
+/**
+ * Resolves the AI provider for a command: explicit `--provider` first, then
+ * `ai.provider` from the resolved project config, then the default provider.
+ * Shared by every AI-driven command so `zw ai ask`, `zw dev --ai`, and
+ * `zw doctor` cannot disagree about which provider a project is configured
+ * to use.
+ */
+export const resolveAiProvider = async (
+  context: DomainHandlerContext
+): Promise<ResolvedAiProvider> => {
+  let providerId = getValue(context.parsed, '--provider');
+
+  if (!providerId) {
+    try {
+      const config = await loadResolvedConfig(context.cwd);
+      providerId = config.config.ai.provider ?? undefined;
+    } catch {
+      // ignore — fall back to the default provider
+    }
+  }
+
+  const requestedModel = getValue(context.parsed, '--model');
+  const provider = validateAIProviderConfig(providerId).provider;
+
+  return {
+    providerId: provider.id,
+    requestedModel,
+    provider,
+    resolvedModel: resolveAIModel(provider, { model: requestedModel }),
+    networkTarget: provider.network ? resolveAIProviderNetworkTarget(provider.id) : undefined,
+  };
+};
 
 export const requireTarget = (args: readonly string[], command: string): string => {
   const target = args[0];

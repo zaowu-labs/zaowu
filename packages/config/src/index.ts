@@ -147,15 +147,6 @@ const assertNoSecretValues = (value: string): void => {
     });
   }
 };
-const CONFIG_KEYS: readonly ConfigKey[] = [
-  'version',
-  'project.name',
-  'ai.provider',
-  'defaults.output',
-  'paths.workspace',
-  'paths.cache',
-];
-
 const DEFAULT_CONFIG: ZaoWuConfig = {
   version: 1,
   project: {
@@ -173,21 +164,92 @@ const DEFAULT_CONFIG: ZaoWuConfig = {
   },
 };
 
-export const createDefaultConfig = (): ZaoWuConfig => ({
-  version: DEFAULT_CONFIG.version,
-  project: {
-    ...DEFAULT_CONFIG.project,
-  },
-  ai: {
-    ...DEFAULT_CONFIG.ai,
-  },
-  defaults: {
-    ...DEFAULT_CONFIG.defaults,
-  },
-  paths: {
-    ...DEFAULT_CONFIG.paths,
-  },
+const cloneConfig = (config: ZaoWuConfig): ZaoWuConfig => ({
+  version: config.version,
+  project: { ...config.project },
+  ai: { ...config.ai },
+  defaults: { ...config.defaults },
+  paths: { ...config.paths },
 });
+
+export const createDefaultConfig = (): ZaoWuConfig => cloneConfig(DEFAULT_CONFIG);
+
+interface ConfigKeyDescriptor {
+  /** Reads the current value for `zw config get` and YAML serialization. */
+  get: (config: ZaoWuConfig) => string | null;
+  /** Writes a normalized value onto an already-cloned config. */
+  set: (config: ZaoWuConfig, value: string | null) => void;
+}
+
+/**
+ * Single source of truth for the managed config schema. Adding a key means
+ * adding one descriptor here (plus the `ConfigKey` union member and, for a new
+ * section or YAML line, one `YAML_CONFIG_LAYOUT` entry) — `CONFIG_KEYS`,
+ * `getConfigValue`, `withConfigValue`, `serializeConfig`, and
+ * `KNOWN_CONFIG_KEYS` all derive from these tables. The `Record<ConfigKey, …>`
+ * type keeps the table compile-time exhaustive.
+ */
+const CONFIG_KEY_DESCRIPTORS: Record<ConfigKey, ConfigKeyDescriptor> = {
+  version: {
+    get: (config) => String(config.version),
+    set: (config) => {
+      config.version = 1;
+    },
+  },
+  'project.name': {
+    get: (config) => config.project.name,
+    set: (config, value) => {
+      config.project.name = value ?? DEFAULT_CONFIG.project.name;
+    },
+  },
+  'ai.provider': {
+    get: (config) => config.ai.provider,
+    set: (config, value) => {
+      config.ai.provider = value;
+    },
+  },
+  'defaults.output': {
+    get: (config) => config.defaults.output,
+    set: (config, value) => {
+      config.defaults.output = value === 'json' ? 'json' : 'human';
+    },
+  },
+  'paths.workspace': {
+    get: (config) => config.paths.workspace,
+    set: (config, value) => {
+      config.paths.workspace = value ?? DEFAULT_CONFIG.paths.workspace;
+    },
+  },
+  'paths.cache': {
+    get: (config) => config.paths.cache,
+    set: (config, value) => {
+      config.paths.cache = value ?? DEFAULT_CONFIG.paths.cache;
+    },
+  },
+};
+
+const CONFIG_KEYS = Object.keys(CONFIG_KEY_DESCRIPTORS) as readonly ConfigKey[];
+
+/**
+ * Section-by-section YAML layout. `serializeConfig` emits exactly these lines
+ * (the byte layout is contract: `migrateResolvedConfig` compares it against
+ * file content), and `KNOWN_CONFIG_KEYS` derives its section map from it.
+ */
+const YAML_CONFIG_LAYOUT: readonly {
+  section: string;
+  entries: readonly { key: ConfigKey; yamlKey: string }[];
+}[] = [
+  { section: 'project', entries: [{ key: 'project.name', yamlKey: 'name' }] },
+  { section: 'ai', entries: [{ key: 'ai.provider', yamlKey: 'provider' }] },
+  { section: 'defaults', entries: [{ key: 'defaults.output', yamlKey: 'output' }] },
+  {
+    section: 'paths',
+    entries: [
+      { key: 'paths.workspace', yamlKey: 'workspace' },
+      { key: 'paths.cache', yamlKey: 'cache' },
+    ],
+  },
+];
 
 const isReadableFile = async (filePath: string): Promise<boolean> => {
   try {
@@ -498,56 +560,17 @@ const normalizeConfigValue = (key: ConfigKey, value: string): string | null => {
   return trimmed;
 };
 
-const getConfigValue = (config: ZaoWuConfig, key: ConfigKey): string | null => {
-  switch (key) {
-    case 'version':
-      return String(config.version);
-    case 'project.name':
-      return config.project.name;
-    case 'ai.provider':
-      return config.ai.provider;
-    case 'defaults.output':
-      return config.defaults.output;
-    case 'paths.workspace':
-      return config.paths.workspace;
-    case 'paths.cache':
-      return config.paths.cache;
-  }
-};
+const getConfigValue = (config: ZaoWuConfig, key: ConfigKey): string | null =>
+  CONFIG_KEY_DESCRIPTORS[key].get(config);
 
 const withConfigValue = (
   config: ZaoWuConfig,
   key: ConfigKey,
   value: string | null
 ): ZaoWuConfig => {
-  const next: ZaoWuConfig = {
-    version: config.version,
-    project: { ...config.project },
-    ai: { ...config.ai },
-    defaults: { ...config.defaults },
-    paths: { ...config.paths },
-  };
+  const next = cloneConfig(config);
 
-  switch (key) {
-    case 'version':
-      next.version = 1;
-      break;
-    case 'project.name':
-      next.project.name = value ?? DEFAULT_CONFIG.project.name;
-      break;
-    case 'ai.provider':
-      next.ai.provider = value;
-      break;
-    case 'defaults.output':
-      next.defaults.output = value === 'json' ? 'json' : 'human';
-      break;
-    case 'paths.workspace':
-      next.paths.workspace = value ?? DEFAULT_CONFIG.paths.workspace;
-      break;
-    case 'paths.cache':
-      next.paths.cache = value ?? DEFAULT_CONFIG.paths.cache;
-      break;
-  }
+  CONFIG_KEY_DESCRIPTORS[key].set(next, value);
 
   return next;
 };
@@ -561,19 +584,14 @@ export const serializeConfig = (config: ZaoWuConfig, filePath: string): string =
 
   return [
     'version: 1',
-    '',
-    'project:',
-    `  name: ${formatYamlConfigValue('project.name', config.project.name)}`,
-    '',
-    'ai:',
-    `  provider: ${formatYamlConfigValue('ai.provider', config.ai.provider)}`,
-    '',
-    'defaults:',
-    `  output: ${formatYamlConfigValue('defaults.output', config.defaults.output)}`,
-    '',
-    'paths:',
-    `  workspace: ${formatYamlConfigValue('paths.workspace', config.paths.workspace)}`,
-    `  cache: ${formatYamlConfigValue('paths.cache', config.paths.cache)}`,
+    ...YAML_CONFIG_LAYOUT.flatMap(({ section, entries }) => [
+      '',
+      `${section}:`,
+      ...entries.map(
+        ({ key, yamlKey }) =>
+          `  ${yamlKey}: ${formatYamlConfigValue(key, CONFIG_KEY_DESCRIPTORS[key].get(config))}`
+      ),
+    ]),
     '',
   ].join('\n');
 };
@@ -629,10 +647,12 @@ export const parseConfig = (content: string, filePath = 'zw.yml'): ZaoWuConfig =
 
 const KNOWN_CONFIG_KEYS: Record<string, readonly string[] | null> = {
   version: null,
-  project: ['name'],
-  ai: ['provider'],
-  defaults: ['output'],
-  paths: ['workspace', 'cache'],
+  ...Object.fromEntries(
+    YAML_CONFIG_LAYOUT.map(({ section, entries }) => [
+      section,
+      entries.map((entry) => entry.yamlKey),
+    ])
+  ),
 };
 
 const collectUnknownConfigKeys = (parsed: Record<string, unknown>): string[] => {

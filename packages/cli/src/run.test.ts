@@ -435,6 +435,42 @@ describe('executeCli', () => {
     });
   });
 
+  it('honors ai.provider from project config when --provider is absent', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
+
+    try {
+      await writeFile(path.join(root, 'zw.yml'), 'version: 1\n\nai:\n  provider: openai\n', 'utf8');
+      const result = await executeCli(['ai', 'ask', 'Explain', 'ZaoWu', '--json'], { cwd: root });
+      const payload = JSON.parse(result.stdout);
+
+      expect(result.exitCode).toBe(0);
+      expect(payload.status).toBe('preview');
+      expect(payload.provider.id).toBe('openai');
+      expect(payload.output).toBeNull();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('lets --provider override the configured ai.provider', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
+
+    try {
+      await writeFile(path.join(root, 'zw.yml'), 'version: 1\n\nai:\n  provider: openai\n', 'utf8');
+      const result = await executeCli(
+        ['ai', 'ask', 'Explain', 'ZaoWu', '--provider', 'echo', '--json'],
+        { cwd: root }
+      );
+      const payload = JSON.parse(result.stdout);
+
+      expect(result.exitCode).toBe(0);
+      expect(payload.status).toBe('ok');
+      expect(payload.provider.id).toBe('echo');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('prints full output in human mode when the provider does not stream', async () => {
     const chunks: string[] = [];
     const result = await executeCli(['ai', 'ask', 'Explain', 'ZaoWu'], {

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Made `zw ai ask` honor `ai.provider` from the resolved project config when
+  `--provider` is absent, matching `zw dev --ai` and `zw doctor`; previously it
+  silently fell back to the local echo provider. The preview confirm command
+  now pins the resolved provider id explicitly.
 - Restored CI installs by recording the `xlsx` CDN tarball's integrity hash in
   the lockfile; pnpm now refuses URL-tarball entries without one.
 - Stopped classifying files that merely end in `package.json` (for example
