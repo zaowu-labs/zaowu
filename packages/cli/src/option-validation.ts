@@ -1,55 +1,6 @@
 import { ZaoWuError } from '@zaowu-labs/core';
 import { getValue, parseArgs, type ParsedArgs } from './args.js';
-
-const COMMON_OPTIONS = ['--help', '--json', '--version'] as const;
-const CONFIRMATION_OPTIONS = ['--dry-run', '--plan-fingerprint', '--yes'] as const;
-
-const COMMAND_OPTIONS: Readonly<Record<string, readonly string[]>> = {
-  init: [...COMMON_OPTIONS, ...CONFIRMATION_OPTIONS],
-  doctor: COMMON_OPTIONS,
-  'ai:ask': [...COMMON_OPTIONS, ...CONFIRMATION_OPTIONS, '--file', '--model', '--provider'],
-  'ai:providers': [...COMMON_OPTIONS, '--provider'],
-  'auto:plan': COMMON_OPTIONS,
-  'auto:run': [...COMMON_OPTIONS, ...CONFIRMATION_OPTIONS],
-  'auto:validate': COMMON_OPTIONS,
-  'config:get': COMMON_OPTIONS,
-  'config:migrate': [...COMMON_OPTIONS, ...CONFIRMATION_OPTIONS],
-  'config:path': COMMON_OPTIONS,
-  'config:set': [...COMMON_OPTIONS, ...CONFIRMATION_OPTIONS, '--global'],
-  'config:show': COMMON_OPTIONS,
-  'config:validate': COMMON_OPTIONS,
-  'data:analyze': [...COMMON_OPTIONS, '--sheet'],
-  'data:clean': [...COMMON_OPTIONS, ...CONFIRMATION_OPTIONS, '--output', '--sheet'],
-  'data:inspect': [...COMMON_OPTIONS, '--sheet'],
-  'data:sample': [...COMMON_OPTIONS, '--rows', '--sheet'],
-  'data:schema': [...COMMON_OPTIONS, '--sheet'],
-  'data:sheets': COMMON_OPTIONS,
-  'dev:commit': [...COMMON_OPTIONS, ...CONFIRMATION_OPTIONS, '--ai', '--model', '--provider'],
-  'dev:review': [
-    ...COMMON_OPTIONS,
-    ...CONFIRMATION_OPTIONS,
-    '--ai',
-    '--model',
-    '--provider',
-    '--staged',
-    '--worktree',
-  ],
-  'dev:status': COMMON_OPTIONS,
-  'dev:sync': [...COMMON_OPTIONS, ...CONFIRMATION_OPTIONS, '--discard-local'],
-  'doc:convert': [...COMMON_OPTIONS, ...CONFIRMATION_OPTIONS, '--format', '--output'],
-  'doc:extract': COMMON_OPTIONS,
-  'doc:outline': COMMON_OPTIONS,
-  'doc:search': COMMON_OPTIONS,
-  'doc:summary': COMMON_OPTIONS,
-  'plugin:install': [...COMMON_OPTIONS, ...CONFIRMATION_OPTIONS, '--source'],
-  'plugin:list': COMMON_OPTIONS,
-  'plugin:remove': [...COMMON_OPTIONS, ...CONFIRMATION_OPTIONS],
-  'plugin:validate': COMMON_OPTIONS,
-  'teach:plan': COMMON_OPTIONS,
-  'teach:quiz': [...COMMON_OPTIONS, '--count', '--format'],
-  'web:fetch': [...COMMON_OPTIONS, ...CONFIRMATION_OPTIONS],
-  'web:inspect': [...COMMON_OPTIONS, ...CONFIRMATION_OPTIONS],
-};
+import { COMMAND_OPTIONS, COMMON_OPTIONS } from './option-registry.js';
 
 export const assertSupportedOptions = (
   parsed: ParsedArgs,

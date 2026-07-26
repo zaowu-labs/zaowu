@@ -3,13 +3,15 @@ import {
   resolveAIModel,
   resolveAIProviderNetworkTarget,
   validateAIProviderConfig,
+  type AIProviderDescriptor,
 } from '@zaowu-labs/ai';
 import { loadResolvedConfig } from '@zaowu-labs/config';
 import {
+  applyDevAiCommitSuggestion,
+  buildDevAiCommitPrompt,
+  buildDevAiReviewPrompt,
   getDevStatus,
-  isDevFindingCategory,
-  isDevFindingPriority,
-  isDevFindingSeverity,
+  parseDevAiReviewFindings,
   previewDevCommit,
   reviewDevChanges,
   syncDevRepo,
@@ -17,7 +19,9 @@ import {
 } from '@zaowu-labs/dev';
 import {
   assertOperationPlanFingerprint,
+  createContentOperationSubjects,
   createOperationPlan,
+  formatConfirmCommand,
   formatCounts,
   formatFinding,
   formatList,
@@ -32,11 +36,19 @@ import {
   type OperationPlan,
 } from '../handler-utils.js';
 
-const getAiReviewOrCommit = async (
-  context: DomainHandlerContext,
-  prompt: string
-): Promise<{ output: string; providerId: string; modelName: string }> => {
+interface ResolvedDevAiProvider {
+  providerId: string;
+  requestedModel?: string;
+  provider: AIProviderDescriptor;
+  resolvedModel: string;
+  networkTarget?: string;
+}
+
+const resolveDevAiProvider = async (
+  context: DomainHandlerContext
+): Promise<ResolvedDevAiProvider> => {
   let providerId = getValue(context.parsed, '--provider');
+
   if (!providerId) {
     try {
       const config = await loadResolvedConfig(context.cwd);
@@ -45,79 +57,111 @@ const getAiReviewOrCommit = async (
       // ignore — fall back to default provider
     }
   }
+
   const requestedModel = getValue(context.parsed, '--model');
-  const providerValidation = validateAIProviderConfig(providerId);
-  const provider = providerValidation.provider;
-  const resolvedModel = resolveAIModel(provider, { model: requestedModel });
-
-  if (provider.network && !context.yes) {
-    throw new ZaoWuError({
-      code: 'AI_NETWORK_CONFIRMATION_REQUIRED',
-      message: 'Network AI request requires confirmation.',
-      why: `The AI-assisted dev command sends diff context to the network provider \`${provider.id}\`.`,
-      fix: 'Run the command with the `--yes` flag to confirm sending the diff context.',
-    });
-  }
-
-  const response = await askAI({
-    prompt,
-    provider: providerId,
-    model: requestedModel,
-    allowNetwork: context.yes,
-  });
+  const provider = validateAIProviderConfig(providerId).provider;
 
   return {
-    output: response.output,
     providerId: provider.id,
-    modelName: resolvedModel,
+    requestedModel,
+    provider,
+    resolvedModel: resolveAIModel(provider, { model: requestedModel }),
+    networkTarget: provider.network ? resolveAIProviderNetworkTarget(provider.id) : undefined,
   };
 };
 
-const getGitDiffText = (
-  commandRunner: (command: string, args: readonly string[], options?: { cwd?: string }) => string,
-  cwd: string,
-  gitArgs: string[]
-): string => {
-  let diffText = '';
+const getGitDiffText = (context: DomainHandlerContext, gitArgs: string[]): string => {
   try {
-    diffText = commandRunner('git', gitArgs, { cwd });
+    return context.commandRunner('git', gitArgs, { cwd: context.cwd });
   } catch {
     // ignore — diff may be empty
+    return '';
   }
-  if (diffText.length > 100000) {
-    diffText = diffText.slice(0, 100000) + '\n... [truncated] ...';
-  }
-  return diffText;
 };
 
+/**
+ * Operation plan for an AI-assisted dev command. The exact prompt (instructions
+ * plus the truncated diff) is folded into the plan subjects, so the preview
+ * fingerprint only authorizes a confirmed run that sends identical content —
+ * a diff staged between preview and confirm invalidates the plan.
+ */
 const buildAiOperationPlan = (
-  providerId: string,
-  reviewUsesWorktree: boolean,
-  isReview: boolean
+  ai: ResolvedDevAiProvider,
+  prompt: string,
+  context: DomainHandlerContext,
+  options: { isReview: boolean; reviewUsesWorktree: boolean }
 ): OperationPlan => {
-  const provider = validateAIProviderConfig(providerId).provider;
-  const networkTarget = provider.network ? resolveAIProviderNetworkTarget(providerId) : undefined;
-  const actionName = isReview ? 'review' : 'suggestion';
+  const actionName = options.isReview ? 'review' : 'suggestion';
+
   return createOperationPlan({
-    risk: provider.network ? 'medium' : 'low',
-    reads: isReview
-      ? reviewUsesWorktree
+    risk: ai.provider.network ? 'medium' : 'low',
+    confirmationRequired: ai.provider.network && !context.yes,
+    subjects: [
+      `ai:${ai.providerId}`,
+      `model:${ai.resolvedModel}`,
+      ...createContentOperationSubjects(prompt),
+    ],
+    reads: options.isReview
+      ? options.reviewUsesWorktree
         ? ['working-tree git diff', 'untracked git file list']
         : ['staged git diff']
       : ['staged git diff', 'staged git diff hunks'],
-    executes: isReview
-      ? reviewUsesWorktree
+    executes: options.isReview
+      ? options.reviewUsesWorktree
         ? ['git diff', 'git ls-files --others --exclude-standard']
         : ['git diff --cached']
       : ['git diff --cached'],
-    network: networkTarget ? [networkTarget] : [],
-    secrets: provider.requiredEnv,
-    notes: [`AI ${actionName} was generated using the ${providerId} provider.`],
+    network: ai.networkTarget ? [ai.networkTarget] : [],
+    secrets: ai.provider.requiredEnv,
+    notes: [
+      ai.provider.network
+        ? `AI ${actionName} sends the diff context to the ${ai.providerId} provider and requires --yes.`
+        : `AI ${actionName} was generated using the ${ai.providerId} provider.`,
+    ],
   });
 };
 
+const buildAiConfirmCommand = (
+  commandParts: readonly string[],
+  ai: ResolvedDevAiProvider,
+  operationPlan: OperationPlan
+): string =>
+  formatConfirmCommand([
+    ...commandParts,
+    '--ai',
+    '--provider',
+    ai.providerId,
+    ...(ai.requestedModel ? ['--model', ai.requestedModel] : []),
+    '--yes',
+    '--plan-fingerprint',
+    operationPlan.fingerprint,
+  ]);
+
+const formatAiPreviewHuman = (
+  title: string,
+  ai: ResolvedDevAiProvider,
+  operationPlan: OperationPlan,
+  confirmCommand: string
+): string =>
+  [
+    title,
+    '',
+    'Status: preview',
+    `Provider: ${ai.providerId} (${ai.provider.name})`,
+    `Model: ${ai.resolvedModel}`,
+    `Endpoint: ${ai.networkTarget ?? 'local'}`,
+    '',
+    formatOperationPlan(operationPlan),
+    '',
+    'No provider request was sent.',
+    '',
+    'To send exactly this AI request, run:',
+    `  ${confirmCommand}`,
+  ].join('\n');
+
 export const handleDevCommit: DomainActionHandler = async (_args, context) => {
   const preview = previewDevCommit(context.commandRunner, { cwd: context.cwd });
+  let payload = preview;
   let operationPlan = createOperationPlan({
     risk: 'low',
     reads: ['staged git diff', 'staged git diff hunks'],
@@ -126,72 +170,70 @@ export const handleDevCommit: DomainActionHandler = async (_args, context) => {
   });
 
   if (context.parsed.flags.has('--ai')) {
-    const diffText = getGitDiffText(context.commandRunner, context.cwd, ['diff', '--cached']);
-    const prompt = [
-      'Generate a Conventional Commit message for the following staged changes.',
-      'Follow the Conventional Commits specification (e.g. feat(scope): message).',
-      'Respond ONLY with the commit message, including a title and an optional body/footer.',
-      '',
-      'Changes:',
-      diffText,
-    ].join('\n');
+    const diffText = getGitDiffText(context, ['diff', '--cached']);
+    const prompt = buildDevAiCommitPrompt(diffText);
+    const ai = await resolveDevAiProvider(context);
 
-    const aiResponse = await getAiReviewOrCommit(context, prompt);
-    const lines = aiResponse.output
-      .split(/\r?\n/)
-      .map((l) => l.trim())
-      .filter(Boolean);
-    const title = lines[0] || preview.suggestion.title;
-    const body = lines.slice(1);
+    operationPlan = buildAiOperationPlan(ai, prompt, context, {
+      isReview: false,
+      reviewUsesWorktree: false,
+    });
 
-    const match = /^([a-z0-9]+)(?:\(([^)]+)\))?:\s*(.+)$/i.exec(title);
-    const type = match?.[1] || preview.suggestion.type;
-    const scope = match?.[2] || preview.suggestion.scope;
-    const subject = match?.[3] || preview.suggestion.subject;
+    if (ai.provider.network && !context.yes) {
+      const confirmCommand = buildAiConfirmCommand(['zw', 'dev', 'commit'], ai, operationPlan);
+      const human = formatAiPreviewHuman('ZaoWu Dev Commit', ai, operationPlan, confirmCommand);
 
-    preview.suggestion = {
-      type,
-      scope,
-      subject,
-      title,
-      body: body.length > 0 ? body : preview.suggestion.body,
-    };
-    preview.message = title;
+      return result(
+        context,
+        withOperationPlan({ ...preview, status: 'preview' as const }, operationPlan),
+        human
+      );
+    }
 
-    operationPlan = buildAiOperationPlan(aiResponse.providerId, false, false);
+    // The fingerprint must be verified before any provider request is sent.
+    assertOperationPlanFingerprint(context, operationPlan);
+
+    const response = await askAI({
+      prompt,
+      provider: ai.providerId,
+      model: ai.requestedModel,
+      allowNetwork: context.yes,
+    });
+
+    payload = applyDevAiCommitSuggestion(preview, response.output);
+  } else {
+    assertOperationPlanFingerprint(context, operationPlan);
   }
-
-  assertOperationPlanFingerprint(context, operationPlan);
 
   const human = [
     'ZaoWu Dev Commit',
     '',
     'No Git state was modified.',
     '',
-    `Files: ${preview.summary.files.length}`,
-    `Changes: +${preview.summary.additions}/-${preview.summary.deletions}`,
+    `Files: ${payload.summary.files.length}`,
+    `Changes: +${payload.summary.additions}/-${payload.summary.deletions}`,
     '',
     'Categories:',
-    formatCounts(preview.summary.categories),
+    formatCounts(payload.summary.categories),
     '',
     'Suggested commit:',
-    preview.message,
+    payload.message,
     '',
     'Suggested body:',
-    formatList(preview.suggestion.body),
+    formatList(payload.suggestion.body),
     '',
     'Findings:',
-    ...(preview.findings.length > 0
-      ? preview.findings.map((finding) => formatFinding(finding))
+    ...(payload.findings.length > 0
+      ? payload.findings.map((finding) => formatFinding(finding))
       : ['- none']),
     '',
     'Recommended checks:',
-    formatList(preview.recommendedChecks),
+    formatList(payload.recommendedChecks),
     '',
     formatOperationPlan(operationPlan),
   ].join('\n');
 
-  return result(context, withOperationPlan(preview, operationPlan), human);
+  return result(context, withOperationPlan(payload, operationPlan), human);
 };
 
 export const handleDevReview: DomainActionHandler = async (_args, context) => {
@@ -202,6 +244,7 @@ export const handleDevReview: DomainActionHandler = async (_args, context) => {
       : 'auto';
   const review = reviewDevChanges(context.commandRunner, { cwd: context.cwd, mode });
   const reviewUsesWorktree = review.source === 'working-tree';
+  let payload = review;
   let operationPlan = createOperationPlan({
     risk: 'low',
     reads: reviewUsesWorktree
@@ -215,107 +258,80 @@ export const handleDevReview: DomainActionHandler = async (_args, context) => {
 
   if (context.parsed.flags.has('--ai')) {
     const gitArgs = reviewUsesWorktree ? ['diff'] : ['diff', '--cached'];
-    const diffText = getGitDiffText(context.commandRunner, context.cwd, gitArgs);
-    const prompt = [
-      'Perform a code review of the following Git changes.',
-      'Find potential security vulnerabilities, performance issues, architectural flaws, bugs, or test gaps.',
-      'Format your review as a JSON array of finding objects, like this:',
-      '[',
-      '  {',
-      '    "severity": "info" | "warning",',
-      '    "priority": "low" | "medium" | "high",',
-      '    "category": "security" | "performance" | "quality" | "test" | "filesystem" | "network" | "git",',
-      '    "title": "Short title",',
-      '    "detail": "Detailed explanation of the issue and fix.",',
-      '    "filePath": "relative/path/to/file",',
-      '    "line": 123,',
-      '    "hunkHeader": "@@ ... @@"',
-      '  }',
-      ']',
-      'Respond ONLY with the JSON array. Do not wrap in markdown code blocks.',
-      '',
-      'Changes:',
-      diffText,
-    ].join('\n');
+    const diffText = getGitDiffText(context, gitArgs);
+    const prompt = buildDevAiReviewPrompt(diffText);
+    const ai = await resolveDevAiProvider(context);
 
-    const aiResponse = await getAiReviewOrCommit(context, prompt);
-    let cleanOutput = aiResponse.output.trim();
-    if (cleanOutput.startsWith('```')) {
-      cleanOutput = cleanOutput.replace(/^```[a-z]*\r?\n/, '').replace(/\r?\n```$/, '');
-    }
-    let aiFindings: unknown[] = [];
-    let isParsedArray = false;
-    try {
-      const parsed = JSON.parse(cleanOutput);
-      if (Array.isArray(parsed)) {
-        aiFindings = parsed;
-        isParsedArray = true;
-      }
-    } catch {
-      // Fall back to wrapping the raw AI output as a plain-text summary finding.
+    operationPlan = buildAiOperationPlan(ai, prompt, context, {
+      isReview: true,
+      reviewUsesWorktree,
+    });
+
+    if (ai.provider.network && !context.yes) {
+      const modeFlags = context.parsed.flags.has('--staged')
+        ? ['--staged']
+        : context.parsed.flags.has('--worktree')
+          ? ['--worktree']
+          : [];
+      const confirmCommand = buildAiConfirmCommand(
+        ['zw', 'dev', 'review', ...modeFlags],
+        ai,
+        operationPlan
+      );
+      const human = formatAiPreviewHuman('ZaoWu Dev Review', ai, operationPlan, confirmCommand);
+
+      return result(
+        context,
+        withOperationPlan({ ...review, status: 'preview' as const }, operationPlan),
+        human
+      );
     }
 
-    if (!isParsedArray) {
-      aiFindings = [
-        {
-          severity: 'info',
-          priority: 'medium',
-          category: 'quality',
-          title: 'AI Code Review Summary',
-          detail: aiResponse.output.trim(),
-        },
-      ];
-    }
+    // The fingerprint must be verified before any provider request is sent.
+    assertOperationPlanFingerprint(context, operationPlan);
 
-    for (const item of aiFindings) {
-      const finding = item && typeof item === 'object' ? (item as Record<string, unknown>) : {};
-      review.findings.push({
-        severity: isDevFindingSeverity(finding.severity) ? finding.severity : 'info',
-        priority: isDevFindingPriority(finding.priority) ? finding.priority : 'medium',
-        category: isDevFindingCategory(finding.category) ? finding.category : 'quality',
-        title: typeof finding.title === 'string' ? finding.title : 'AI Review',
-        detail: typeof finding.detail === 'string' ? finding.detail : '',
-        filePath: typeof finding.filePath === 'string' ? finding.filePath : undefined,
-        line:
-          Number.isInteger(finding.line) && Number(finding.line) > 0
-            ? Number(finding.line)
-            : undefined,
-        hunkHeader: typeof finding.hunkHeader === 'string' ? finding.hunkHeader : undefined,
-      });
-    }
+    const response = await askAI({
+      prompt,
+      provider: ai.providerId,
+      model: ai.requestedModel,
+      allowNetwork: context.yes,
+    });
 
-    operationPlan = buildAiOperationPlan(aiResponse.providerId, reviewUsesWorktree, true);
+    payload = {
+      ...review,
+      findings: [...review.findings, ...parseDevAiReviewFindings(response.output)],
+    };
+  } else {
+    assertOperationPlanFingerprint(context, operationPlan);
   }
-
-  assertOperationPlanFingerprint(context, operationPlan);
 
   const human = [
     'ZaoWu Dev Review',
     '',
-    `Source: ${review.source}`,
-    `Files: ${review.summary.files.length}`,
-    `Changes: +${review.summary.additions}/-${review.summary.deletions}`,
+    `Source: ${payload.source}`,
+    `Files: ${payload.summary.files.length}`,
+    `Changes: +${payload.summary.additions}/-${payload.summary.deletions}`,
     '',
     'Categories:',
-    formatCounts(review.summary.categories),
+    formatCounts(payload.summary.categories),
     '',
     'Findings:',
-    ...review.findings.map((finding) => formatFinding(finding)),
+    ...payload.findings.map((finding) => formatFinding(finding)),
     '',
     'Diff hunks:',
-    ...(review.diffHunks.length > 0
-      ? review.diffHunks.map(
+    ...(payload.diffHunks.length > 0
+      ? payload.diffHunks.map(
           (hunk) => `- ${hunk.filePath} ${hunk.header}: +${hunk.addedLines}/-${hunk.removedLines}`
         )
       : ['- none']),
     '',
     'Recommended checks:',
-    formatList(review.recommendedChecks),
+    formatList(payload.recommendedChecks),
     '',
     formatOperationPlan(operationPlan),
   ].join('\n');
 
-  return result(context, withOperationPlan(review, operationPlan), human);
+  return result(context, withOperationPlan(payload, operationPlan), human);
 };
 
 export const handleDevStatus: DomainActionHandler = async (_args, context) => {
@@ -369,13 +385,15 @@ export const handleDevSync: DomainActionHandler = async (_args, context) => {
   const requiresDiscardLocal = operationPlan.notes.some((note) =>
     note.includes('Confirmed sync requires both --yes and --discard-local')
   );
-  const confirmCommand = [
-    'zw dev sync',
+  const confirmCommand = formatConfirmCommand([
+    'zw',
+    'dev',
+    'sync',
     '--yes',
     ...(requiresDiscardLocal ? ['--discard-local'] : []),
     '--plan-fingerprint',
     operationPlan.fingerprint,
-  ].join(' ');
+  ]);
 
   const human = [
     'ZaoWu Dev Sync',

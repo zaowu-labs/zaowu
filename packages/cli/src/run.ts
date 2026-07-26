@@ -105,8 +105,32 @@ export const executeCli = async (
           });
         }
 
-        return createHelpResult(formatDomainHelp(domain), json, { domain });
+        return createHelpResult(formatDomainHelp(domain), json, {
+          domain: domain.name,
+          commands: domain.commands,
+        });
       }
+    }
+
+    // Resolve the command surface before validating options, so an unknown
+    // command or action reports UNKNOWN_COMMAND / UNKNOWN_DOMAIN_ACTION instead
+    // of a misleading OPTION_UNSUPPORTED for whatever options were passed.
+    if (!domain && command !== 'doctor' && command !== 'init') {
+      throw new ZaoWuError({
+        code: 'UNKNOWN_COMMAND',
+        message: `Unknown command: ${command}.`,
+        why: `ZaoWu does not have a command named \`zw ${command}\`.`,
+        fix: 'Run `zw --help` to see available commands.',
+      });
+    }
+
+    if (domain && commandArgs[1] && !findDomainCommand(domain, commandArgs[1])) {
+      throw new ZaoWuError({
+        code: 'UNKNOWN_DOMAIN_ACTION',
+        message: `Unknown command: zw ${domain.name} ${commandArgs[1]}.`,
+        why: `ZaoWu has the \`${domain.name}\` domain, but it does not have an action named \`${commandArgs[1]}\`.`,
+        fix: `Run \`zw ${domain.name} --help\` to see commands for this domain.`,
+      });
     }
 
     assertNoMissingOptionValues(parsed.missingValues);
@@ -126,7 +150,10 @@ export const executeCli = async (
       const action = commandArgs[1];
 
       if (!action) {
-        return createHelpResult(formatDomainHelp(domain), json, { domain });
+        return createHelpResult(formatDomainHelp(domain), json, {
+          domain: domain.name,
+          commands: domain.commands,
+        });
       }
 
       const domainCommand = findDomainCommand(domain, action);

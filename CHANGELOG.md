@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+- Gave `zw dev commit --ai` and `zw dev review --ai` a real preview-and-confirm
+  flow for network providers: the preview shows the operation plan with the
+  exact prompt content bound into the fingerprint, and a confirmed run whose
+  staged diff changed after preview is rejected before any network request.
+- Moved AI commit/review prompt building and response parsing from the CLI
+  layer into `@zaowu-labs/dev`, restoring the CLI-composition boundary.
+- Unified operation-plan formatting so `zw init` previews use the same
+  multi-line plan layout as every other sensitive command.
+- Stabilized the JSON help contract: `domain` is now always a string, with
+  domain commands exposed under a separate `commands` key.
+- Reported unknown commands and actions before option validation, so
+  `zw ai bogus --file x` says `UNKNOWN_DOMAIN_ACTION` instead of blaming the
+  option.
+- Declared every CLI option once in a shared option registry that both the
+  parser and per-command validation derive from, with a contract test.
+- Quoted generated confirmation commands consistently in `zw plugin remove`
+  and `zw dev sync`.
+- Consolidated duplicated file-system and Git helpers into `@zaowu-labs/core`
+  (`assertSafeOutputPath`, `writeTextFileExclusive`, `readTextFileOrThrow`,
+  `isPathEscapingDirectory`) and a shared dev `runGit`.
 - Bound `zw ai ask` operation-plan fingerprints to the exact prompt and `--file`
   content sent to the provider, so a prompt or file changed between preview and
   confirmation now invalidates the plan instead of silently sending different

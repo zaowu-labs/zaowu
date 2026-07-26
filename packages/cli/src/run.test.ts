@@ -6,7 +6,37 @@ import { describe, expect, it, vi } from 'vitest';
 import { getValue, parseArgs } from './args';
 import { COMMAND_CONTRACTS } from './command-contracts';
 import { ACTION_HELP } from './help-text';
+import { BOOLEAN_OPTIONS, COMMAND_OPTIONS, VALUE_OPTIONS } from './option-registry';
 import { DEFAULT_CONFIG_FILE_NAME, DOMAIN_DEFINITIONS, executeCli } from './run';
+
+describe('option registry', () => {
+  it('declares every command option exactly once as value-taking or boolean', () => {
+    const valueOptions = new Set<string>(VALUE_OPTIONS);
+    const booleanOptions = new Set<string>(BOOLEAN_OPTIONS);
+
+    // The two declarations must be disjoint.
+    for (const option of valueOptions) {
+      expect(booleanOptions).not.toContain(option);
+    }
+
+    // Every option referenced by a command must be declared, so the parser
+    // knows whether it consumes a value.
+    const usedOptions = new Set(Object.values(COMMAND_OPTIONS).flat());
+
+    for (const option of usedOptions) {
+      expect(
+        valueOptions.has(option) || booleanOptions.has(option),
+        `${option} is used by a command but not declared in VALUE_OPTIONS or BOOLEAN_OPTIONS`
+      ).toBe(true);
+    }
+
+    // Every declared option must be used somewhere; unused declarations are
+    // dead registry entries.
+    for (const option of [...valueOptions, ...booleanOptions]) {
+      expect(usedOptions.has(option), `${option} is declared but used by no command`).toBe(true);
+    }
+  });
+});
 
 describe('executeCli', () => {
   it('shows help when no command is provided', async () => {
@@ -175,8 +205,8 @@ describe('executeCli', () => {
 
     expect(result.exitCode).toBe(0);
     expect(payload.status).toBe('ok');
-    expect(payload.domain.name).toBe('doc');
-    expect(payload.domain.commands.map((command: { name: string }) => command.name)).toEqual([
+    expect(payload.domain).toBe('doc');
+    expect(payload.commands.map((command: { name: string }) => command.name)).toEqual([
       'summary',
       'extract',
       'convert',
@@ -444,6 +474,28 @@ describe('executeCli', () => {
         process.env.OPENAI_MODEL = previousModel;
       }
     }
+  });
+
+  it('reports unknown commands and actions before option errors', async () => {
+    // An unknown action must not be masked by an option complaint.
+    const unknownAction = await executeCli(['ai', 'bogus', '--file', 'x', '--json']);
+    expect(JSON.parse(unknownAction.stderr).error.code).toBe('UNKNOWN_DOMAIN_ACTION');
+
+    // An unknown command must not be masked by an option complaint either.
+    const unknownCommand = await executeCli(['bogus', '--file', 'x', '--json']);
+    expect(JSON.parse(unknownCommand.stderr).error.code).toBe('UNKNOWN_COMMAND');
+  });
+
+  it('emits a stable string domain field in JSON help output', async () => {
+    const domainHelp = await executeCli(['ai', '--help', '--json']);
+    const actionHelp = await executeCli(['ai', 'ask', '--help', '--json']);
+    const bareDomain = await executeCli(['ai', '--json']);
+
+    // Machine-readable contract: `domain` is always the domain name string,
+    // never the full domain definition object.
+    expect(JSON.parse(domainHelp.stdout).domain).toBe('ai');
+    expect(JSON.parse(actionHelp.stdout)).toMatchObject({ domain: 'ai', action: 'ask' });
+    expect(JSON.parse(bareDomain.stdout).domain).toBe('ai');
   });
 
   it('lists AI providers and reads file input for AI ask', async () => {
@@ -992,6 +1044,85 @@ describe('executeCli', () => {
         detail: expect.stringContaining('Prompt received:'),
       })
     );
+  });
+
+  it('previews dev commit --ai with a network provider instead of sending the diff', async () => {
+    const commandRunner = (_command: string, args: readonly string[]) => {
+      if (args.join(' ') === 'diff --cached --name-only') {
+        return 'packages/dev/src/index.ts';
+      }
+      if (args.join(' ') === 'diff --cached --numstat') {
+        return '3\t1\tpackages/dev/src/index.ts';
+      }
+      if (args.join(' ') === 'diff --cached --unified=0') {
+        return 'diff --git a/x b/x\n@@ -1,0 +2 @@\n+line';
+      }
+      if (args.join(' ') === 'diff --cached') {
+        return 'mock diff content';
+      }
+      throw new Error('unexpected command: ' + args.join(' '));
+    };
+    const preview = await executeCli(
+      ['dev', 'commit', '--ai', '--provider', 'ollama', '--json'],
+      { commandRunner }
+    );
+
+    expect(preview.exitCode).toBe(0);
+    const payload = JSON.parse(preview.stdout);
+
+    expect(payload.status).toBe('preview');
+    expect(payload.operationPlan.confirmationRequired).toBe(true);
+    expect(payload.operationPlan.network).toEqual(['http://localhost:11434/api/generate']);
+    expect(payload.operationPlan.subjects).toEqual(
+      expect.arrayContaining([
+        'ai:ollama',
+        expect.stringMatching(/^content-sha256:[a-f0-9]{64}$/),
+      ])
+    );
+  });
+
+  it('rejects confirmed dev commit --ai when the staged diff changed after preview', async () => {
+    const makeRunner = (diff: string) => (_command: string, args: readonly string[]) => {
+      if (args.join(' ') === 'diff --cached --name-only') {
+        return 'packages/dev/src/index.ts';
+      }
+      if (args.join(' ') === 'diff --cached --numstat') {
+        return '3\t1\tpackages/dev/src/index.ts';
+      }
+      if (args.join(' ') === 'diff --cached --unified=0') {
+        return 'diff --git a/x b/x\n@@ -1,0 +2 @@\n+line';
+      }
+      if (args.join(' ') === 'diff --cached') {
+        return diff;
+      }
+      throw new Error('unexpected command: ' + args.join(' '));
+    };
+
+    const preview = await executeCli(
+      ['dev', 'commit', '--ai', '--provider', 'ollama', '--json'],
+      { commandRunner: makeRunner('original diff') }
+    );
+    const fingerprint = JSON.parse(preview.stdout).operationPlan.fingerprint as string;
+
+    // The staged diff changes between preview and confirm; the stale
+    // fingerprint must not authorize sending the new diff to the provider.
+    const confirmed = await executeCli(
+      [
+        'dev',
+        'commit',
+        '--ai',
+        '--provider',
+        'ollama',
+        '--yes',
+        '--plan-fingerprint',
+        fingerprint,
+        '--json',
+      ],
+      { commandRunner: makeRunner('swapped diff') }
+    );
+
+    expect(confirmed.exitCode).toBe(1);
+    expect(JSON.parse(confirmed.stderr).error.code).toBe('OPERATION_PLAN_MISMATCH');
   });
 
   it('runs dev commit with AI assistance from CLI', async () => {

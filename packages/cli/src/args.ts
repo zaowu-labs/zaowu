@@ -1,3 +1,5 @@
+import { VALUE_OPTIONS } from './option-registry.js';
+
 export interface ParsedArgs {
   positionals: string[];
   flags: ReadonlySet<string>;
@@ -6,18 +8,7 @@ export interface ParsedArgs {
   options: ReadonlySet<string>;
 }
 
-const FLAGS_WITH_VALUES = new Set([
-  '--file',
-  '--format',
-  '--count',
-  '--model',
-  '--output',
-  '--plan-fingerprint',
-  '--provider',
-  '--rows',
-  '--sheet',
-  '--source',
-]);
+const FLAGS_WITH_VALUES: ReadonlySet<string> = new Set(VALUE_OPTIONS);
 
 export const parseArgs = (args: readonly string[]): ParsedArgs => {
   const positionals: string[] = [];

@@ -19,7 +19,7 @@
       "const": 1
     },
     "status": {
-      "const": "ok"
+      "enum": ["ok", "preview"]
     },
     "source": {
       "const": "staged"

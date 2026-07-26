@@ -1,5 +1,6 @@
 import { createOperationPlan, hashOperationContent, ZaoWuError } from '@zaowu-labs/core';
 import type { DevCommandRunner, DevStatusResult, DevSyncResult } from './contracts.js';
+import { runGit } from './git.js';
 
 export interface DevSyncOptions {
   cwd?: string;
@@ -7,18 +8,6 @@ export interface DevSyncOptions {
   discardLocal?: boolean;
 }
 
-const runGit = (runner: DevCommandRunner, args: readonly string[], cwd?: string): string => {
-  try {
-    return runner('git', args, { cwd });
-  } catch {
-    throw new ZaoWuError({
-      code: 'GIT_COMMAND_FAILED',
-      message: 'Git command failed.',
-      why: `ZaoWu could not execute: git ${args.join(' ')}`,
-      fix: 'Ensure Git is installed, the current directory is a Git repository, and the command succeeds manually.',
-    });
-  }
-};
 
 const getDiscardRisks = (status: DevStatusResult): string[] => [
   ...(status.staged.length > 0 ? [`${status.staged.length} staged file(s)`] : []),

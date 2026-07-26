@@ -1,4 +1,4 @@
-import type { DomainDefinition, OperationPlan } from '@zaowu-labs/core';
+import type { DomainDefinition } from '@zaowu-labs/core';
 import { DOMAIN_DEFINITIONS } from './domains.js';
 import { ACTION_HELP } from './help-text.js';
 import { formatRows } from './output.js';
@@ -137,16 +137,3 @@ Examples:
   zw doctor
   zw doctor --json`;
 
-export const formatInlineOperationPlan = (plan: OperationPlan): string =>
-  [
-    'Operation plan:',
-    `Risk: ${plan.risk}`,
-    `Confirmation required: ${plan.confirmationRequired ? 'yes' : 'no'}`,
-    `Fingerprint: ${plan.fingerprint}`,
-    ...(plan.confirmationRequired
-      ? [`Base confirmation flags: --yes --plan-fingerprint ${plan.fingerprint}`]
-      : []),
-    `Subjects: ${plan.subjects.length > 0 ? plan.subjects.join(', ') : 'none'}`,
-    `Writes: ${plan.writes.length > 0 ? plan.writes.join(', ') : 'none'}`,
-    `Deletes: ${plan.deletes.length > 0 ? plan.deletes.join(', ') : 'none'}`,
-  ].join('\n');

@@ -1,9 +1,10 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
+  assertSafeOutputPath,
   createCapabilityLedger,
-  pathExists,
   stripUtf8Bom,
+  writeTextFileExclusive,
   ZaoWuError,
   type DomainDefinition,
 } from '@zaowu-labs/core';
@@ -555,25 +556,21 @@ export const loadDataTable = async (
   };
 };
 
-const assertSafeOutputPath = async (inputPath: string, outputPath: string): Promise<void> => {
-  if (path.resolve(inputPath) === path.resolve(outputPath)) {
-    throw new ZaoWuError({
+const assertSafeDataOutputPath = (inputPath: string, outputPath: string): Promise<void> =>
+  assertSafeOutputPath(inputPath, outputPath, {
+    inputConflict: {
       code: 'DATA_OUTPUT_CONFLICT',
       message: 'Data output path conflicts with input path.',
       why: '`zw data clean` refuses to overwrite the input dataset.',
       fix: 'Choose a different `--output` path.',
-    });
-  }
-
-  if (await pathExists(outputPath)) {
-    throw new ZaoWuError({
+    },
+    alreadyExists: {
       code: 'DATA_OUTPUT_CONFLICT',
       message: 'Data output file already exists.',
       why: `ZaoWu will not silently overwrite \`${outputPath}\`.`,
       fix: 'Choose a new `--output` path, or remove the existing file yourself first.',
-    });
-  }
-};
+    },
+  });
 
 const getMissingByColumn = (table: DataTable): Record<string, number> => {
   const missingByColumn: Record<string, number> = {};
@@ -670,31 +667,21 @@ export const cleanData = async (
   const content = `${lines.join('\n')}\n`;
 
   if (options.outputPath && options.yes) {
-    await assertSafeOutputPath(inputPath, options.outputPath);
-
-    try {
-      await writeFile(options.outputPath, content, { encoding: 'utf8', flag: 'wx' });
-    } catch (error) {
-      if (error instanceof ZaoWuError) {
-        throw error;
-      }
-
-      if ((error as { code?: string }).code === 'EEXIST') {
-        throw new ZaoWuError({
-          code: 'DATA_OUTPUT_CONFLICT',
-          message: 'Data output file already exists.',
-          why: `ZaoWu will not silently overwrite \`${options.outputPath}\`.`,
-          fix: 'Choose a new `--output` path, or remove the existing file yourself first.',
-        });
-      }
-
-      throw new ZaoWuError({
+    await assertSafeDataOutputPath(inputPath, options.outputPath);
+    await writeTextFileExclusive(options.outputPath, content, {
+      exists: {
+        code: 'DATA_OUTPUT_CONFLICT',
+        message: 'Data output file already exists.',
+        why: `ZaoWu will not silently overwrite \`${options.outputPath}\`.`,
+        fix: 'Choose a new `--output` path, or remove the existing file yourself first.',
+      },
+      failed: {
         code: 'DATA_WRITE_FAILED',
         message: 'Could not write cleaned data.',
         why: `ZaoWu tried to write \`${options.outputPath}\`, but the file system rejected the write.`,
         fix: 'Check the output directory and permissions, then run the command again.',
-      });
-    }
+      },
+    });
   }
 
   return {

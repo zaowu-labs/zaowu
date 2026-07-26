@@ -1,5 +1,8 @@
 import { constants } from 'node:fs';
-import { access } from 'node:fs/promises';
+import { access, readFile, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { ZaoWuError, type ZaoWuErrorOptions } from './errors.js';
+import { stripUtf8Bom } from './text.js';
 
 /**
  * Returns true if the given file path exists and is accessible.
@@ -16,4 +19,76 @@ export const pathExists = async (filePath: string): Promise<boolean> => {
     // File does not exist or is not accessible — treat as missing.
     return false;
   }
+};
+
+/**
+ * Read a UTF-8 text file, mapping any read failure to the provided
+ * domain-specific ZaoWuError. Set `stripBom` when the caller treats the
+ * content as text a user may have saved with a UTF-8 BOM.
+ */
+export const readTextFileOrThrow = async (
+  filePath: string,
+  error: ZaoWuErrorOptions,
+  options: { stripBom?: boolean } = {}
+): Promise<string> => {
+  try {
+    const content = await readFile(filePath, 'utf8');
+
+    return options.stripBom ? stripUtf8Bom(content) : content;
+  } catch {
+    throw new ZaoWuError(error);
+  }
+};
+
+/**
+ * Write a UTF-8 text file with the exclusive `wx` flag so an existing file is
+ * never silently overwritten. `errors.exists` is thrown when the target
+ * already exists; `errors.failed` for any other file-system rejection.
+ */
+export const writeTextFileExclusive = async (
+  filePath: string,
+  content: string,
+  errors: { exists: ZaoWuErrorOptions; failed: ZaoWuErrorOptions }
+): Promise<void> => {
+  try {
+    await writeFile(filePath, content, { encoding: 'utf8', flag: 'wx' });
+  } catch (error) {
+    if (error instanceof ZaoWuError) {
+      throw error;
+    }
+
+    throw new ZaoWuError(
+      (error as { code?: string }).code === 'EEXIST' ? errors.exists : errors.failed
+    );
+  }
+};
+
+/**
+ * Guard for preview-first output writes: refuse to write onto the input file
+ * and refuse to overwrite an existing output file. Error text stays with the
+ * calling domain so messages keep their command-specific fix guidance.
+ */
+export const assertSafeOutputPath = async (
+  inputPath: string,
+  outputPath: string,
+  errors: { inputConflict: ZaoWuErrorOptions; alreadyExists: ZaoWuErrorOptions }
+): Promise<void> => {
+  if (path.resolve(inputPath) === path.resolve(outputPath)) {
+    throw new ZaoWuError(errors.inputConflict);
+  }
+
+  if (await pathExists(outputPath)) {
+    throw new ZaoWuError(errors.alreadyExists);
+  }
+};
+
+/**
+ * True when `target` resolves outside `baseDirectory`. A target equal to the
+ * base directory itself is NOT escaping; callers that additionally require a
+ * non-empty relative path (a file strictly inside) must check that separately.
+ */
+export const isPathEscapingDirectory = (baseDirectory: string, target: string): boolean => {
+  const relative = path.relative(baseDirectory, target);
+
+  return relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative);
 };

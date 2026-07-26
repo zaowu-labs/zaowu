@@ -1,9 +1,10 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
+  assertSafeOutputPath,
   createCapabilityLedger,
-  pathExists,
   stripUtf8Bom,
+  writeTextFileExclusive,
   ZaoWuError,
   type DomainDefinition,
 } from '@zaowu-labs/core';
@@ -388,25 +389,21 @@ const readTextDocument = async (
   }
 };
 
-const assertSafeOutputPath = async (inputPath: string, outputPath: string): Promise<void> => {
-  if (path.resolve(inputPath) === path.resolve(outputPath)) {
-    throw new ZaoWuError({
+const assertSafeDocumentOutputPath = (inputPath: string, outputPath: string): Promise<void> =>
+  assertSafeOutputPath(inputPath, outputPath, {
+    inputConflict: {
       code: 'DOCUMENT_OUTPUT_CONFLICT',
       message: 'Document output path conflicts with input path.',
       why: '`zw doc convert` refuses to overwrite the input document.',
       fix: 'Choose a different `--output` path.',
-    });
-  }
-
-  if (await pathExists(outputPath)) {
-    throw new ZaoWuError({
+    },
+    alreadyExists: {
       code: 'DOCUMENT_OUTPUT_CONFLICT',
       message: 'Document output file already exists.',
       why: `ZaoWu will not silently overwrite \`${outputPath}\`.`,
       fix: 'Choose a new `--output` path, or remove the existing file yourself first.',
-    });
-  }
-};
+    },
+  });
 
 const getTitle = (content: string, filePath: string): string => {
   const heading = content
@@ -561,31 +558,21 @@ export const convertDocument = async (
       : content;
 
   if (options.outputPath && options.yes) {
-    await assertSafeOutputPath(inputPath, options.outputPath);
-
-    try {
-      await writeFile(options.outputPath, converted, { encoding: 'utf8', flag: 'wx' });
-    } catch (error) {
-      if (error instanceof ZaoWuError) {
-        throw error;
-      }
-
-      if ((error as { code?: string }).code === 'EEXIST') {
-        throw new ZaoWuError({
-          code: 'DOCUMENT_OUTPUT_CONFLICT',
-          message: 'Document output file already exists.',
-          why: `ZaoWu will not silently overwrite \`${options.outputPath}\`.`,
-          fix: 'Choose a new `--output` path, or remove the existing file yourself first.',
-        });
-      }
-
-      throw new ZaoWuError({
+    await assertSafeDocumentOutputPath(inputPath, options.outputPath);
+    await writeTextFileExclusive(options.outputPath, converted, {
+      exists: {
+        code: 'DOCUMENT_OUTPUT_CONFLICT',
+        message: 'Document output file already exists.',
+        why: `ZaoWu will not silently overwrite \`${options.outputPath}\`.`,
+        fix: 'Choose a new `--output` path, or remove the existing file yourself first.',
+      },
+      failed: {
         code: 'DOCUMENT_WRITE_FAILED',
         message: 'Could not write converted document.',
         why: `ZaoWu tried to write \`${options.outputPath}\`, but the file system rejected the write.`,
         fix: 'Check the output directory and permissions, then run the command again.',
-      });
-    }
+      },
+    });
   }
 
   return {

@@ -1,9 +1,11 @@
-import { readFile, realpath, writeFile } from 'node:fs/promises';
+import { realpath, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import YAML from 'yaml';
 import {
   hashOperationContent,
   createOperationPlan,
+  isPathEscapingDirectory,
+  readTextFileOrThrow,
   stripUtf8Bom,
   ZaoWuError,
   type OperationPlan,
@@ -407,12 +409,7 @@ const resolveWorkflowWritePath = (
   const targetPath = path.resolve(workflowDirectory, trimmedPath);
   const relativeTarget = path.relative(workflowDirectory, targetPath);
 
-  if (
-    !relativeTarget ||
-    relativeTarget === '..' ||
-    relativeTarget.startsWith(`..${path.sep}`) ||
-    path.isAbsolute(relativeTarget)
-  ) {
+  if (!relativeTarget || isPathEscapingDirectory(workflowDirectory, targetPath)) {
     return {
       reason: 'writeFile.path must name a file inside the workflow directory.',
     };
@@ -443,12 +440,7 @@ const resolveSandboxedWriteTarget = async (
     });
   }
 
-  const relativeDirectory = path.relative(realWorkflowDirectory, realTargetDirectory);
-  if (
-    relativeDirectory === '..' ||
-    relativeDirectory.startsWith(`..${path.sep}`) ||
-    path.isAbsolute(relativeDirectory)
-  ) {
+  if (isPathEscapingDirectory(realWorkflowDirectory, realTargetDirectory)) {
     throw new ZaoWuError({
       code: 'WORKFLOW_STEP_FAILED',
       message: `Workflow step \`${stepName}\` failed.`,
@@ -606,24 +598,18 @@ export const validateWorkflowContent = (
   };
 };
 
+const readWorkflowFile = (filePath: string): Promise<string> =>
+  readTextFileOrThrow(filePath, {
+    code: 'WORKFLOW_READ_FAILED',
+    message: 'Could not read workflow file.',
+    why: `ZaoWu tried to read \`${filePath}\`, but the file was not readable.`,
+    fix: 'Check the path and file permissions, then run the command again.',
+  });
+
 export const validateWorkflowFile = async (
   filePath: string
-): Promise<AutomationValidationResult> => {
-  let content: string;
-
-  try {
-    content = await readFile(filePath, 'utf8');
-  } catch {
-    throw new ZaoWuError({
-      code: 'WORKFLOW_READ_FAILED',
-      message: 'Could not read workflow file.',
-      why: `ZaoWu tried to read \`${filePath}\`, but the file was not readable.`,
-      fix: 'Check the path and file permissions, then run the command again.',
-    });
-  }
-
-  return validateWorkflowContent(content, filePath);
-};
+): Promise<AutomationValidationResult> =>
+  validateWorkflowContent(await readWorkflowFile(filePath), filePath);
 
 export const planWorkflowContent = (
   content: string,
@@ -809,22 +795,8 @@ export const planWorkflowContent = (
   };
 };
 
-export const planWorkflowFile = async (filePath: string): Promise<AutomationPlanResult> => {
-  let content: string;
-
-  try {
-    content = await readFile(filePath, 'utf8');
-  } catch {
-    throw new ZaoWuError({
-      code: 'WORKFLOW_READ_FAILED',
-      message: 'Could not read workflow file.',
-      why: `ZaoWu tried to read \`${filePath}\`, but the file was not readable.`,
-      fix: 'Check the path and file permissions, then run the command again.',
-    });
-  }
-
-  return planWorkflowContent(content, filePath);
-};
+export const planWorkflowFile = async (filePath: string): Promise<AutomationPlanResult> =>
+  planWorkflowContent(await readWorkflowFile(filePath), filePath);
 
 export const runWorkflowPlan = async (
   plan: AutomationPlanResult,

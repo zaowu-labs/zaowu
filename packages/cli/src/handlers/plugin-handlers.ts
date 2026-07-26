@@ -141,7 +141,15 @@ export const handlePluginRemove: DomainActionHandler = async (args, context) => 
       : [
           '',
           'To execute this plugin removal plan, run:',
-          `  zw plugin remove ${id} --yes --plan-fingerprint ${operationPlan.fingerprint}`,
+          `  ${formatConfirmCommand([
+            'zw',
+            'plugin',
+            'remove',
+            id,
+            '--yes',
+            '--plan-fingerprint',
+            operationPlan.fingerprint,
+          ])}`,
         ]),
   ].join('\n');
 

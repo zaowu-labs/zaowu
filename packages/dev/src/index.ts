@@ -18,26 +18,16 @@ import {
   type DevSyncResult,
   type GitChangeSummary,
 } from './contracts.js';
+import { runGit } from './git.js';
 import { syncDevRepoInternal, type DevSyncOptions } from './sync.js';
 
+export * from './ai-assist.js';
 export * from './contracts.js';
 
 const DEV_REVIEW_SCHEMA_VERSION = 1;
 const DEV_COMMIT_SCHEMA_VERSION = 1;
 const DEV_STATUS_SCHEMA_VERSION = 1;
 
-const runGit = (commandRunner: DevCommandRunner, args: readonly string[], cwd?: string): string => {
-  try {
-    return commandRunner('git', args, { cwd });
-  } catch {
-    throw new ZaoWuError({
-      code: 'GIT_COMMAND_FAILED',
-      message: 'Git command failed.',
-      why: `ZaoWu tried to run \`git ${args.join(' ')}\`, but Git returned an error.`,
-      fix: 'Run this command inside a Git repository and make sure Git is available on PATH.',
-    });
-  }
-};
 
 const createEmptyCategories = (): DevChangeCategories =>
   Object.fromEntries(DEV_CHANGE_CATEGORIES.map((cat) => [cat, 0])) as DevChangeCategories;

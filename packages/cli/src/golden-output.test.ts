@@ -20,7 +20,7 @@ describe('golden command output contracts', () => {
       const lines = getStableLines(result.stdout, root);
 
       expect(result.exitCode).toBe(0);
-      expect(lines.slice(0, 13)).toEqual([
+      expect(lines.slice(0, 15)).toEqual([
         'ZaoWu Init',
         'No files were written.',
         'Would create:',
@@ -30,15 +30,17 @@ describe('golden command output contracts', () => {
         'Confirmation required: yes',
         expect.stringMatching(/^Fingerprint: [a-f0-9]{64}$/),
         expect.stringMatching(/^Base confirmation flags: --yes --plan-fingerprint [a-f0-9]{64}$/),
+        'Subjects:',
         expect.stringMatching(
-          new RegExp(
-            `^Subjects: init:<root>${path.sep.replace('\\', '\\\\')}zw\\.yml, content-sha256:[a-f0-9]{64}, content-length:\\d+$`
-          )
+          new RegExp(`^- init:<root>${path.sep.replace('\\', '\\\\')}zw\\.yml$`)
         ),
-        `Writes: <root>${path.sep}zw.yml`,
-        'Deletes: none',
-        'Preview:',
+        expect.stringMatching(/^- content-sha256:[a-f0-9]{64}$/),
+        expect.stringMatching(/^- content-length:\d+$/),
+        'Read:',
+        '- none',
       ]);
+      expect(lines).toContain('Write:');
+      expect(lines).toContain(`- <root>${path.sep}zw.yml`);
       expect(lines).toContain('To create exactly this file, run:');
       expect(lines).toContainEqual(
         expect.stringMatching(/^zw init --yes --plan-fingerprint [a-f0-9]{64}$/)

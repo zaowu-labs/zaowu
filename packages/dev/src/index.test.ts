@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+  applyDevAiCommitSuggestion,
   DEV_DOMAIN,
   getDevStatus,
+  parseDevAiReviewFindings,
   previewDevCommit,
   reviewDevChanges,
   syncDevRepo,
   type DevCommandRunner,
+  type DevCommitResult,
 } from './index';
 
 describe('dev domain', () => {
@@ -695,5 +698,101 @@ describe('dev domain', () => {
         },
       ],
     });
+  });
+
+  it('applies an AI commit suggestion without mutating the preview', () => {
+    const preview: DevCommitResult = {
+      schemaVersion: 1,
+      status: 'ok',
+      source: 'staged',
+      summary: {
+        files: ['a.ts'],
+        untrackedFiles: [],
+        additions: 1,
+        deletions: 0,
+        categories: {
+          source: 1,
+          test: 0,
+          docs: 0,
+          dependency: 0,
+          workflow: 0,
+          config: 0,
+          other: 0,
+        },
+      },
+      suggestion: {
+        type: 'chore',
+        scope: '',
+        subject: 'original',
+        title: 'chore: original',
+        body: [],
+      },
+      message: 'chore: original',
+      findings: [],
+      recommendedChecks: [],
+    };
+
+    const applied = applyDevAiCommitSuggestion(
+      preview,
+      'feat(core): add feature\n\nLonger explanation line.'
+    );
+
+    expect(applied.suggestion).toMatchObject({
+      type: 'feat',
+      scope: 'core',
+      subject: 'add feature',
+      title: 'feat(core): add feature',
+      body: ['Longer explanation line.'],
+    });
+    expect(applied.message).toBe('feat(core): add feature');
+    // The original preview must stay untouched.
+    expect(preview.message).toBe('chore: original');
+    expect(preview.suggestion.title).toBe('chore: original');
+  });
+
+  it('parses fenced AI review findings and falls back to a summary finding', () => {
+    const fenced = [
+      '```json',
+      '[{"severity":"warning","priority":"high","category":"security","title":"Injection","detail":"Fix it.","filePath":"a.ts","line":3}]',
+      '```',
+    ].join('\n');
+
+    expect(parseDevAiReviewFindings(fenced)).toEqual([
+      {
+        severity: 'warning',
+        priority: 'high',
+        category: 'security',
+        title: 'Injection',
+        detail: 'Fix it.',
+        filePath: 'a.ts',
+        line: 3,
+        hunkHeader: undefined,
+      },
+    ]);
+
+    // Invalid enum values are clamped to safe defaults.
+    expect(parseDevAiReviewFindings('[{"severity":"fatal","line":-2}]')).toEqual([
+      {
+        severity: 'info',
+        priority: 'medium',
+        category: 'quality',
+        title: 'AI Review',
+        detail: '',
+        filePath: undefined,
+        line: undefined,
+        hunkHeader: undefined,
+      },
+    ]);
+
+    // Non-JSON output becomes a single plain-text summary finding.
+    expect(parseDevAiReviewFindings('The change looks fine overall.')).toEqual([
+      {
+        severity: 'info',
+        priority: 'medium',
+        category: 'quality',
+        title: 'AI Code Review Summary',
+        detail: 'The change looks fine overall.',
+      },
+    ]);
   });
 });

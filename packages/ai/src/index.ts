@@ -1,5 +1,8 @@
-import { readFile } from 'node:fs/promises';
-import { createContentOperationSubjects, stripUtf8Bom, ZaoWuError } from '@zaowu-labs/core';
+import {
+  createContentOperationSubjects,
+  readTextFileOrThrow,
+  ZaoWuError,
+} from '@zaowu-labs/core';
 import type {
   AIAskPreview,
   AIAskRequest,
@@ -147,18 +150,17 @@ export const resolveAIRequestContentSubjects = async (
   return createContentOperationSubjects(prepared.combinedPrompt);
 };
 
-const readPromptFile = async (filePath: string): Promise<string> => {
-  try {
-    return stripUtf8Bom(await readFile(filePath, 'utf8'));
-  } catch {
-    throw new ZaoWuError({
+const readPromptFile = (filePath: string): Promise<string> =>
+  readTextFileOrThrow(
+    filePath,
+    {
       code: 'AI_INPUT_FILE_READ_FAILED',
       message: 'Could not read AI input file.',
       why: `ZaoWu tried to read \`${filePath}\`, but the file was not readable.`,
       fix: 'Check the path and file permissions, then run the command again.',
-    });
-  }
-};
+    },
+    { stripBom: true }
+  );
 
 const ECHO_PROVIDER: AIProvider = {
   descriptor: createProviderDescriptor({

@@ -1,8 +1,9 @@
-import { lstat, mkdir, readFile, readdir, realpath, rm, stat, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, readFile, readdir, realpath, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import {
   createCapabilityLedger,
   stripUtf8Bom,
+  writeTextFileExclusive,
   ZaoWuError,
   type DomainDefinition,
 } from '@zaowu-labs/core';
@@ -400,32 +401,20 @@ export const installPlugin = async (
       });
     }
 
-    try {
-      await writeFile(pluginPath, `${JSON.stringify(plugin, null, 2)}\n`, {
-        encoding: 'utf8',
-        flag: 'wx',
-      });
-    } catch (error) {
-      if (error instanceof ZaoWuError) {
-        throw error;
-      }
-
-      if ((error as { code?: string }).code === 'EEXIST') {
-        throw new ZaoWuError({
-          code: 'PLUGIN_ALREADY_INSTALLED',
-          message: 'Plugin is already installed.',
-          why: `ZaoWu will not silently overwrite \`${pluginPath}\`.`,
-          fix: 'Remove the plugin first with `zw plugin remove <id> --yes`, then install it again.',
-        });
-      }
-
-      throw new ZaoWuError({
+    await writeTextFileExclusive(pluginPath, `${JSON.stringify(plugin, null, 2)}\n`, {
+      exists: {
+        code: 'PLUGIN_ALREADY_INSTALLED',
+        message: 'Plugin is already installed.',
+        why: `ZaoWu will not silently overwrite \`${pluginPath}\`.`,
+        fix: 'Remove the plugin first with `zw plugin remove <id> --yes`, then install it again.',
+      },
+      failed: {
         code: 'PLUGIN_WRITE_FAILED',
         message: 'Could not write plugin manifest.',
         why: `ZaoWu tried to write \`${pluginPath}\`, but the file system rejected the write.`,
         fix: 'Check the plugin directory permissions, then run the command again.',
-      });
-    }
+      },
+    });
   }
 
   return {

@@ -9,8 +9,8 @@ import {
   ZaoWuError,
 } from '@zaowu-labs/core';
 import { getValue, parseArgs } from './args.js';
+import { formatOperationPlan } from './handler-utils.js';
 import { createResult } from './output.js';
-import { formatInlineOperationPlan } from './root-help.js';
 import type { CliExecutionOptions, CliResult } from './types.js';
 
 export const DEFAULT_CONFIG_FILE_NAME = 'zw.yml';
@@ -28,7 +28,7 @@ No files were written.
 Would create:
   ${path.basename(configPath)}
 
-${formatInlineOperationPlan(operationPlan)}
+${formatOperationPlan(operationPlan)}
 
 Preview:
 ${content
