@@ -105,6 +105,16 @@ const throwUnsafePluginPath = (pluginDir: string): never => {
   });
 };
 
+const rethrowUnlessMissing = (error: unknown): void => {
+  if (error instanceof ZaoWuError) {
+    throw error;
+  }
+
+  if ((error as { code?: string }).code !== 'ENOENT') {
+    throw error;
+  }
+};
+
 const assertSafePluginDir = async (cwd: string, pluginDir: string): Promise<void> => {
   const resolvedCwd = path.resolve(cwd);
   const zaowuDir = path.join(resolvedCwd, '.zaowu');
@@ -115,13 +125,7 @@ const assertSafePluginDir = async (cwd: string, pluginDir: string): Promise<void
         throwUnsafePluginPath(pluginDir);
       }
     } catch (error) {
-      if (error instanceof ZaoWuError) {
-        throw error;
-      }
-
-      if ((error as { code?: string }).code !== 'ENOENT') {
-        throw error;
-      }
+      rethrowUnlessMissing(error);
     }
   }
 
@@ -136,13 +140,7 @@ const assertSafePluginDir = async (cwd: string, pluginDir: string): Promise<void
       throwUnsafePluginPath(pluginDir);
     }
   } catch (error) {
-    if (error instanceof ZaoWuError) {
-      throw error;
-    }
-
-    if ((error as { code?: string }).code !== 'ENOENT') {
-      throw error;
-    }
+    rethrowUnlessMissing(error);
   }
 };
 
@@ -391,15 +389,8 @@ export const installPlugin = async (
     await mkdir(pluginDir, { recursive: true });
     await assertSafePluginDir(cwd, pluginDir);
 
-    if (await fileExists(pluginPath)) {
-      throw new ZaoWuError({
-        code: 'PLUGIN_ALREADY_INSTALLED',
-        message: 'Plugin is already installed.',
-        why: `ZaoWu will not silently overwrite \`${pluginPath}\`.`,
-        fix: 'Remove the plugin first with `zw plugin remove <id> --yes`, then install it again.',
-      });
-    }
-
+    // No pre-existence check here: the exclusive `wx` write is the single
+    // authoritative guard, so there is no check-to-write race window.
     await writeTextFileExclusive(pluginPath, `${JSON.stringify(plugin, null, 2)}\n`, {
       exists: {
         code: 'PLUGIN_ALREADY_INSTALLED',

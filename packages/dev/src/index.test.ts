@@ -719,6 +719,25 @@ describe('dev domain', () => {
     });
   });
 
+  it('does not classify files merely ending in package.json as dependency changes', () => {
+    const runner: DevCommandRunner = (_command, args) => {
+      if (args.join(' ') === 'diff --cached --name-only') {
+        return 'packages/dev/src/fixtures/my-package.json';
+      }
+      if (args.join(' ') === 'diff --cached --numstat') {
+        return '5\t1\tpackages/dev/src/fixtures/my-package.json';
+      }
+      if (args.join(' ') === 'diff --cached --unified=0') {
+        return '';
+      }
+      throw new Error('unexpected git command: ' + args.join(' '));
+    };
+
+    expect(previewDevCommit(runner)).toMatchObject({
+      suggestion: expect.objectContaining({ type: 'feat' }),
+    });
+  });
+
   it('applies an AI commit suggestion without mutating the preview', () => {
     const preview: DevCommitResult = {
       schemaVersion: 1,

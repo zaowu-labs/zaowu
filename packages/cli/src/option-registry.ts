@@ -37,7 +37,7 @@ export const BOOLEAN_OPTIONS = [
 ] as const;
 
 export const COMMON_OPTIONS = ['--help', '--json', '--version'] as const;
-export const CONFIRMATION_OPTIONS = ['--dry-run', '--plan-fingerprint', '--yes'] as const;
+const CONFIRMATION_OPTIONS = ['--dry-run', '--plan-fingerprint', '--yes'] as const;
 
 export const COMMAND_OPTIONS: Readonly<Record<string, readonly string[]>> = {
   init: [...COMMON_OPTIONS, ...CONFIRMATION_OPTIONS],

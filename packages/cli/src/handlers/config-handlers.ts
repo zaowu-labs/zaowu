@@ -10,6 +10,7 @@ import {
   assertOperationPlanFingerprint,
   createContentOperationSubjects,
   createOperationPlan,
+  formatLabeledList,
   formatOperationPlan,
   hasFlag,
   requireSecondTarget,
@@ -39,7 +40,7 @@ export const handleConfigShow: DomainActionHandler = async (_args, context) => {
     config: resolved.config,
   };
   const human = [
-    'ZaoWu Config',
+    'ZaoWu Config Show',
     '',
     `File: ${resolved.filePath}`,
     `Project: ${resolved.config.project.name}`,
@@ -60,9 +61,7 @@ export const handleConfigValidate: DomainActionHandler = async (_args, context) 
     `Status: ${validation.status}`,
     `File: ${validation.filePath}`,
     '',
-    validation.warnings.length > 0
-      ? ['Warnings:', ...validation.warnings.map((warning) => `- ${warning}`)].join('\n')
-      : 'Warnings: none',
+    formatLabeledList('Warnings', validation.warnings),
   ].join('\n');
 
   return result(context, validation, human);
@@ -85,10 +84,11 @@ export const handleConfigSet: DomainActionHandler = async (args, context) => {
   const key = requireTarget(args, 'zw config set');
   const value = requireSecondTarget(args, 'zw config set', 'value');
   const isGlobal = hasFlag(context.parsed, '--global');
-  const preview = await setResolvedConfigValue(key, value, {
-    cwd: context.cwd,
-    global: isGlobal,
-  });
+  // One options object for both the preview and the confirmed call: the
+  // fingerprint the user confirms is computed from the preview, so the two
+  // calls must be structurally unable to drift apart.
+  const setOptions = { cwd: context.cwd, global: isGlobal };
+  const preview = await setResolvedConfigValue(key, value, setOptions);
   const operationPlan = createOperationPlan({
     risk: 'medium',
     confirmationRequired: !context.yes,
@@ -105,11 +105,7 @@ export const handleConfigSet: DomainActionHandler = async (args, context) => {
   assertOperationPlanFingerprint(context, operationPlan);
 
   const updated = context.yes
-    ? await setResolvedConfigValue(key, value, {
-        cwd: context.cwd,
-        yes: true,
-        global: isGlobal,
-      })
+    ? await setResolvedConfigValue(key, value, { ...setOptions, yes: true })
     : preview;
   const human = [
     'ZaoWu Config Set',
@@ -130,9 +126,8 @@ export const handleConfigSet: DomainActionHandler = async (args, context) => {
 };
 
 export const handleConfigMigrate: DomainActionHandler = async (_args, context) => {
-  const preview = await migrateResolvedConfig({
-    cwd: context.cwd,
-  });
+  const migrateOptions = { cwd: context.cwd };
+  const preview = await migrateResolvedConfig(migrateOptions);
   const operationPlan = createOperationPlan({
     risk: 'medium',
     confirmationRequired: preview.changed && !context.yes,
@@ -148,10 +143,7 @@ export const handleConfigMigrate: DomainActionHandler = async (_args, context) =
 
   const migrated =
     context.yes && preview.changed
-      ? await migrateResolvedConfig({
-          cwd: context.cwd,
-          yes: true,
-        })
+      ? await migrateResolvedConfig({ ...migrateOptions, yes: true })
       : preview;
   const human = [
     'ZaoWu Config Migrate',

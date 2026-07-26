@@ -3,6 +3,7 @@ import path from 'node:path';
 import {
   assertSafeOutputPath,
   createCapabilityLedger,
+  readTextFileOrThrow,
   stripUtf8Bom,
   writeTextFileExclusive,
   ZaoWuError,
@@ -177,63 +178,34 @@ interface ParsedDelimitedLine {
   trimmedCells: number;
 }
 
-const parseDelimitedLineDetailed = (line: string, delimiter: ',' | '\t'): ParsedDelimitedLine => {
-  const values: string[] = [];
-  let trimmedCells = 0;
-  const pushValue = (value: string): void => {
+interface CellCollector {
+  values: string[];
+  trimmedCells: number;
+  push(value: string): void;
+}
+
+const createCellCollector = (): CellCollector => ({
+  values: [],
+  trimmedCells: 0,
+  push(value: string): void {
     const trimmed = value.trim();
 
     if (value !== trimmed) {
-      trimmedCells += 1;
+      this.trimmedCells += 1;
     }
 
-    values.push(trimmed);
-  };
+    this.values.push(trimmed);
+  },
+});
 
-  if (delimiter === '\t') {
-    for (const value of line.split('\t')) {
-      pushValue(value);
-    }
+const parseTsvLine = (line: string): ParsedDelimitedLine => {
+  const cells = createCellCollector();
 
-    return {
-      values,
-      trimmedCells,
-    };
+  for (const value of line.split('\t')) {
+    cells.push(value);
   }
 
-  let current = '';
-  let quoted = false;
-
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index];
-    const next = line[index + 1];
-
-    if (char === '"' && quoted && next === '"') {
-      current += '"';
-      index += 1;
-      continue;
-    }
-
-    if (char === '"') {
-      quoted = !quoted;
-      continue;
-    }
-
-    if (char === ',' && !quoted) {
-      pushValue(current);
-      current = '';
-      continue;
-    }
-
-    current += char;
-  }
-
-  pushValue(current);
-
-  return {
-    values,
-    trimmedCells,
-  };
+  return { values: cells.values, trimmedCells: cells.trimmedCells };
 };
 
 interface ParsedDelimitedRecords {
@@ -251,21 +223,14 @@ interface ParsedDelimitedRecords {
 const parseCsvRecords = (content: string): ParsedDelimitedRecords => {
   const records: ParsedDelimitedLine[] = [];
   let emptyLineCount = 0;
-  let values: string[] = [];
+  let cells = createCellCollector();
   let current = '';
   let raw = '';
   let quoted = false;
-  let trimmedCells = 0;
   let started = false;
 
   const pushValue = (value: string): void => {
-    const trimmed = value.trim();
-
-    if (value !== trimmed) {
-      trimmedCells += 1;
-    }
-
-    values.push(trimmed);
+    cells.push(value);
   };
 
   const finishRecord = (): void => {
@@ -274,13 +239,12 @@ const parseCsvRecords = (content: string): ParsedDelimitedRecords => {
     if (raw.trim() === '') {
       emptyLineCount += 1;
     } else {
-      records.push({ values, trimmedCells });
+      records.push({ values: cells.values, trimmedCells: cells.trimmedCells });
     }
 
-    values = [];
+    cells = createCellCollector();
     current = '';
     raw = '';
-    trimmedCells = 0;
     started = false;
   };
 
@@ -321,7 +285,7 @@ const parseCsvRecords = (content: string): ParsedDelimitedRecords => {
     current += char;
   }
 
-  if (started || current !== '' || values.length > 0) {
+  if (started || current !== '' || cells.values.length > 0) {
     finishRecord();
   }
 
@@ -340,7 +304,7 @@ const parseTsvRecords = (content: string): ParsedDelimitedRecords => {
       continue;
     }
 
-    records.push(parseDelimitedLineDetailed(line, '\t'));
+    records.push(parseTsvLine(line));
   }
 
   return { records, emptyLineCount };
@@ -376,6 +340,47 @@ const normalizeHeaders = (headers: readonly string[]): string[] => {
 
     return candidate;
   });
+};
+
+/**
+ * Opens an XLSX workbook with the shared guard sequence: ZIP magic-byte check,
+ * lazy `xlsx` import, and mapping of low-level read failures to
+ * `DATA_READ_FAILED`.
+ */
+const openXlsxWorkbook = async (filePath: string) => {
+  try {
+    const workbookBuffer = await readFile(filePath);
+
+    if (workbookBuffer[0] !== 0x50 || workbookBuffer[1] !== 0x4b) {
+      throw new ZaoWuError({
+        code: 'DATA_READ_FAILED',
+        message: 'Could not read data file.',
+        why: `ZaoWu tried to read \`${filePath}\` as an XLSX workbook, but the file is not an XLSX ZIP container.`,
+        fix: 'Check the workbook format or export the data as `.csv`, `.tsv`, or `.xlsx`.',
+      });
+    }
+
+    const XLSX = await import('xlsx');
+
+    return {
+      XLSX,
+      workbook: XLSX.read(workbookBuffer, {
+        type: 'buffer',
+      }),
+    };
+  } catch (error) {
+    if (error instanceof ZaoWuError) {
+      throw error;
+    }
+
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    throw new ZaoWuError({
+      code: 'DATA_READ_FAILED',
+      message: 'Could not read data file.',
+      why: `ZaoWu tried to read \`${filePath}\` as an XLSX file, but the file was not readable. Details: ${errorMsg}`,
+      fix: 'Check the path, file permissions, and workbook format, then run the command again.',
+    });
+  }
 };
 
 export const loadDataTable = async (
@@ -453,21 +458,7 @@ export const loadDataTable = async (
 
   if (source.format === 'xlsx') {
     try {
-      const workbookBuffer = await readFile(filePath);
-
-      if (workbookBuffer[0] !== 0x50 || workbookBuffer[1] !== 0x4b) {
-        throw new ZaoWuError({
-          code: 'DATA_READ_FAILED',
-          message: 'Could not read data file.',
-          why: `ZaoWu tried to read \`${filePath}\` as an XLSX workbook, but the file is not an XLSX ZIP container.`,
-          fix: 'Check the workbook format or export the data as `.csv`, `.tsv`, or `.xlsx`.',
-        });
-      }
-
-      const XLSX = await import('xlsx');
-      const workbook = XLSX.read(workbookBuffer, {
-        type: 'buffer',
-      });
+      const { XLSX, workbook } = await openXlsxWorkbook(filePath);
 
       if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
         throw new ZaoWuError({
@@ -528,16 +519,16 @@ export const loadDataTable = async (
     }
   }
 
-  try {
-    content = stripUtf8Bom(await readFile(filePath, 'utf8'));
-  } catch {
-    throw new ZaoWuError({
+  content = await readTextFileOrThrow(
+    filePath,
+    {
       code: 'DATA_READ_FAILED',
       message: 'Could not read data file.',
       why: `ZaoWu tried to read \`${filePath}\`, but the file was not readable.`,
       fix: 'Check the path and file permissions, then run the command again.',
-    });
-  }
+    },
+    { stripBom: true }
+  );
 
   const { records, emptyLineCount } =
     source.delimiter === ',' ? parseCsvRecords(content) : parseTsvRecords(content);
@@ -857,41 +848,14 @@ export const listSheets = async (filePath: string): Promise<DataSheetsResult> =>
   const source = assertSupportedDataFile(filePath);
 
   if (source.format === 'xlsx') {
-    try {
-      const workbookBuffer = await readFile(filePath);
+    const { workbook } = await openXlsxWorkbook(filePath);
 
-      if (workbookBuffer[0] !== 0x50 || workbookBuffer[1] !== 0x4b) {
-        throw new ZaoWuError({
-          code: 'DATA_READ_FAILED',
-          message: 'Could not read data file.',
-          why: `ZaoWu tried to read \`${filePath}\` as an XLSX workbook, but the file is not an XLSX ZIP container.`,
-          fix: 'Check the workbook format or export the data as `.csv`, `.tsv`, or `.xlsx`.',
-        });
-      }
-
-      const XLSX = await import('xlsx');
-      const workbook = XLSX.read(workbookBuffer, {
-        type: 'buffer',
-      });
-      return {
-        schemaVersion: 1,
-        status: 'ok',
-        filePath,
-        sheets: workbook.SheetNames,
-      };
-    } catch (error) {
-      if (error instanceof ZaoWuError) {
-        throw error;
-      }
-
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      throw new ZaoWuError({
-        code: 'DATA_READ_FAILED',
-        message: 'Could not read data file.',
-        why: `ZaoWu tried to read \`${filePath}\` as an XLSX file, but the file was not readable. Details: ${errorMsg}`,
-        fix: 'Check the path, file permissions, and workbook format, then run the command again.',
-      });
-    }
+    return {
+      schemaVersion: 1,
+      status: 'ok',
+      filePath,
+      sheets: workbook.SheetNames,
+    };
   }
 
   return {

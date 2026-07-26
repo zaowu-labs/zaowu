@@ -11,6 +11,7 @@ import {
   assertOperationPlanFingerprint,
   createOperationPlan,
   formatConfirmCommand,
+  formatLabeledList,
   formatOperationPlan,
   getValue,
   result,
@@ -188,9 +189,7 @@ export const handleAiProviders: DomainActionHandler = async (_args, context) => 
       return `- ${provider.id}: ${provider.name} (${flags.join(', ')})`;
     }),
     '',
-    validation?.warnings.length
-      ? ['Warnings:', ...validation.warnings.map((warning) => `- ${warning}`)].join('\n')
-      : 'Warnings: none',
+    formatLabeledList('Warnings', validation?.warnings),
   ].join('\n');
 
   return result(context, payload, human);

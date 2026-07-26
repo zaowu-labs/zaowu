@@ -8,14 +8,12 @@ import {
   createOperationPlan,
   ZaoWuError,
 } from '@zaowu-labs/core';
-import { getValue, parseArgs } from './args.js';
+import { getValue, hasFlag, type ParsedArgs } from './args.js';
 import { formatOperationPlan } from './handler-utils.js';
 import { createResult } from './output.js';
 import type { CliExecutionOptions, CliResult } from './types.js';
 
 export const DEFAULT_CONFIG_FILE_NAME = 'zw.yml';
-
-const hasFlag = (args: readonly string[], flag: string): boolean => args.includes(flag);
 
 const formatInitPreview = (
   configPath: string,
@@ -41,13 +39,13 @@ To create exactly this file, run:
   zw init --yes --plan-fingerprint ${operationPlan.fingerprint}`;
 
 export const handleInit = async (
-  args: readonly string[],
+  parsed: ParsedArgs,
   options: CliExecutionOptions,
   json: boolean
 ): Promise<CliResult> => {
   const cwd = options.cwd ?? process.cwd();
-  const dryRun = hasFlag(args, '--dry-run');
-  const yes = hasFlag(args, '--yes');
+  const dryRun = hasFlag(parsed, '--dry-run');
+  const yes = hasFlag(parsed, '--yes');
   const configPath = path.join(cwd, DEFAULT_CONFIG_FILE_NAME);
   const content = getDefaultConfigContent(configPath);
   const operationPlan = createOperationPlan({
@@ -84,7 +82,7 @@ export const handleInit = async (
   }
 
   assertOperationPlanFingerprint(
-    getValue(parseArgs(args), '--plan-fingerprint'),
+    getValue(parsed, '--plan-fingerprint'),
     operationPlan,
     yes && !dryRun,
     ZaoWuError

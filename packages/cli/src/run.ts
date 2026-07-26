@@ -21,8 +21,24 @@ import { runSystemCommand } from './system-command.js';
 import type { CliExecutionOptions, CliResult } from './types.js';
 import { getCliVersion } from './version.js';
 
-export const ZAOWU_CLI_VERSION = getCliVersion();
+const ZAOWU_CLI_VERSION = getCliVersion();
 export { DEFAULT_CONFIG_FILE_NAME, DOMAIN_DEFINITIONS };
+
+const unknownCommandError = (command: string): ZaoWuError =>
+  new ZaoWuError({
+    code: 'UNKNOWN_COMMAND',
+    message: `Unknown command: ${command}.`,
+    why: `ZaoWu does not have a command named \`zw ${command}\`.`,
+    fix: 'Run `zw --help` to see available commands.',
+  });
+
+const unknownDomainActionError = (domainName: string, action: string): ZaoWuError =>
+  new ZaoWuError({
+    code: 'UNKNOWN_DOMAIN_ACTION',
+    message: `Unknown command: zw ${domainName} ${action}.`,
+    why: `ZaoWu has the \`${domainName}\` domain, but it does not have an action named \`${action}\`.`,
+    fix: `Run \`zw ${domainName} --help\` to see commands for this domain.`,
+  });
 
 const handleError = (error: unknown, json: boolean): CliResult => {
   const zaowuError = isZaoWuError(error)
@@ -100,12 +116,7 @@ export const executeCli = async (
           const domainCommand = findDomainCommand(domain, action);
 
           if (!domainCommand) {
-            throw new ZaoWuError({
-              code: 'UNKNOWN_DOMAIN_ACTION',
-              message: `Unknown command: zw ${domain.name} ${action}.`,
-              why: `ZaoWu has the \`${domain.name}\` domain, but it does not have an action named \`${action}\`.`,
-              fix: `Run \`zw ${domain.name} --help\` to see commands for this domain.`,
-            });
+            throw unknownDomainActionError(domain.name, action);
           }
 
           return createHelpResult(formatActionHelp(domain, action), json, {
@@ -125,21 +136,11 @@ export const executeCli = async (
     // command or action reports UNKNOWN_COMMAND / UNKNOWN_DOMAIN_ACTION instead
     // of a misleading OPTION_UNSUPPORTED for whatever options were passed.
     if (!domain && command !== 'doctor' && command !== 'init') {
-      throw new ZaoWuError({
-        code: 'UNKNOWN_COMMAND',
-        message: `Unknown command: ${command}.`,
-        why: `ZaoWu does not have a command named \`zw ${command}\`.`,
-        fix: 'Run `zw --help` to see available commands.',
-      });
+      throw unknownCommandError(command);
     }
 
     if (domain && commandArgs[1] && !findDomainCommand(domain, commandArgs[1])) {
-      throw new ZaoWuError({
-        code: 'UNKNOWN_DOMAIN_ACTION',
-        message: `Unknown command: zw ${domain.name} ${commandArgs[1]}.`,
-        why: `ZaoWu has the \`${domain.name}\` domain, but it does not have an action named \`${commandArgs[1]}\`.`,
-        fix: `Run \`zw ${domain.name} --help\` to see commands for this domain.`,
-      });
+      throw unknownDomainActionError(domain.name, commandArgs[1]);
     }
 
     assertNoMissingOptionValues(parsed.missingValues);
@@ -152,7 +153,7 @@ export const executeCli = async (
     }
 
     if (command === 'init') {
-      return await handleInit(args, options, json);
+      return await handleInit(parsed, options, json);
     }
 
     if (domain) {
@@ -168,12 +169,7 @@ export const executeCli = async (
       const domainCommand = findDomainCommand(domain, action);
 
       if (!domainCommand) {
-        throw new ZaoWuError({
-          code: 'UNKNOWN_DOMAIN_ACTION',
-          message: `Unknown command: zw ${domain.name} ${action}.`,
-          why: `ZaoWu has the \`${domain.name}\` domain, but it does not have an action named \`${action}\`.`,
-          fix: `Run \`zw ${domain.name} --help\` to see commands for this domain.`,
-        });
+        throw unknownDomainActionError(domain.name, action);
       }
 
       if (domainCommand.status === 'planned') {
@@ -195,7 +191,6 @@ export const executeCli = async (
         return await handler(commandArgs.slice(2), {
           commandRunner,
           cwd,
-          dryRun: hasFlag(parsed, '--dry-run'),
           expectedPlanFingerprint: getValue(parsed, '--plan-fingerprint'),
           json,
           parsed,
@@ -214,12 +209,7 @@ export const executeCli = async (
       });
     }
 
-    throw new ZaoWuError({
-      code: 'UNKNOWN_COMMAND',
-      message: `Unknown command: ${command}.`,
-      why: `ZaoWu does not have a command named \`zw ${command}\`.`,
-      fix: 'Run `zw --help` to see available commands.',
-    });
+    throw unknownCommandError(command);
   } catch (error) {
     return handleError(error, json);
   }

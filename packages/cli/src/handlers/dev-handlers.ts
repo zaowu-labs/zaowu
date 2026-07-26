@@ -169,7 +169,7 @@ export const handleDevCommit: DomainActionHandler = async (_args, context) => {
     notes: ['No Git state is modified.'],
   });
 
-  if (context.parsed.flags.has('--ai')) {
+  if (hasFlag(context.parsed, '--ai')) {
     const diffText = getGitDiffText(context, ['diff', '--cached']);
     const prompt = buildDevAiCommitPrompt(diffText);
     const ai = await resolveDevAiProvider(context);
@@ -236,12 +236,22 @@ export const handleDevCommit: DomainActionHandler = async (_args, context) => {
   return result(context, withOperationPlan(payload, operationPlan), human);
 };
 
+const resolveReviewMode = (
+  context: DomainHandlerContext
+): { mode: DevReviewMode; modeFlags: string[] } => {
+  if (hasFlag(context.parsed, '--staged')) {
+    return { mode: 'staged', modeFlags: ['--staged'] };
+  }
+
+  if (hasFlag(context.parsed, '--worktree')) {
+    return { mode: 'worktree', modeFlags: ['--worktree'] };
+  }
+
+  return { mode: 'auto', modeFlags: [] };
+};
+
 export const handleDevReview: DomainActionHandler = async (_args, context) => {
-  const mode: DevReviewMode = context.parsed.flags.has('--staged')
-    ? 'staged'
-    : context.parsed.flags.has('--worktree')
-      ? 'worktree'
-      : 'auto';
+  const { mode, modeFlags } = resolveReviewMode(context);
   const review = reviewDevChanges(context.commandRunner, { cwd: context.cwd, mode });
   const reviewUsesWorktree = review.source === 'working-tree';
   let payload = review;
@@ -256,7 +266,7 @@ export const handleDevReview: DomainActionHandler = async (_args, context) => {
     notes: ['No Git state is modified.'],
   });
 
-  if (context.parsed.flags.has('--ai')) {
+  if (hasFlag(context.parsed, '--ai')) {
     const gitArgs = reviewUsesWorktree ? ['diff'] : ['diff', '--cached'];
     const diffText = getGitDiffText(context, gitArgs);
     const prompt = buildDevAiReviewPrompt(diffText);
@@ -268,11 +278,6 @@ export const handleDevReview: DomainActionHandler = async (_args, context) => {
     });
 
     if (ai.provider.network && !context.yes) {
-      const modeFlags = context.parsed.flags.has('--staged')
-        ? ['--staged']
-        : context.parsed.flags.has('--worktree')
-          ? ['--worktree']
-          : [];
       const confirmCommand = buildAiConfirmCommand(
         ['zw', 'dev', 'review', ...modeFlags],
         ai,

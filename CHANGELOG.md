@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Stopped classifying files that merely end in `package.json` (for example
+  `my-package.json`) as dependency changes in `zw dev commit` type inference
+  and `zw dev review` findings; only real package manifests and the root
+  lockfile count now, matching the file-category and scope logic.
+- Routed `zw init` flag handling through the shared argument parser, so
+  `--dry-run=1` can no longer be ignored (writing despite a requested preview)
+  and `--yes` after the `--` separator can no longer confirm a write.
+- Titled `zw config show` human output `ZaoWu Config Show`, matching its help
+  text and command contract.
 - Added macOS to the CI matrix alongside Ubuntu and Windows.
 - Supported the standard `--` end-of-options separator so targets beginning
   with dashes stay expressible, and hardened option parsing edge cases.

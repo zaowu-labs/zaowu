@@ -107,10 +107,19 @@ export const handleDocConvert: DomainActionHandler = async (args, context) => {
   const target = requireTarget(args, 'zw doc convert');
   const outputPath = getValue(context.parsed, '--output');
   const format = getValue(context.parsed, '--format');
-  const preview = await convertDocument(target, {
+  // One options object for both the preview and the confirmed call: the
+  // fingerprint the user confirms is computed from the preview, so the two
+  // calls must be structurally unable to drift apart.
+  const convertOptions = {
     outputPath,
-    format: format === 'text' ? 'text' : format === 'markdown' ? 'markdown' : undefined,
-  });
+    format:
+      format === 'text'
+        ? ('text' as const)
+        : format === 'markdown'
+          ? ('markdown' as const)
+          : undefined,
+  };
+  const preview = await convertDocument(target, convertOptions);
   const operationPlan = createOperationPlan({
     risk: preview.outputPath ? 'medium' : 'low',
     confirmationRequired: Boolean(preview.outputPath && !context.yes),
@@ -127,11 +136,7 @@ export const handleDocConvert: DomainActionHandler = async (args, context) => {
 
   const converted =
     context.yes && preview.outputPath
-      ? await convertDocument(target, {
-          outputPath,
-          format: format === 'text' ? 'text' : format === 'markdown' ? 'markdown' : undefined,
-          yes: true,
-        })
+      ? await convertDocument(target, { ...convertOptions, yes: true })
       : preview;
   const confirmCommand =
     preview.outputPath && !context.yes

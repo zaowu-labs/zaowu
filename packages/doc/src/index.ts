@@ -152,6 +152,8 @@ type PdfRuntimeGlobal = typeof globalThis & {
   Path2D?: new (path?: unknown) => unknown;
 };
 
+const PDF_SHIM_KEYS = ['DOMMatrix', 'ImageData', 'Path2D'] as const;
+
 type PdfParseModule = typeof import('pdf-parse');
 
 let pdfParseModulePromise: Promise<PdfParseModule> | undefined;
@@ -329,12 +331,14 @@ const readTextDocument = async (
   try {
     if (extension === '.pdf') {
       const runtime = globalThis as PdfRuntimeGlobal;
-      const hadDOMMatrix = 'DOMMatrix' in runtime;
-      const hadImageData = 'ImageData' in runtime;
-      const hadPath2D = 'Path2D' in runtime;
-      const oldDOMMatrix = runtime.DOMMatrix;
-      const oldImageData = runtime.ImageData;
-      const oldPath2D = runtime.Path2D;
+      // Snapshot each shim slot before parsing: restore the previous value if
+      // one existed, and delete the key entirely if it was absent — a shim key
+      // left behind as `undefined` would still shadow `'key' in runtime`.
+      const saved = PDF_SHIM_KEYS.map((key) => ({
+        key,
+        had: key in runtime,
+        old: runtime[key],
+      }));
 
       try {
         const { PDFParse } = await importPdfParse();
@@ -350,20 +354,12 @@ const readTextDocument = async (
           await parser.destroy();
         }
       } finally {
-        if (!hadDOMMatrix) {
-          delete runtime.DOMMatrix;
-        } else {
-          runtime.DOMMatrix = oldDOMMatrix;
-        }
-        if (!hadImageData) {
-          delete runtime.ImageData;
-        } else {
-          runtime.ImageData = oldImageData;
-        }
-        if (!hadPath2D) {
-          delete runtime.Path2D;
-        } else {
-          runtime.Path2D = oldPath2D;
+        for (const { key, had, old } of saved) {
+          if (!had) {
+            delete runtime[key];
+          } else {
+            (runtime[key] as unknown) = old;
+          }
         }
       }
     }
@@ -430,14 +426,8 @@ const assertSafeDocumentOutputPath = (inputPath: string, outputPath: string): Pr
     },
   });
 
-const getTitle = (content: string, filePath: string): string => {
-  const heading = content
-    .split(/\r?\n/)
-    .map((line) => /^#\s+(.+)$/.exec(line.trim())?.[1])
-    .find((value): value is string => Boolean(value));
-
-  return heading ?? path.basename(filePath);
-};
+const getTitle = (content: string, filePath: string): string =>
+  parseHeadings(content).find((heading) => heading.level === 1)?.title ?? path.basename(filePath);
 
 const getWords = (content: string): string[] => content.match(/[\p{L}\p{N}_-]+/gu) ?? [];
 
@@ -474,7 +464,7 @@ const getFrontmatter = (content: string): Record<string, string> => {
   return frontmatter;
 };
 
-const getOutline = (content: string): DocumentOutlineItem[] =>
+const parseHeadings = (content: string): DocumentOutlineItem[] =>
   content
     .split(/\r?\n/)
     .map((line, index) => {
@@ -531,7 +521,7 @@ export const outlineDocument = async (filePath: string): Promise<DocumentOutline
     schemaVersion: 1,
     status: 'ok',
     filePath,
-    outline: getOutline(content),
+    outline: parseHeadings(content),
   };
 };
 

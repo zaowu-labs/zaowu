@@ -6,6 +6,7 @@ import {
   createContentOperationSubjects,
   createOperationPlan,
   formatConfirmCommand,
+  formatLabeledList,
   formatOperationPlan,
   getValue,
   hashOperationContent,
@@ -49,10 +50,11 @@ export const handlePluginList: DomainActionHandler = async (_args, context) => {
 export const handlePluginInstall: DomainActionHandler = async (args, context) => {
   const id = requireTarget(args, 'zw plugin install');
   const source = getValue(context.parsed, '--source');
-  const preview = await installPlugin(id, {
-    cwd: context.cwd,
-    source,
-  });
+  // One options object for both the preview and the confirmed call: the
+  // fingerprint the user confirms is computed from the preview, so the two
+  // calls must be structurally unable to drift apart.
+  const installOptions = { cwd: context.cwd, source };
+  const preview = await installPlugin(id, installOptions);
   const pluginPath = path.join(preview.pluginDir, `${preview.plugin.id}.json`);
   const previewManifestContent = `${JSON.stringify(preview.plugin, null, 2)}\n`;
   const targetFileSubjects = await getTargetFileSubjects(pluginPath);
@@ -72,11 +74,7 @@ export const handlePluginInstall: DomainActionHandler = async (args, context) =>
   assertOperationPlanFingerprint(context, operationPlan);
 
   const installed = context.yes
-    ? await installPlugin(id, {
-        cwd: context.cwd,
-        source,
-        yes: true,
-      })
+    ? await installPlugin(id, { ...installOptions, yes: true })
     : preview;
   const confirmCommand = formatConfirmCommand([
     'zw',
@@ -107,9 +105,8 @@ export const handlePluginInstall: DomainActionHandler = async (args, context) =>
 
 export const handlePluginRemove: DomainActionHandler = async (args, context) => {
   const id = requireTarget(args, 'zw plugin remove');
-  const preview = await removePlugin(id, {
-    cwd: context.cwd,
-  });
+  const removeOptions = { cwd: context.cwd };
+  const preview = await removePlugin(id, removeOptions);
   const pluginPath = path.join(preview.pluginDir, `${preview.plugin.id}.json`);
   const targetFileSubjects = await getTargetFileSubjects(pluginPath);
   const operationPlan = createOperationPlan({
@@ -122,12 +119,7 @@ export const handlePluginRemove: DomainActionHandler = async (args, context) => 
   });
   assertOperationPlanFingerprint(context, operationPlan);
 
-  const removed = context.yes
-    ? await removePlugin(id, {
-        cwd: context.cwd,
-        yes: true,
-      })
-    : preview;
+  const removed = context.yes ? await removePlugin(id, { ...removeOptions, yes: true }) : preview;
   const human = [
     'ZaoWu Plugin Remove',
     '',
@@ -166,13 +158,9 @@ export const handlePluginValidate: DomainActionHandler = async (args, context) =
     `Target: ${validation.target}`,
     `Manifest: ${validation.manifestPath ?? 'none'}`,
     '',
-    validation.errors.length > 0
-      ? ['Errors:', ...validation.errors.map((error) => `- ${error}`)].join('\n')
-      : 'Errors: none',
+    formatLabeledList('Errors', validation.errors),
     '',
-    validation.warnings.length > 0
-      ? ['Warnings:', ...validation.warnings.map((warning) => `- ${warning}`)].join('\n')
-      : 'Warnings: none',
+    formatLabeledList('Warnings', validation.warnings),
   ].join('\n');
 
   return result(context, validation, human);

@@ -26,10 +26,12 @@ export {
 };
 export { getValue, hasFlag };
 
+// Note: `--dry-run` is deliberately absent here. It is fully absorbed at the
+// dispatch layer (`run.ts` computes `yes = --yes && !--dry-run`), so handlers
+// only ever branch on `yes` — a second notion of preview mode must not exist.
 export interface DomainHandlerContext {
   cwd: string;
   json: boolean;
-  dryRun: boolean;
   expectedPlanFingerprint?: string;
   yes: boolean;
   parsed: ParsedArgs;
@@ -106,7 +108,12 @@ export const assertOperationPlanFingerprint = (
 export const formatList = (items: readonly string[]): string =>
   items.length > 0 ? items.map((item) => `- ${item}`).join('\n') : '- none';
 
-export const quoteCliValue = (value: string): string =>
+export const formatLabeledList = (label: string, items: readonly string[] | undefined): string =>
+  items && items.length > 0
+    ? [`${label}:`, ...items.map((item) => `- ${item}`)].join('\n')
+    : `${label}: none`;
+
+const quoteCliValue = (value: string): string =>
   /^[A-Za-z0-9._@:/\\=-]+$/.test(value) ? value : `'${value.replaceAll("'", "''")}'`;
 
 export const formatConfirmCommand = (parts: readonly string[]): string =>
