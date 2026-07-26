@@ -333,6 +333,14 @@ export const loadConfig = async (filePath: string): Promise<LoadedConfig> => {
   };
 };
 
+const configParseError = (error: unknown, fallbackWhy: string, fix: string): ZaoWuError =>
+  new ZaoWuError({
+    code: 'CONFIG_PARSE_FAILED',
+    message: 'Could not parse ZaoWu config.',
+    why: error instanceof Error ? error.message : fallbackWhy,
+    fix,
+  });
+
 const parseConfigObject = (content: string, filePath: string): Record<string, unknown> => {
   const normalizedContent = stripUtf8Bom(content);
   const extension = path.extname(filePath).toLowerCase();
@@ -341,12 +349,11 @@ const parseConfigObject = (content: string, filePath: string): Record<string, un
     try {
       return JSON.parse(normalizedContent) as Record<string, unknown>;
     } catch (error) {
-      throw new ZaoWuError({
-        code: 'CONFIG_PARSE_FAILED',
-        message: 'Could not parse ZaoWu config.',
-        why: error instanceof Error ? error.message : 'The JSON parser rejected the file.',
-        fix: 'Fix the JSON syntax and run `zw config show` again.',
-      });
+      throw configParseError(
+        error,
+        'The JSON parser rejected the file.',
+        'Fix the JSON syntax and run `zw config show` again.'
+      );
     }
   }
 
@@ -361,12 +368,11 @@ const parseConfigObject = (content: string, filePath: string): Record<string, un
       }
       return parsed as Record<string, unknown>;
     } catch (error) {
-      throw new ZaoWuError({
-        code: 'CONFIG_PARSE_FAILED',
-        message: 'Could not parse ZaoWu config.',
-        why: error instanceof Error ? error.message : 'The YAML parser rejected the file.',
-        fix: 'Use the supported simple subset (top-level keys + one level of 2-space indented sections) or switch to JSON (zaowu.config.json).',
-      });
+      throw configParseError(
+        error,
+        'The YAML parser rejected the file.',
+        'Use the supported simple subset (top-level keys + one level of 2-space indented sections) or switch to JSON (zaowu.config.json).'
+      );
     }
   }
 
@@ -407,8 +413,16 @@ const getString = (value: unknown, fallback: string): string =>
 
 const getOutput = (value: unknown): 'human' | 'json' => (value === 'json' ? 'json' : 'human');
 
-const getVersion = (value: unknown): 1 => {
-  if (value === undefined || value === null || value === '' || value === 1 || value === '1') {
+/**
+ * Returns 1 for a supported declared version, null when no version is
+ * declared, and throws for anything else.
+ */
+const parseSupportedConfigVersion = (value: unknown): 1 | null => {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+
+  if (value === 1 || value === '1') {
     return 1;
   }
 
@@ -419,6 +433,8 @@ const getVersion = (value: unknown): 1 => {
     fix: 'Run a newer ZaoWu version that supports this config, or migrate the file manually.',
   });
 };
+
+const getVersion = (value: unknown): 1 => parseSupportedConfigVersion(value) ?? 1;
 
 const assertConfigKey = (key: string): ConfigKey => {
   if (SECRET_KEY_PATTERN.test(key)) {
@@ -442,6 +458,14 @@ const assertConfigKey = (key: string): ConfigKey => {
   return key as ConfigKey;
 };
 
+const configValueInvalidError = (why: string, fix: string): ZaoWuError =>
+  new ZaoWuError({
+    code: 'CONFIG_VALUE_INVALID',
+    message: 'Config value is invalid.',
+    why,
+    fix,
+  });
+
 const normalizeConfigValue = (key: ConfigKey, value: string): string | null => {
   const trimmed = value.trim();
 
@@ -450,30 +474,21 @@ const normalizeConfigValue = (key: ConfigKey, value: string): string | null => {
   }
 
   if (key === 'defaults.output' && !['human', 'json'].includes(trimmed)) {
-    throw new ZaoWuError({
-      code: 'CONFIG_VALUE_INVALID',
-      message: 'Config value is invalid.',
-      why: '`defaults.output` must be either `human` or `json`.',
-      fix: 'Run `zw config set defaults.output json --yes` or `zw config set defaults.output human --yes`.',
-    });
+    throw configValueInvalidError(
+      '`defaults.output` must be either `human` or `json`.',
+      'Run `zw config set defaults.output json --yes` or `zw config set defaults.output human --yes`.'
+    );
   }
 
   if (key === 'version' && trimmed !== '1') {
-    throw new ZaoWuError({
-      code: 'CONFIG_VALUE_INVALID',
-      message: 'Config value is invalid.',
-      why: '`version` must be `1` in this ZaoWu release.',
-      fix: 'Run `zw config migrate` to preview the supported config version.',
-    });
+    throw configValueInvalidError(
+      '`version` must be `1` in this ZaoWu release.',
+      'Run `zw config migrate` to preview the supported config version.'
+    );
   }
 
   if (!trimmed) {
-    throw new ZaoWuError({
-      code: 'CONFIG_VALUE_INVALID',
-      message: 'Config value is invalid.',
-      why: `\`${key}\` cannot be empty.`,
-      fix: 'Provide a non-empty value.',
-    });
+    throw configValueInvalidError(`\`${key}\` cannot be empty.`, 'Provide a non-empty value.');
   }
 
   if (['paths.workspace', 'paths.cache'].includes(key)) {
@@ -700,25 +715,8 @@ export const loadResolvedConfig = async (cwd?: string): Promise<ResolvedConfig> 
   };
 };
 
-const getRawConfigVersion = (content: string, filePath: string): number | null => {
-  const parsed = parseConfigObject(content, filePath);
-  const rawVersion = parsed.version;
-
-  if (rawVersion === undefined || rawVersion === null || rawVersion === '') {
-    return null;
-  }
-
-  if (rawVersion === 1 || rawVersion === '1') {
-    return 1;
-  }
-
-  throw new ZaoWuError({
-    code: 'CONFIG_VERSION_UNSUPPORTED',
-    message: 'Config version is not supported.',
-    why: `ZaoWu supports config version 1, but this file declares \`${String(rawVersion)}\`.`,
-    fix: 'Run a newer ZaoWu version that supports this config, or migrate the file manually.',
-  });
-};
+const getRawConfigVersion = (content: string, filePath: string): number | null =>
+  parseSupportedConfigVersion(parseConfigObject(content, filePath).version);
 
 export const validateResolvedConfig = async (cwd?: string): Promise<ConfigValidationResult> => {
   const resolved = await loadResolvedConfig(cwd);

@@ -59,13 +59,23 @@ const readTopicOrFile = async (input: string): Promise<string> => {
   }
 };
 
-const getTopic = (content: string): string => {
-  const firstLine = content
-    .split(/\r?\n/)
-    .map((line) => line.replace(/^#+\s*/, '').trim())
-    .find(Boolean);
+const HEADING_LINE_PATTERN = /^#{1,6}\s/;
 
-  return firstLine ?? 'Untitled topic';
+const stripHeadingMarker = (line: string): string => line.replace(/^#+\s*/, '').trim();
+
+const getTopic = (content: string): { topic: string; fromHeading: boolean } => {
+  const lines = content.split(/\r?\n/);
+  const topic = lines.map(stripHeadingMarker).find(Boolean) ?? 'Untitled topic';
+
+  // The topic counts as heading-derived only when the first non-empty line is
+  // itself a heading; a plain-text first line means every heading is a real
+  // section.
+  const firstNonEmptyLine = lines.map((line) => line.trim()).find(Boolean);
+
+  return {
+    topic,
+    fromHeading: firstNonEmptyLine ? HEADING_LINE_PATTERN.test(firstNonEmptyLine) : false,
+  };
 };
 
 const getSentences = (content: string): string[] =>
@@ -84,24 +94,15 @@ const getSentences = (content: string): string[] =>
 const getHeadings = (content: string): string[] =>
   content
     .split(/\r?\n/)
-    .filter((line) => /^#{1,6}\s/.test(line))
-    .map((line) => line.replace(/^#+\s*/, '').trim())
+    .filter((line) => HEADING_LINE_PATTERN.test(line))
+    .map(stripHeadingMarker)
     .filter(Boolean);
 
 export const createTeachingPlan = async (input: string): Promise<TeachPlanResult> => {
   const content = await readTopicOrFile(input);
-  const topic = getTopic(content);
+  const { topic, fromHeading } = getTopic(content);
   const headings = getHeadings(content);
-
-  // The topic is only the first heading when the first non-empty line is itself
-  // a heading. When the first line is plain text, every heading is a real
-  // section — slicing one off (the previous behavior) silently dropped it.
-  const firstNonEmptyLine = content
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .find(Boolean);
-  const topicFromHeading = firstNonEmptyLine ? /^#{1,6}\s/.test(firstNonEmptyLine) : false;
-  const sectionHeadings = topicFromHeading ? headings.slice(1) : headings;
+  const sectionHeadings = fromHeading ? headings.slice(1) : headings;
 
   // Build a richer outline when the content has discoverable section headings.
   const outline =
@@ -146,7 +147,7 @@ export const createTeachingQuiz = async (
 
   const count = rawCount;
   const content = await readTopicOrFile(input);
-  const topic = getTopic(content);
+  const { topic } = getTopic(content);
   const sentences = getSentences(content).slice(0, count);
   const questions =
     sentences.length > 0

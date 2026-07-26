@@ -2144,6 +2144,34 @@ describe('executeCli', () => {
     }
   });
 
+  it('previews init when --dry-run carries an = value alongside --yes', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
+
+    try {
+      const result = await executeCli(['init', '--yes', '--dry-run=1'], { cwd: root });
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('No files were written.');
+      await expect(readFile(path.join(root, DEFAULT_CONFIG_FILE_NAME), 'utf8')).rejects.toThrow();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('previews init when --yes appears after the end-of-options separator', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
+
+    try {
+      const result = await executeCli(['init', '--', '--yes'], { cwd: root });
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('No files were written.');
+      await expect(readFile(path.join(root, DEFAULT_CONFIG_FILE_NAME), 'utf8')).rejects.toThrow();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('previews init as JSON without writing files', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
 
