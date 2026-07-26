@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
@@ -252,6 +252,48 @@ describe('config utilities', () => {
           },
         },
       });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses to drop unrecognized keys when a full rewrite is unavoidable', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-config-'));
+
+    await writeFile(
+      path.join(root, 'zaowu.config.json'),
+      '{"project":{"name":"old"},"custom":{"keep":"me"}}',
+      'utf8'
+    );
+
+    try {
+      await expect(
+        setResolvedConfigValue('defaults.output', 'json', { cwd: root, yes: true })
+      ).rejects.toThrow(/does not recognize/i);
+      await expect(migrateResolvedConfig({ cwd: root })).rejects.toThrow(/does not recognize/i);
+
+      const stillThere = await readFile(path.join(root, 'zaowu.config.json'), 'utf8');
+      expect(stillThere).toContain('custom');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('preserves unrecognized YAML keys when a surgical edit is possible', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-config-'));
+
+    await writeFile(
+      path.join(root, 'zw.yml'),
+      'project:\n  name: old\ncustom:\n  keep: me\n',
+      'utf8'
+    );
+
+    try {
+      const preview = await setResolvedConfigValue('project.name', 'new', { cwd: root });
+
+      expect(preview.content).toContain('name: "new"');
+      expect(preview.content).toContain('custom:');
+      expect(preview.content).toContain('keep: me');
     } finally {
       await rm(root, { recursive: true, force: true });
     }

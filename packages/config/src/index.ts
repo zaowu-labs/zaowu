@@ -612,6 +612,64 @@ export const parseConfig = (content: string, filePath = 'zw.yml'): ZaoWuConfig =
   };
 };
 
+const KNOWN_CONFIG_KEYS: Record<string, readonly string[] | null> = {
+  version: null,
+  project: ['name'],
+  ai: ['provider'],
+  defaults: ['output'],
+  paths: ['workspace', 'cache'],
+};
+
+const collectUnknownConfigKeys = (parsed: Record<string, unknown>): string[] => {
+  const unknownKeys: string[] = [];
+
+  for (const [key, value] of Object.entries(parsed)) {
+    if (!(key in KNOWN_CONFIG_KEYS)) {
+      unknownKeys.push(key);
+      continue;
+    }
+
+    const allowedSubKeys = KNOWN_CONFIG_KEYS[key];
+
+    if (allowedSubKeys && value && typeof value === 'object' && !Array.isArray(value)) {
+      for (const subKey of Object.keys(value as Record<string, unknown>)) {
+        if (!allowedSubKeys.includes(subKey)) {
+          unknownKeys.push(`${key}.${subKey}`);
+        }
+      }
+    }
+  }
+
+  return unknownKeys;
+};
+
+/**
+ * Guards against silent data loss. A full canonical re-serialization only emits
+ * the documented schema fields, so any unrecognized key the user placed in the
+ * file would be dropped. When such a rewrite is unavoidable (JSON files, or YAML
+ * whose target section is missing so the surgical edit fails), refuse instead of
+ * discarding the user's keys.
+ */
+const assertNoUnknownConfigKeysOnRewrite = (content: string, filePath: string): void => {
+  const parsed = parseConfigObject(content, filePath);
+  const unknownKeys = collectUnknownConfigKeys(parsed);
+
+  if (unknownKeys.length === 0) {
+    return;
+  }
+
+  const keyLabel = unknownKeys.length === 1 ? 'key' : 'keys';
+
+  throw new ZaoWuError({
+    code: 'CONFIG_KEY_UNSUPPORTED',
+    message: `Config file contains ${keyLabel} ZaoWu does not recognize.`,
+    why:
+      `Writing \`${filePath}\` would drop the unrecognized ${keyLabel}: ${unknownKeys.join(', ')}. ` +
+      'ZaoWu only serializes documented configuration fields.',
+    fix: 'Remove the unrecognized keys from the config file (or keep only documented ZaoWu keys), then run the command again.',
+  });
+};
+
 export const findConfigPathOrThrow = async (cwd?: string): Promise<string> => {
   const filePath = await findConfigFile({ cwd });
 
@@ -726,6 +784,10 @@ export const setResolvedConfigValue = async (
   }
 
   if (!content) {
+    if (loadedContent) {
+      assertNoUnknownConfigKeysOnRewrite(loadedContent, filePath);
+    }
+
     content = serializeConfig(nextConfig, filePath);
   }
 
@@ -753,6 +815,7 @@ export const migrateResolvedConfig = async (
   const loaded = await loadConfig(filePath);
   const fromVersion = getRawConfigVersion(loaded.content, loaded.filePath);
   const config = parseConfig(loaded.content, loaded.filePath);
+  assertNoUnknownConfigKeysOnRewrite(loaded.content, filePath);
   const content = serializeConfig(config, filePath);
   const changed = fromVersion !== 1 || stripUtf8Bom(loaded.content) !== content;
 

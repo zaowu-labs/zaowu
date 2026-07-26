@@ -95,6 +95,56 @@ describe('data domain', () => {
     }
   });
 
+  it('keeps quoted CSV fields that contain newlines as a single record', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-data-'));
+    const filePath = path.join(root, 'multiline.csv');
+
+    await writeFile(filePath, 'name,note\nA,"line one\nline two"\nB,plain\n', 'utf8');
+
+    try {
+      await expect(inspectData(filePath)).resolves.toMatchObject({
+        rowCount: 2,
+        columnCount: 2,
+        columns: ['name', 'note'],
+      });
+      await expect(sampleData(filePath, { rows: 2 })).resolves.toMatchObject({
+        rows: [
+          { name: 'A', note: 'line one\nline two' },
+          { name: 'B', note: 'plain' },
+        ],
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('analyzes a large numeric column without a call-stack overflow', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-data-'));
+    const filePath = path.join(root, 'large.csv');
+    const rowCount = 200_000;
+    const lines = ['value'];
+
+    for (let index = 1; index <= rowCount; index += 1) {
+      lines.push(String(index));
+    }
+
+    await writeFile(filePath, `${lines.join('\n')}\n`, 'utf8');
+
+    try {
+      const analysis = await analyzeData(filePath);
+      const valueColumn = analysis.numericColumns.find((column) => column.column === 'value');
+
+      expect(valueColumn).toMatchObject({
+        count: rowCount,
+        min: 1,
+        max: rowCount,
+        average: (rowCount + 1) / 2,
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('inspects empty CSV files as empty datasets', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-data-'));
     const filePath = path.join(root, 'empty.csv');

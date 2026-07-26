@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { stripUtf8Bom, ZaoWuError } from '@zaowu-labs/core';
+import { createContentOperationSubjects, stripUtf8Bom, ZaoWuError } from '@zaowu-labs/core';
 import type {
   AIAskPreview,
   AIAskRequest,
@@ -130,6 +130,21 @@ const prepareAIInput = async (
     combinedPrompt,
     input: createInput(prompt, request.filePath, fileContent, combinedPrompt, maxInputCharacters),
   };
+};
+
+/**
+ * Content subjects (sha256 + length) for the exact combined prompt that would be
+ * sent to the provider — prompt text plus any `--file` body. Folding these into
+ * an operation plan binds the confirmation fingerprint to the network payload,
+ * so a prompt or file changed between preview and confirm invalidates the plan
+ * instead of silently sending different content.
+ */
+export const resolveAIRequestContentSubjects = async (
+  request: AIAskRequest
+): Promise<string[]> => {
+  const prepared = await prepareAIInput(request);
+
+  return createContentOperationSubjects(prepared.combinedPrompt);
 };
 
 const readPromptFile = async (filePath: string): Promise<string> => {

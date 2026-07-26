@@ -4,6 +4,7 @@ import {
   previewAIRequest,
   resolveAIProviderNetworkTarget,
   resolveAIModel,
+  resolveAIRequestContentSubjects,
   validateAIProviderConfig,
 } from '@zaowu-labs/ai';
 import {
@@ -26,10 +27,18 @@ export const handleAiAsk: DomainActionHandler = async (args, context) => {
   const provider = providerValidation.provider;
   const resolvedModel = resolveAIModel(provider, { model: requestedModel });
   const networkTarget = provider.network ? resolveAIProviderNetworkTarget(provider.id) : undefined;
+  // Bind the exact prompt + file payload into the plan so a preview fingerprint
+  // only matches a confirmed run that sends identical content.
+  const contentSubjects = await resolveAIRequestContentSubjects({
+    prompt,
+    filePath,
+    provider: requestedProvider,
+    model: requestedModel,
+  });
   const operationPlan = createOperationPlan({
     risk: provider.network ? 'medium' : 'low',
     confirmationRequired: provider.network && !context.yes,
-    subjects: [`ai:${provider.id}`, `model:${resolvedModel}`],
+    subjects: [`ai:${provider.id}`, `model:${resolvedModel}`, ...contentSubjects],
     reads: filePath ? [filePath] : [],
     network: networkTarget ? [networkTarget] : [],
     secrets: provider.requiredEnv,

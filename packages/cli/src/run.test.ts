@@ -429,7 +429,12 @@ describe('executeCli', () => {
       expect(JSON.parse(result.stdout)).toMatchObject({
         model: 'env-model',
         operationPlan: {
-          subjects: ['ai:openai', 'model:env-model'],
+          subjects: expect.arrayContaining([
+            'ai:openai',
+            'model:env-model',
+            expect.stringMatching(/^content-sha256:[0-9a-f]{64}$/),
+            'content-length:13',
+          ]),
         },
       });
     } finally {
@@ -477,6 +482,54 @@ describe('executeCli', () => {
         },
         output: expect.stringContaining('Local file input.'),
       });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects a confirmed AI request whose file content changed after preview', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
+    const filePath = path.join(root, 'note.md');
+
+    await writeFile(filePath, 'original secret content', 'utf8');
+
+    try {
+      const preview = await executeCli([
+        'ai',
+        'ask',
+        'Summarize',
+        '--file',
+        filePath,
+        '--provider',
+        'openai',
+        '--json',
+      ]);
+      const previewPayload = JSON.parse(preview.stdout);
+      const fingerprint = previewPayload.operationPlan.fingerprint as string;
+
+      expect(previewPayload.status).toBe('preview');
+      expect(fingerprint).toMatch(/^[a-f0-9]{64}$/);
+
+      // Swap the file content after the preview; the stale fingerprint must not
+      // authorize sending the new content to the network provider.
+      await writeFile(filePath, 'swapped malicious content', 'utf8');
+
+      const confirmed = await executeCli([
+        'ai',
+        'ask',
+        'Summarize',
+        '--file',
+        filePath,
+        '--provider',
+        'openai',
+        '--yes',
+        '--plan-fingerprint',
+        fingerprint,
+        '--json',
+      ]);
+
+      expect(confirmed.exitCode).toBe(1);
+      expect(JSON.parse(confirmed.stderr).error.code).toBe('OPERATION_PLAN_MISMATCH');
     } finally {
       await rm(root, { recursive: true, force: true });
     }

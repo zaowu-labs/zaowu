@@ -90,13 +90,23 @@ export const createTeachingPlan = async (input: string): Promise<TeachPlanResult
   const topic = getTopic(content);
   const headings = getHeadings(content);
 
+  // The topic is only the first heading when the first non-empty line is itself
+  // a heading. When the first line is plain text, every heading is a real
+  // section — slicing one off (the previous behavior) silently dropped it.
+  const firstNonEmptyLine = content
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean);
+  const topicFromHeading = firstNonEmptyLine ? /^#{1,6}\s/.test(firstNonEmptyLine) : false;
+  const sectionHeadings = topicFromHeading ? headings.slice(1) : headings;
+
   // Build a richer outline when the content has discoverable section headings.
   const outline =
-    headings.length > 1
+    sectionHeadings.length > 0
       ? [
           `Goal: understand ${topic}.`,
           'Warm-up: ask what the learner already knows.',
-          ...headings.slice(1).map((h, i) => `Section ${i + 1}: ${h}`),
+          ...sectionHeadings.map((h, i) => `Section ${i + 1}: ${h}`),
           'Practice: complete a short guided exercise.',
           'Check: summarize the key point and one common mistake.',
         ]

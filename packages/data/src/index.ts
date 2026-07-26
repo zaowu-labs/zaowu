@@ -235,6 +235,116 @@ const parseDelimitedLineDetailed = (line: string, delimiter: ',' | '\t'): Parsed
   };
 };
 
+interface ParsedDelimitedRecords {
+  records: ParsedDelimitedLine[];
+  emptyLineCount: number;
+}
+
+/**
+ * Record-aware CSV parser (RFC 4180). Unlike a naive line split, this tracks
+ * quote state across newlines, so a quoted field containing a newline —
+ * `"line one\nline two"` — stays a single field instead of being torn across
+ * two records. Blank records (whose raw text trims to empty) are excluded and
+ * counted as empty lines, matching the previous line-filtering behavior.
+ */
+const parseCsvRecords = (content: string): ParsedDelimitedRecords => {
+  const records: ParsedDelimitedLine[] = [];
+  let emptyLineCount = 0;
+  let values: string[] = [];
+  let current = '';
+  let raw = '';
+  let quoted = false;
+  let trimmedCells = 0;
+  let started = false;
+
+  const pushValue = (value: string): void => {
+    const trimmed = value.trim();
+
+    if (value !== trimmed) {
+      trimmedCells += 1;
+    }
+
+    values.push(trimmed);
+  };
+
+  const finishRecord = (): void => {
+    pushValue(current);
+
+    if (raw.trim() === '') {
+      emptyLineCount += 1;
+    } else {
+      records.push({ values, trimmedCells });
+    }
+
+    values = [];
+    current = '';
+    raw = '';
+    trimmedCells = 0;
+    started = false;
+  };
+
+  for (let index = 0; index < content.length; index += 1) {
+    const char = content[index];
+    const next = content[index + 1];
+
+    if (!quoted && (char === '\n' || char === '\r')) {
+      if (char === '\r' && next === '\n') {
+        index += 1;
+      }
+
+      finishRecord();
+      continue;
+    }
+
+    started = true;
+    raw += char;
+
+    if (char === '"' && quoted && next === '"') {
+      current += '"';
+      raw += next;
+      index += 1;
+      continue;
+    }
+
+    if (char === '"') {
+      quoted = !quoted;
+      continue;
+    }
+
+    if (char === ',' && !quoted) {
+      pushValue(current);
+      current = '';
+      continue;
+    }
+
+    current += char;
+  }
+
+  if (started || current !== '' || values.length > 0) {
+    finishRecord();
+  }
+
+  return { records, emptyLineCount };
+};
+
+const parseTsvRecords = (content: string): ParsedDelimitedRecords => {
+  const rawLines = content.split(/\r?\n/);
+  const contentLines = rawLines.at(-1) === '' ? rawLines.slice(0, -1) : rawLines;
+  const records: ParsedDelimitedLine[] = [];
+  let emptyLineCount = 0;
+
+  for (const line of contentLines) {
+    if (line.trim() === '') {
+      emptyLineCount += 1;
+      continue;
+    }
+
+    records.push(parseDelimitedLineDetailed(line, '\t'));
+  }
+
+  return { records, emptyLineCount };
+};
+
 const serializeDelimitedLine = (values: readonly string[], delimiter: ',' | '\t'): string =>
   values
     .map((value) => {
@@ -426,16 +536,10 @@ export const loadDataTable = async (
     });
   }
 
-  const rawLines = content.split(/\r?\n/);
-  const contentLines = rawLines.at(-1) === '' ? rawLines.slice(0, -1) : rawLines;
-  const lines = contentLines.filter((line) => line.trim());
-  const emptyLineCount = contentLines.length - lines.length;
-  const parsedHeaders = lines[0]
-    ? parseDelimitedLineDetailed(lines[0], source.delimiter)
-    : { values: [], trimmedCells: 0 };
-  const parsedRows = lines
-    .slice(1)
-    .map((line) => parseDelimitedLineDetailed(line, source.delimiter));
+  const { records, emptyLineCount } =
+    source.delimiter === ',' ? parseCsvRecords(content) : parseTsvRecords(content);
+  const parsedHeaders = records[0] ?? { values: [], trimmedCells: 0 };
+  const parsedRows = records.slice(1);
   const trimmedCellCount =
     parsedHeaders.trimmedCells +
     parsedRows.reduce((count, parsedLine) => count + parsedLine.trimmedCells, 0);
@@ -517,13 +621,30 @@ export const analyzeData = async (
       continue;
     }
 
-    const total = numbers.reduce((sum, value) => sum + value, 0);
+    // Reduce instead of Math.min(...numbers)/Math.max(...numbers): spreading a
+    // large numeric column into an argument list throws RangeError (call stack)
+    // once the column has ~100k+ values.
+    let total = 0;
+    let min = numbers[0];
+    let max = numbers[0];
+
+    for (const value of numbers) {
+      total += value;
+
+      if (value < min) {
+        min = value;
+      }
+
+      if (value > max) {
+        max = value;
+      }
+    }
 
     numericColumns.push({
       column: header,
       count: numbers.length,
-      min: Math.min(...numbers),
-      max: Math.max(...numbers),
+      min,
+      max,
       average: total / numbers.length,
     });
   }

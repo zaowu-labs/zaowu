@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- Bound `zw ai ask` operation-plan fingerprints to the exact prompt and `--file`
+  content sent to the provider, so a prompt or file changed between preview and
+  confirmation now invalidates the plan instead of silently sending different
+  content over the network.
+- Fixed CSV parsing to keep quoted fields that contain newlines as a single
+  record instead of tearing them across lines.
+- Fixed `zw data analyze` to compute column min/max without spreading large
+  numeric columns into argument lists (previously threw a call-stack RangeError
+  on very large files).
+- Stopped `zw config set` and `zw config migrate` from silently dropping
+  unrecognized keys during a full rewrite; they now refuse with an actionable
+  error, while surgical YAML edits continue to preserve surrounding keys.
+- Fixed `zw teach plan` to keep every heading as a section when the first line of
+  the input is plain text instead of a heading.
 - Added a protected, manual Trusted Publishing workflow with tag/version validation and provenance.
 - Reworked public onboarding around the published npm CLI instead of repository-only commands.
 - Added explicit security reporting, support, privacy, and open-core commercialization boundaries.

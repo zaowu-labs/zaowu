@@ -25,6 +25,16 @@ describe('teach domain', () => {
     expect(result.outline).toContain('Section 2: Functions');
   });
 
+  it('keeps every heading as a section when the first line is plain text', async () => {
+    const md = 'Intro paragraph about the course.\n\n# Variables\n\n# Functions';
+    const result = await createTeachingPlan(md);
+
+    expect(result.topic).toBe('Intro paragraph about the course.');
+    // Neither heading may be dropped just because the topic came from plain text.
+    expect(result.outline).toContain('Section 1: Variables');
+    expect(result.outline).toContain('Section 2: Functions');
+  });
+
   it('creates quiz questions from material', async () => {
     await expect(
       createTeachingQuiz('Variables store values. Functions group behavior.')

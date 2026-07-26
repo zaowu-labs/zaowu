@@ -98,7 +98,7 @@ describe('golden command output contracts', () => {
 
     expect(result.exitCode).toBe(0);
     const lines = getStableLines(result.stdout);
-    expect(lines.slice(0, 20)).toEqual([
+    expect(lines.slice(0, 22)).toEqual([
       'ZaoWu AI Ask',
       'Status: preview',
       'Provider: openai (OpenAI)',
@@ -112,6 +112,8 @@ describe('golden command output contracts', () => {
       'Subjects:',
       '- ai:openai',
       '- model:gpt-4.1-mini',
+      expect.stringMatching(/^- content-sha256:[a-f0-9]{64}$/),
+      '- content-length:13',
       'Read:',
       '- none',
       'Write:',
