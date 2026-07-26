@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- Verified the capability matrix's safety columns (reads, writes, Git, shell,
+  network, secrets, safety mode) against each domain's capability ledger and
+  the sensitive-command contracts, instead of only checking command names.
+- Corrected capability disclosures the new check surfaced: `zw teach` commands
+  read optional topic files, and the dev domain ledger now declares fixed Git
+  subprocess execution and repository reads.
+- Type-checked and linted test files (previously excluded from both gates) and
+  made lint warnings fail the build.
+- Added CI steps for source-structure limits, test type-checking, and
+  production dependency audits, plus weekly Dependabot updates.
+- Wired test coverage collection with floor thresholds so the existing
+  coverage configuration actually runs.
+- Added a `ZAOWU_DEBUG` escape hatch that surfaces the underlying stack trace
+  for unexpected internal errors in human output while keeping JSON error
+  output contract-stable.
+- Derived the doctor command-surface count from the shared root-surface list
+  instead of a hand-synced constant.
 - Gave `zw dev commit --ai` and `zw dev review --ai` a real preview-and-confirm
   flow for network providers: the preview shows the operation plan with the
   exact prompt content bound into the fingerprint, and a confirmed run whose

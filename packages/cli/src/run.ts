@@ -34,10 +34,19 @@ const handleError = (error: unknown, json: boolean): CliResult => {
         fix: 'Report this issue at https://github.com/zaowu-labs/zaowu/issues with the command you ran.',
       });
 
+  // Debug escape hatch: raw stack traces stay hidden by default, but setting
+  // ZAOWU_DEBUG surfaces the underlying cause for field diagnosis. JSON output
+  // is left untouched so the machine-readable error contract stays stable.
+  const debug = Boolean(process.env.ZAOWU_DEBUG?.trim());
+  const debugDetails =
+    debug && !isZaoWuError(error) && error instanceof Error && error.stack
+      ? `\n\nDebug (ZAOWU_DEBUG):\n${error.stack}`
+      : '';
+
   return createResult(
     zaowuError.exitCode,
     '',
-    json ? zaowuError.formatJSON() : zaowuError.formatHuman()
+    json ? zaowuError.formatJSON() : `${zaowuError.formatHuman()}${debugDetails}`
   );
 };
 

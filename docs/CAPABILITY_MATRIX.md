@@ -50,10 +50,10 @@ Legend:
 | `zw plugin install`  | plugin target metadata | plugin files  | none      | none              | none             | none              | preview, `--yes` to write later     |
 | `zw plugin remove`   | plugin metadata        | plugin files  | none      | none              | none             | none              | preview, `--yes` to write later     |
 | `zw plugin validate` | plugin manifest        | none          | none      | none              | none             | none              | read-only                           |
-| `zw teach plan`      | none                   | none          | none      | none              | none             | none              | read-only                           |
-| `zw teach quiz`      | none                   | none          | none      | none              | none             | none              | read-only                           |
-| `zw web inspect`     | none by default        | none          | none      | none              | URL with `--yes` | none              | preview, `--yes` for network        |
-| `zw web fetch`       | none by default        | none          | none      | none              | URL with `--yes` | none              | preview, `--yes` for network        |
+| `zw teach plan`      | optional topic file    | none          | none      | none              | none             | none              | read-only                           |
+| `zw teach quiz`      | optional topic file    | none          | none      | none              | none             | none              | read-only                           |
+| `zw web inspect`     | none                   | none          | none      | none              | URL with `--yes` | none              | preview, `--yes` for network        |
+| `zw web fetch`       | none                   | none          | none      | none              | URL with `--yes` | none              | preview, `--yes` for network        |
 
 Before adding a runnable command, update this matrix, the command catalog,
 schema coverage, and command contract tests together.

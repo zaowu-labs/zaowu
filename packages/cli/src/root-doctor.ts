@@ -2,7 +2,7 @@ import path from 'node:path';
 import { validateAIProviderConfig } from '@zaowu-labs/ai';
 import { findConfigFile, loadResolvedConfig, type ResolvedConfig } from '@zaowu-labs/config';
 import { createOperationPlan, isZaoWuError, type OperationPlan } from '@zaowu-labs/core';
-import { COMMAND_CONTRACTS } from './command-contracts.js';
+import { ADDITIONAL_ROOT_SURFACES, COMMAND_CONTRACTS } from './command-contracts.js';
 import { runSystemCommand } from './system-command.js';
 import type { CliExecutionOptions, CommandRunner } from './types.js';
 
@@ -28,7 +28,6 @@ export interface DoctorResult {
 const MINIMUM_NODE_VERSION = '20.19.0';
 const MINIMUM_PNPM_VERSION = '10.34.1';
 const MAXIMUM_PNPM_MAJOR = 11;
-const ADDITIONAL_ROOT_SURFACES_IN_CAPABILITY_MATRIX = 3;
 const PNPM_MISSING_FIX = 'Run `corepack enable` or install pnpm.';
 const PNPM_VERSION_FIX =
   `Use pnpm ${MINIMUM_PNPM_VERSION} through Corepack: ` +
@@ -240,7 +239,7 @@ const checkAIProvider = (
 const checkCommandMatrix = (): DoctorCheck => ({
   name: 'Command matrix',
   status: 'ok',
-  details: `${COMMAND_CONTRACTS.length + ADDITIONAL_ROOT_SURFACES_IN_CAPABILITY_MATRIX} command surface(s) tracked`,
+  details: `${COMMAND_CONTRACTS.length + ADDITIONAL_ROOT_SURFACES.length} command surface(s) tracked`,
 });
 
 export const buildDoctorResult = async (

@@ -8,7 +8,6 @@ export interface DevSyncOptions {
   discardLocal?: boolean;
 }
 
-
 const getDiscardRisks = (status: DevStatusResult): string[] => [
   ...(status.staged.length > 0 ? [`${status.staged.length} staged file(s)`] : []),
   ...(status.unstaged.length > 0 ? [`${status.unstaged.length} unstaged file(s)`] : []),

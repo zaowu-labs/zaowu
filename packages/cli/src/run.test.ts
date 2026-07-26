@@ -476,6 +476,37 @@ describe('executeCli', () => {
     }
   });
 
+  it('surfaces internal error stacks only when ZAOWU_DEBUG is set', async () => {
+    const previousDebug = process.env.ZAOWU_DEBUG;
+    // A type-broken cwd simulates a genuine internal bug: path.resolve throws
+    // a raw TypeError that no domain wraps into a ZaoWuError.
+    const brokenOptions = { cwd: 123 as unknown as string };
+
+    try {
+      delete process.env.ZAOWU_DEBUG;
+      const withoutDebug = await executeCli(['config', 'path'], brokenOptions);
+      expect(withoutDebug.exitCode).toBe(1);
+      expect(withoutDebug.stderr).toContain('Unexpected internal error');
+      expect(withoutDebug.stderr).not.toContain('Debug (ZAOWU_DEBUG)');
+
+      process.env.ZAOWU_DEBUG = '1';
+      const withDebug = await executeCli(['config', 'path'], brokenOptions);
+      expect(withDebug.stderr).toContain('Debug (ZAOWU_DEBUG)');
+      expect(withDebug.stderr).toContain('TypeError');
+
+      // JSON output stays contract-stable even in debug mode.
+      const jsonDebug = await executeCli(['config', 'path', '--json'], brokenOptions);
+      expect(jsonDebug.stderr).not.toContain('Debug (ZAOWU_DEBUG)');
+      expect(JSON.parse(jsonDebug.stderr).error.code).toBe('INTERNAL_ERROR');
+    } finally {
+      if (previousDebug === undefined) {
+        delete process.env.ZAOWU_DEBUG;
+      } else {
+        process.env.ZAOWU_DEBUG = previousDebug;
+      }
+    }
+  });
+
   it('reports unknown commands and actions before option errors', async () => {
     // An unknown action must not be masked by an option complaint.
     const unknownAction = await executeCli(['ai', 'bogus', '--file', 'x', '--json']);
@@ -1062,10 +1093,9 @@ describe('executeCli', () => {
       }
       throw new Error('unexpected command: ' + args.join(' '));
     };
-    const preview = await executeCli(
-      ['dev', 'commit', '--ai', '--provider', 'ollama', '--json'],
-      { commandRunner }
-    );
+    const preview = await executeCli(['dev', 'commit', '--ai', '--provider', 'ollama', '--json'], {
+      commandRunner,
+    });
 
     expect(preview.exitCode).toBe(0);
     const payload = JSON.parse(preview.stdout);
@@ -1074,10 +1104,7 @@ describe('executeCli', () => {
     expect(payload.operationPlan.confirmationRequired).toBe(true);
     expect(payload.operationPlan.network).toEqual(['http://localhost:11434/api/generate']);
     expect(payload.operationPlan.subjects).toEqual(
-      expect.arrayContaining([
-        'ai:ollama',
-        expect.stringMatching(/^content-sha256:[a-f0-9]{64}$/),
-      ])
+      expect.arrayContaining(['ai:ollama', expect.stringMatching(/^content-sha256:[a-f0-9]{64}$/)])
     );
   });
 
@@ -1098,10 +1125,9 @@ describe('executeCli', () => {
       throw new Error('unexpected command: ' + args.join(' '));
     };
 
-    const preview = await executeCli(
-      ['dev', 'commit', '--ai', '--provider', 'ollama', '--json'],
-      { commandRunner: makeRunner('original diff') }
-    );
+    const preview = await executeCli(['dev', 'commit', '--ai', '--provider', 'ollama', '--json'], {
+      commandRunner: makeRunner('original diff'),
+    });
     const fingerprint = JSON.parse(preview.stdout).operationPlan.fingerprint as string;
 
     // The staged diff changes between preview and confirm; the stale

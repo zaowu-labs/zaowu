@@ -26,7 +26,16 @@ export default defineConfig({
     include: ['packages/**/*.test.ts'],
     coverage: {
       reporter: ['text', 'json', 'html'],
+      include: ['packages/*/src/**/*.ts'],
       exclude: ['node_modules/', 'dist/', '**/*.test.ts'],
+      // Floor thresholds: current package coverage sits at 81-95% lines, so
+      // these fail the run only when coverage regresses meaningfully.
+      thresholds: {
+        lines: 80,
+        functions: 60,
+        branches: 70,
+        statements: 80,
+      },
     },
   },
 });

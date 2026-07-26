@@ -28,7 +28,6 @@ const DEV_REVIEW_SCHEMA_VERSION = 1;
 const DEV_COMMIT_SCHEMA_VERSION = 1;
 const DEV_STATUS_SCHEMA_VERSION = 1;
 
-
 const createEmptyCategories = (): DevChangeCategories =>
   Object.fromEntries(DEV_CHANGE_CATEGORIES.map((cat) => [cat, 0])) as DevChangeCategories;
 

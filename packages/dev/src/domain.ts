@@ -4,7 +4,12 @@ export const DEV_DOMAIN: DomainDefinition = {
   name: 'dev',
   summary: 'Developer workflows for review, commit, and repository assistance',
   capabilities: createCapabilityLedger({
+    // Dev commands read repository content (status, diffs, HEAD) through Git.
+    readsFiles: true,
     modifiesGit: true,
+    // Dev commands spawn fixed `git` subprocesses (status/diff/fetch/reset),
+    // never arbitrary user-provided shell.
+    executesShell: true,
     usesNetwork: true,
     accessesSecrets: true,
   }),

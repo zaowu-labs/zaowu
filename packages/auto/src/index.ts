@@ -606,9 +606,7 @@ const readWorkflowFile = (filePath: string): Promise<string> =>
     fix: 'Check the path and file permissions, then run the command again.',
   });
 
-export const validateWorkflowFile = async (
-  filePath: string
-): Promise<AutomationValidationResult> =>
+export const validateWorkflowFile = async (filePath: string): Promise<AutomationValidationResult> =>
   validateWorkflowContent(await readWorkflowFile(filePath), filePath);
 
 export const planWorkflowContent = (

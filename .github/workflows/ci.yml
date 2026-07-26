@@ -41,6 +41,15 @@ jobs:
       - name: Build
         run: corepack pnpm build
 
+      - name: Typecheck tests
+        run: corepack pnpm typecheck:test
+
+      - name: Check source structure
+        run: corepack pnpm verify:structure
+
+      - name: Audit production dependencies
+        run: corepack pnpm audit --prod
+
       - name: Check schemas and examples
         run: corepack pnpm verify:schemas
 

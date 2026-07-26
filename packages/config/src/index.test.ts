@@ -14,7 +14,6 @@ import {
   setResolvedConfigValue,
   validateResolvedConfig,
   getGlobalConfigPath,
-  loadGlobalConfig,
   mergeConfigs,
 } from './index';
 

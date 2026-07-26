@@ -1,8 +1,4 @@
-import {
-  createContentOperationSubjects,
-  readTextFileOrThrow,
-  ZaoWuError,
-} from '@zaowu-labs/core';
+import { createContentOperationSubjects, readTextFileOrThrow, ZaoWuError } from '@zaowu-labs/core';
 import type {
   AIAskPreview,
   AIAskRequest,
@@ -142,9 +138,7 @@ const prepareAIInput = async (
  * so a prompt or file changed between preview and confirm invalidates the plan
  * instead of silently sending different content.
  */
-export const resolveAIRequestContentSubjects = async (
-  request: AIAskRequest
-): Promise<string[]> => {
+export const resolveAIRequestContentSubjects = async (request: AIAskRequest): Promise<string[]> => {
   const prepared = await prepareAIInput(request);
 
   return createContentOperationSubjects(prepared.combinedPrompt);

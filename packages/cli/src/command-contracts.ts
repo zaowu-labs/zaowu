@@ -11,6 +11,14 @@ export interface CommandContract {
 const commandSchemaFile = (id: string): string =>
   `schemas/zaowu.command.${id.replace('.', '-')}.schema.json`;
 
+/**
+ * Root command surfaces tracked in docs/CAPABILITY_MATRIX.md that are not
+ * COMMAND_CONTRACTS entries (aliases of `--help`/`--version`). The capability
+ * matrix check and `zw doctor` both derive their counts from this list so the
+ * two can never drift apart.
+ */
+export const ADDITIONAL_ROOT_SURFACES = ['zw help', 'zw --version', 'zw version'] as const;
+
 export const COMMAND_CONTRACTS: readonly CommandContract[] = [
   {
     id: 'root.help',

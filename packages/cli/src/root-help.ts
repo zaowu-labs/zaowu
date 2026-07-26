@@ -136,4 +136,3 @@ Options:
 Examples:
   zw doctor
   zw doctor --json`;
-
