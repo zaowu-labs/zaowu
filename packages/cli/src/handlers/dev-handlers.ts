@@ -19,7 +19,6 @@ import {
   formatFinding,
   formatList,
   formatOperationPlan,
-  getValue,
   hasFlag,
   resolveAiProvider,
   result,
