@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Restored CI installs by recording the `xlsx` CDN tarball's integrity hash in
+  the lockfile; pnpm now refuses URL-tarball entries without one.
 - Stopped classifying files that merely end in `package.json` (for example
   `my-package.json`) as dependency changes in `zw dev commit` type inference
   and `zw dev review` findings; only real package manifests and the root
