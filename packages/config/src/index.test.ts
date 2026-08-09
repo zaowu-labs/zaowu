@@ -6,6 +6,7 @@ import {
   CONFIG_DOMAIN,
   findConfigFile,
   findConfigPathOrThrow,
+  getDefaultConfigContent,
   getResolvedConfigValue,
   loadConfig,
   loadResolvedConfig,
@@ -18,6 +19,31 @@ import {
 } from './index';
 
 describe('config utilities', () => {
+  it('serializes the default YAML config with a stable byte layout', () => {
+    // `migrateResolvedConfig` compares this serialized layout against file
+    // content byte-for-byte, so any change here is a behavior change — this
+    // test pins the exact bytes.
+    expect(getDefaultConfigContent()).toBe(
+      [
+        'version: 1',
+        '',
+        'project:',
+        '  name: "zaowu-project"',
+        '',
+        'ai:',
+        '  provider: "echo"',
+        '',
+        'defaults:',
+        '  output: "human"',
+        '',
+        'paths:',
+        '  workspace: "."',
+        '  cache: ".zaowu/cache"',
+        '',
+      ].join('\n')
+    );
+  });
+
   it('defines the config domain boundary', () => {
     expect(CONFIG_DOMAIN.name).toBe('config');
     expect(CONFIG_DOMAIN.commands.map((command) => command.name)).toEqual([

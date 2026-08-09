@@ -225,4 +225,44 @@ describe('web domain', () => {
     });
     expect(aborted).toBe(true);
   });
+
+  it('decodes streamed bodies using the response charset', async () => {
+    // 'café' encoded as latin1: 0x63 0x61 0x66 0xe9. Decoding those bytes as
+    // UTF-8 would produce a replacement character instead of 'é'.
+    const latin1Bytes = new Uint8Array([0x63, 0x61, 0x66, 0xe9]);
+    let readIndex = 0;
+    const fetcher: WebFetcher = async () => ({
+      status: 200,
+      statusText: 'OK',
+      headers: {
+        forEach(callback: (value: string, key: string) => void) {
+          callback('text/html; charset=iso-8859-1', 'content-type');
+        },
+      },
+      body: {
+        getReader() {
+          return {
+            async read() {
+              if (readIndex === 0) {
+                readIndex += 1;
+                return { done: false as const, value: latin1Bytes };
+              }
+              return { done: true as const };
+            },
+            async cancel() {},
+          };
+        },
+      },
+      async text() {
+        throw new Error('streaming response should not use text()');
+      },
+    });
+
+    await expect(
+      fetchWebTarget('https://example.com', { yes: true, fetcher })
+    ).resolves.toMatchObject({
+      body: 'café',
+      bodyLength: 4,
+    });
+  });
 });

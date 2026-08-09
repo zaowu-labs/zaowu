@@ -177,6 +177,22 @@ const parseExecutionPolicy = (
   };
 };
 
+const workflowParseError = (why: string, fix: string): ZaoWuError =>
+  new ZaoWuError({
+    code: 'WORKFLOW_PARSE_FAILED',
+    message: 'Could not parse workflow.',
+    why,
+    fix,
+  });
+
+const workflowStepError = (stepName: string, why: string, fix: string): ZaoWuError =>
+  new ZaoWuError({
+    code: 'WORKFLOW_STEP_FAILED',
+    message: `Workflow step \`${stepName}\` failed.`,
+    why,
+    fix,
+  });
+
 const parseWorkflowJson = (content: string): ParsedAutomationWorkflow => {
   let parsed: Partial<AutomationWorkflow>;
 
@@ -184,12 +200,10 @@ const parseWorkflowJson = (content: string): ParsedAutomationWorkflow => {
     parsed = JSON.parse(content) as Partial<AutomationWorkflow>;
   } catch (error) {
     const detail = error instanceof SyntaxError ? `: ${error.message}` : '';
-    throw new ZaoWuError({
-      code: 'WORKFLOW_PARSE_FAILED',
-      message: 'Could not parse workflow.',
-      why: `Workflow content is not valid JSON${detail}.`,
-      fix: 'Verify the JSON syntax and run `zw auto validate` again.',
-    });
+    throw workflowParseError(
+      `Workflow content is not valid JSON${detail}.`,
+      'Verify the JSON syntax and run `zw auto validate` again.'
+    );
   }
 
   const version = parseWorkflowVersion(parsed.version);
@@ -255,23 +269,19 @@ const parseWorkflowYaml = (content: string): ParsedAutomationWorkflow => {
   try {
     parsedRaw = YAML.parse(content);
   } catch (error) {
-    throw new ZaoWuError({
-      code: 'WORKFLOW_PARSE_FAILED',
-      message: 'Could not parse workflow.',
-      why: error instanceof Error ? error.message : 'The YAML parser rejected the file.',
-      fix: 'Fix the YAML syntax and run `zw auto validate` again.',
-    });
+    throw workflowParseError(
+      error instanceof Error ? error.message : 'The YAML parser rejected the file.',
+      'Fix the YAML syntax and run `zw auto validate` again.'
+    );
   }
 
   if (parsedRaw === null || parsedRaw === undefined) {
     parsedRaw = {};
   } else if (typeof parsedRaw !== 'object' || Array.isArray(parsedRaw)) {
-    throw new ZaoWuError({
-      code: 'WORKFLOW_PARSE_FAILED',
-      message: 'Could not parse workflow.',
-      why: 'Workflow content is not a YAML object.',
-      fix: 'Verify the workflow format and run `zw auto validate` again.',
-    });
+    throw workflowParseError(
+      'Workflow content is not a YAML object.',
+      'Verify the workflow format and run `zw auto validate` again.'
+    );
   }
 
   const parsed = parsedRaw as Record<string, unknown>;
@@ -350,12 +360,10 @@ const parseWorkflow = (content: string, filePath: string): ParsedAutomationWorkf
       throw error;
     }
 
-    throw new ZaoWuError({
-      code: 'WORKFLOW_PARSE_FAILED',
-      message: 'Could not parse workflow.',
-      why: 'ZaoWu supports simple JSON and YAML workflow files in this first version.',
-      fix: 'Use `name` and `steps` with `message` steps, then run `zw auto validate` again.',
-    });
+    throw workflowParseError(
+      'ZaoWu supports simple JSON and YAML workflow files in this first version.',
+      'Use `name` and `steps` with `message` steps, then run `zw auto validate` again.'
+    );
   }
 };
 
@@ -432,21 +440,19 @@ const resolveSandboxedWriteTarget = async (
       realpath(path.dirname(targetPath)),
     ]);
   } catch {
-    throw new ZaoWuError({
-      code: 'WORKFLOW_STEP_FAILED',
-      message: `Workflow step \`${stepName}\` failed.`,
-      why: `ZaoWu could not resolve the real workflow or target directory for \`${targetPath}\`.`,
-      fix: 'Use an existing directory inside the workflow directory, then try again.',
-    });
+    throw workflowStepError(
+      stepName,
+      `ZaoWu could not resolve the real workflow or target directory for \`${targetPath}\`.`,
+      'Use an existing directory inside the workflow directory, then try again.'
+    );
   }
 
   if (isPathEscapingDirectory(realWorkflowDirectory, realTargetDirectory)) {
-    throw new ZaoWuError({
-      code: 'WORKFLOW_STEP_FAILED',
-      message: `Workflow step \`${stepName}\` failed.`,
-      why: `ZaoWu refused to follow a linked directory outside the workflow sandbox for \`${targetPath}\`.`,
-      fix: 'Choose a writeFile.path whose parent directory resolves inside the workflow directory.',
-    });
+    throw workflowStepError(
+      stepName,
+      `ZaoWu refused to follow a linked directory outside the workflow sandbox for \`${targetPath}\`.`,
+      'Choose a writeFile.path whose parent directory resolves inside the workflow directory.'
+    );
   }
 
   return path.join(realTargetDirectory, path.basename(targetPath));
@@ -609,6 +615,38 @@ const readWorkflowFile = (filePath: string): Promise<string> =>
 export const validateWorkflowFile = async (filePath: string): Promise<AutomationValidationResult> =>
   validateWorkflowContent(await readWorkflowFile(filePath), filePath);
 
+/**
+ * Builds one plan step plus its embedded operation plan from a single set of
+ * fields, so the step and the plan the user confirms can never disagree.
+ */
+const createPlanStep = (
+  index: number,
+  name: string,
+  fields: {
+    action: AutomationPlanStep['action'];
+    preview: string;
+    blocked: boolean;
+    reason?: string;
+    requiredPermission?: AutomationPlanStep['requiredPermission'];
+    targetPath?: string;
+    contentLength?: number;
+    contentSha256?: string;
+  }
+): AutomationPlanStep => ({
+  index: index + 1,
+  name,
+  action: fields.action,
+  preview: fields.preview,
+  targetPath: fields.targetPath,
+  contentLength: fields.contentLength,
+  contentSha256: fields.contentSha256,
+  blocked: fields.blocked,
+  requiredPermission: fields.requiredPermission,
+  policyDecision: fields.blocked ? 'blocked' : 'allowed',
+  reason: fields.reason,
+  operationPlan: createStepOperationPlan(fields),
+});
+
 export const planWorkflowContent = (
   content: string,
   filePath = 'workflow.yml'
@@ -619,23 +657,12 @@ export const planWorkflowContent = (
     const actionCount = getStepActionCount(step);
 
     if (actionCount > 1) {
-      const reason = 'Step declares multiple actions; choose exactly one action.';
-
-      return {
-        index: index + 1,
-        name: step.name,
+      return createPlanStep(index, step.name, {
         action: 'unsupported',
         preview: '',
         blocked: true,
-        policyDecision: 'blocked',
-        reason,
-        operationPlan: createStepOperationPlan({
-          action: 'unsupported',
-          preview: '',
-          blocked: true,
-          reason,
-        }),
-      };
+        reason: 'Step declares multiple actions; choose exactly one action.',
+      });
     }
 
     if (missingVariables.length > 0) {
@@ -646,72 +673,40 @@ export const planWorkflowContent = (
           : step.writeFile
             ? 'writeFile'
             : 'unsupported';
-      const preview = step.message ?? step.run ?? step.writeFile?.path ?? '';
-      const reason = `Missing variable(s): ${missingVariables.join(', ')}`;
 
-      return {
-        index: index + 1,
-        name: step.name,
+      return createPlanStep(index, step.name, {
         action,
-        preview,
+        preview: step.message ?? step.run ?? step.writeFile?.path ?? '',
         blocked: true,
+        reason: `Missing variable(s): ${missingVariables.join(', ')}`,
         requiredPermission: step.run ? 'shell' : step.writeFile ? 'fileWrites' : undefined,
-        policyDecision: 'blocked',
-        reason,
-        operationPlan: createStepOperationPlan({
-          action,
-          preview,
-          blocked: true,
-          reason,
-        }),
-      };
+      });
     }
 
     if (step.run) {
-      const shellPolicy = validation.policy.shell;
       const preview = substituteVariables(step.run, validation.workflow.variables);
       const safetyError = checkShellSafety(preview);
-      const isBlocked = shellPolicy === 'blocked' || !!safetyError;
-      const reason = safetyError
-        ? safetyError
-        : isBlocked
-          ? 'Shell execution is disabled in this foundation version.'
-          : undefined;
+      const isBlocked = validation.policy.shell === 'blocked' || !!safetyError;
 
-      return {
-        index: index + 1,
-        name: step.name,
+      return createPlanStep(index, step.name, {
         action: 'shell',
         preview,
         blocked: isBlocked,
+        reason: safetyError
+          ? safetyError
+          : isBlocked
+            ? 'Shell execution is disabled in this foundation version.'
+            : undefined,
         requiredPermission: 'shell',
-        policyDecision: isBlocked ? 'blocked' : 'allowed',
-        reason,
-        operationPlan: createStepOperationPlan({
-          action: 'shell',
-          preview,
-          blocked: isBlocked,
-          reason,
-        }),
-      };
+      });
     }
 
     if (step.message) {
-      const preview = substituteVariables(step.message, validation.workflow.variables);
-
-      return {
-        index: index + 1,
-        name: step.name,
+      return createPlanStep(index, step.name, {
         action: 'message',
-        preview,
+        preview: substituteVariables(step.message, validation.workflow.variables),
         blocked: false,
-        policyDecision: 'allowed',
-        operationPlan: createStepOperationPlan({
-          action: 'message',
-          preview,
-          blocked: false,
-        }),
-      };
+      });
     }
 
     if (step.writeFile) {
@@ -720,7 +715,6 @@ export const planWorkflowContent = (
         step.writeFile.content,
         validation.workflow.variables
       );
-      const contentSha256 = hashOperationContent(contentPreview);
       const resolvedPath = resolveWorkflowWritePath(
         validation.sandbox.workflowDirectory,
         requestedPath
@@ -730,55 +724,30 @@ export const planWorkflowContent = (
         validation.policy.fileWrites !== 'prompt' ||
         Boolean(resolvedPath.reason) ||
         contentTooLarge;
-      const reason =
-        resolvedPath.reason ??
-        (contentTooLarge
-          ? `writeFile.content exceeds the ${MAX_WRITE_FILE_CHARACTERS}-character limit.`
-          : undefined) ??
-        (isBlocked ? 'File writes require permissions.fileWrites: prompt.' : undefined);
-      const preview = `write ${requestedPath} (${contentPreview.length} chars)`;
 
-      return {
-        index: index + 1,
-        name: step.name,
+      return createPlanStep(index, step.name, {
         action: 'writeFile',
-        preview,
+        preview: `write ${requestedPath} (${contentPreview.length} chars)`,
         targetPath: resolvedPath.targetPath,
         contentLength: contentPreview.length,
-        contentSha256,
+        contentSha256: hashOperationContent(contentPreview),
         blocked: isBlocked,
+        reason:
+          resolvedPath.reason ??
+          (contentTooLarge
+            ? `writeFile.content exceeds the ${MAX_WRITE_FILE_CHARACTERS}-character limit.`
+            : undefined) ??
+          (isBlocked ? 'File writes require permissions.fileWrites: prompt.' : undefined),
         requiredPermission: 'fileWrites',
-        policyDecision: isBlocked ? 'blocked' : 'allowed',
-        reason,
-        operationPlan: createStepOperationPlan({
-          action: 'writeFile',
-          preview,
-          targetPath: resolvedPath.targetPath,
-          contentLength: contentPreview.length,
-          contentSha256,
-          blocked: isBlocked,
-          reason,
-        }),
-      };
+      });
     }
 
-    const reason = 'Step has no supported action.';
-
-    return {
-      index: index + 1,
-      name: step.name,
+    return createPlanStep(index, step.name, {
       action: 'unsupported',
       preview: '',
       blocked: true,
-      policyDecision: 'blocked',
-      reason,
-      operationPlan: createStepOperationPlan({
-        action: 'unsupported',
-        preview: '',
-        blocked: true,
-        reason,
-      }),
-    };
+      reason: 'Step has no supported action.',
+    });
   });
 
   return {
@@ -804,35 +773,38 @@ export const runWorkflowPlan = async (
   const skipped: string[] = [];
   const receipts: AutomationExecutionReceipt[] = [];
 
+  const createStepReceipt = (
+    step: AutomationPlanResult['steps'][number],
+    status: AutomationExecutionReceipt['status'],
+    detail: string
+  ): AutomationExecutionReceipt => ({
+    index: step.index,
+    name: step.name,
+    action: step.action,
+    status,
+    detail,
+    targetPath: step.targetPath,
+    contentSha256: step.contentSha256,
+    contentLength: step.contentLength,
+  });
+
+  const recordSkip = (
+    step: AutomationPlanResult['steps'][number],
+    status: 'blocked' | 'skipped',
+    detail: string
+  ): void => {
+    skipped.push(`${step.name}: ${detail}`);
+    receipts.push(createStepReceipt(step, status, detail));
+  };
+
   for (const step of plan.steps) {
     if (step.blocked) {
-      const detail = step.reason ?? 'blocked';
-      skipped.push(`${step.name}: ${detail}`);
-      receipts.push({
-        index: step.index,
-        name: step.name,
-        action: step.action,
-        status: 'blocked',
-        detail,
-        targetPath: step.targetPath,
-        contentSha256: step.contentSha256,
-        contentLength: step.contentLength,
-      });
+      recordSkip(step, 'blocked', step.reason ?? 'blocked');
       continue;
     }
 
     if (!options.yes) {
-      skipped.push(`${step.name}: dry-run`);
-      receipts.push({
-        index: step.index,
-        name: step.name,
-        action: step.action,
-        status: 'skipped',
-        detail: 'dry-run',
-        targetPath: step.targetPath,
-        contentSha256: step.contentSha256,
-        contentLength: step.contentLength,
-      });
+      recordSkip(step, 'skipped', 'dry-run');
       continue;
     }
 
@@ -849,28 +821,16 @@ export const runWorkflowPlan = async (
       const workflowStep = plan.workflow.steps[step.index - 1];
       const writeFileAction = workflowStep?.writeFile;
       if (!step.targetPath || !writeFileAction || !step.contentSha256) {
-        const detail = 'missing write target';
-        skipped.push(`${step.name}: ${detail}`);
-        receipts.push({
-          index: step.index,
-          name: step.name,
-          action: step.action,
-          status: 'skipped',
-          detail,
-          targetPath: step.targetPath,
-          contentSha256: step.contentSha256,
-          contentLength: step.contentLength,
-        });
+        recordSkip(step, 'skipped', 'missing write target');
         continue;
       }
       const content = substituteVariables(writeFileAction.content, plan.workflow.variables);
       if (hashOperationContent(content) !== step.contentSha256) {
-        throw new ZaoWuError({
-          code: 'WORKFLOW_STEP_FAILED',
-          message: `Workflow step \`${step.name}\` failed.`,
-          why: 'The planned file content no longer matches its content fingerprint.',
-          fix: 'Re-run the workflow preview and confirm the current operation plan.',
-        });
+        throw workflowStepError(
+          step.name,
+          'The planned file content no longer matches its content fingerprint.',
+          'Re-run the workflow preview and confirm the current operation plan.'
+        );
       }
 
       const sandboxedTarget = await resolveSandboxedWriteTarget(
@@ -883,29 +843,19 @@ export const runWorkflowPlan = async (
         await writeFile(sandboxedTarget, content, { encoding: 'utf8', flag: 'wx' });
       } catch (error) {
         const exists = (error as { code?: string }).code === 'EEXIST';
-        throw new ZaoWuError({
-          code: 'WORKFLOW_STEP_FAILED',
-          message: `Workflow step \`${step.name}\` failed.`,
-          why: exists
+        throw workflowStepError(
+          step.name,
+          exists
             ? `ZaoWu refused to overwrite existing file \`${step.targetPath}\`.`
             : `ZaoWu tried to write \`${step.targetPath}\`, but the file system rejected the write.`,
-          fix: exists
+          exists
             ? 'Choose a new writeFile.path or remove the existing file yourself first.'
-            : 'Check the workflow directory permissions, then try again.',
-        });
+            : 'Check the workflow directory permissions, then try again.'
+        );
       }
 
       executed.push(`${step.name}: wrote ${step.targetPath}`);
-      receipts.push({
-        index: step.index,
-        name: step.name,
-        action: step.action,
-        status: 'executed',
-        detail: `wrote ${step.targetPath}`,
-        targetPath: step.targetPath,
-        contentSha256: step.contentSha256,
-        contentLength: step.contentLength,
-      });
+      receipts.push(createStepReceipt(step, 'executed', `wrote ${step.targetPath}`));
     }
   }
 

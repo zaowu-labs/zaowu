@@ -2,8 +2,6 @@ import {
   askAI,
   listAIProviders,
   previewAIRequest,
-  resolveAIProviderNetworkTarget,
-  resolveAIModel,
   resolveAIRequestContentSubjects,
   validateAIProviderConfig,
 } from '@zaowu-labs/ai';
@@ -11,8 +9,10 @@ import {
   assertOperationPlanFingerprint,
   createOperationPlan,
   formatConfirmCommand,
+  formatLabeledList,
   formatOperationPlan,
   getValue,
+  resolveAiProvider,
   result,
   withOperationPlan,
   type DomainActionHandler,
@@ -21,19 +21,17 @@ import {
 export const handleAiAsk: DomainActionHandler = async (args, context) => {
   const prompt = args.join(' ').trim();
   const filePath = getValue(context.parsed, '--file');
-  const requestedProvider = getValue(context.parsed, '--provider');
-  const requestedModel = getValue(context.parsed, '--model');
-  const providerValidation = validateAIProviderConfig(requestedProvider);
-  const provider = providerValidation.provider;
-  const resolvedModel = resolveAIModel(provider, { model: requestedModel });
-  const networkTarget = provider.network ? resolveAIProviderNetworkTarget(provider.id) : undefined;
+  // Shared resolution: --provider first, then `ai.provider` from zw.yml, then
+  // the default — the same order `zw dev --ai` and `zw doctor` use.
+  const ai = await resolveAiProvider(context);
+  const { provider, resolvedModel, networkTarget } = ai;
   // Bind the exact prompt + file payload into the plan so a preview fingerprint
   // only matches a confirmed run that sends identical content.
   const contentSubjects = await resolveAIRequestContentSubjects({
     prompt,
     filePath,
-    provider: requestedProvider,
-    model: requestedModel,
+    provider: ai.providerId,
+    model: ai.requestedModel,
   });
   const operationPlan = createOperationPlan({
     risk: provider.network ? 'medium' : 'low',
@@ -53,8 +51,8 @@ export const handleAiAsk: DomainActionHandler = async (args, context) => {
     const preview = await previewAIRequest({
       prompt,
       filePath,
-      provider: requestedProvider,
-      model: requestedModel,
+      provider: ai.providerId,
+      model: ai.requestedModel,
     });
     const payload = {
       schemaVersion: preview.schemaVersion,
@@ -67,14 +65,18 @@ export const handleAiAsk: DomainActionHandler = async (args, context) => {
       usage: null,
       validation: preview.validation,
     };
+    // Pin the RESOLVED provider id, so a confirm command copied from a preview
+    // whose provider came from `zw.yml` keeps working even if the config
+    // changes in between (the fingerprint would reject the mismatch anyway).
     const confirmCommand = formatConfirmCommand([
       'zw',
       'ai',
       'ask',
       ...args,
       ...(filePath ? ['--file', filePath] : []),
-      ...(requestedProvider ? ['--provider', requestedProvider] : []),
-      ...(requestedModel ? ['--model', requestedModel] : []),
+      '--provider',
+      ai.providerId,
+      ...(ai.requestedModel ? ['--model', ai.requestedModel] : []),
       '--yes',
       '--plan-fingerprint',
       operationPlan.fingerprint,
@@ -121,8 +123,8 @@ export const handleAiAsk: DomainActionHandler = async (args, context) => {
     const response = await askAI({
       prompt,
       filePath,
-      provider: requestedProvider,
-      model: requestedModel,
+      provider: ai.providerId,
+      model: ai.requestedModel,
       allowNetwork: context.yes,
       onChunk: (chunk) => {
         streamedAnyChunk = true;
@@ -145,8 +147,8 @@ export const handleAiAsk: DomainActionHandler = async (args, context) => {
   const response = await askAI({
     prompt,
     filePath,
-    provider: requestedProvider,
-    model: requestedModel,
+    provider: ai.providerId,
+    model: ai.requestedModel,
     allowNetwork: context.yes,
   });
   const payload = response;
@@ -188,9 +190,7 @@ export const handleAiProviders: DomainActionHandler = async (_args, context) => 
       return `- ${provider.id}: ${provider.name} (${flags.join(', ')})`;
     }),
     '',
-    validation?.warnings.length
-      ? ['Warnings:', ...validation.warnings.map((warning) => `- ${warning}`)].join('\n')
-      : 'Warnings: none',
+    formatLabeledList('Warnings', validation?.warnings),
   ].join('\n');
 
   return result(context, payload, human);

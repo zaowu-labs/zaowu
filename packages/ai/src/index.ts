@@ -229,36 +229,60 @@ const resolveProviderEndpoint = (
   return `${parsed.toString().replace(/\/+$/, '')}${pathSuffix}`;
 };
 
+// Maps (not object literals) so an arbitrary caller-supplied provider id like
+// `toString` cannot resolve to an Object.prototype member and slip past the
+// unknown-provider check.
+const PROVIDER_NETWORK_TARGETS = new Map<
+  string,
+  { baseUrlEnv: string; defaultBaseUrl: string; pathSuffix: string }
+>([
+  [
+    OPENAI_PROVIDER_DESCRIPTOR.id,
+    {
+      baseUrlEnv: 'OPENAI_BASE_URL',
+      defaultBaseUrl: 'https://api.openai.com',
+      pathSuffix: '/v1/responses',
+    },
+  ],
+  [
+    'ollama',
+    {
+      baseUrlEnv: 'OLLAMA_HOST',
+      defaultBaseUrl: 'http://localhost:11434',
+      pathSuffix: '/api/generate',
+    },
+  ],
+  [
+    'anthropic',
+    {
+      baseUrlEnv: 'ANTHROPIC_BASE_URL',
+      defaultBaseUrl: 'https://api.anthropic.com',
+      pathSuffix: '/v1/messages',
+    },
+  ],
+]);
+
 export const resolveAIProviderNetworkTarget = (
   providerId: string,
   env: NodeJS.ProcessEnv = process.env
 ): string | undefined => {
-  if (providerId === OPENAI_PROVIDER_DESCRIPTOR.id) {
-    return resolveProviderEndpoint(
-      env.OPENAI_BASE_URL?.trim() || 'https://api.openai.com',
-      '/v1/responses',
-      'OPENAI_BASE_URL'
-    );
+  const target = PROVIDER_NETWORK_TARGETS.get(providerId);
+
+  if (!target) {
+    return undefined;
   }
 
-  if (providerId === 'ollama') {
-    return resolveProviderEndpoint(
-      env.OLLAMA_HOST?.trim() || 'http://localhost:11434',
-      '/api/generate',
-      'OLLAMA_HOST'
-    );
-  }
-
-  if (providerId === 'anthropic') {
-    return resolveProviderEndpoint(
-      env.ANTHROPIC_BASE_URL?.trim() || 'https://api.anthropic.com',
-      '/v1/messages',
-      'ANTHROPIC_BASE_URL'
-    );
-  }
-
-  return undefined;
+  return resolveProviderEndpoint(
+    env[target.baseUrlEnv]?.trim() || target.defaultBaseUrl,
+    target.pathSuffix,
+    target.baseUrlEnv
+  );
 };
+
+const PROVIDER_MODEL_ENVS = new Map<string, string>([
+  [OPENAI_PROVIDER_DESCRIPTOR.id, 'OPENAI_MODEL'],
+  ['anthropic', 'ANTHROPIC_MODEL'],
+]);
 
 export const resolveAIModel = (
   provider: AIProviderDescriptor,
@@ -271,15 +295,10 @@ export const resolveAIModel = (
     return requestedModel;
   }
 
-  if (provider.id === OPENAI_PROVIDER_DESCRIPTOR.id && env.OPENAI_MODEL?.trim()) {
-    return env.OPENAI_MODEL.trim();
-  }
+  const modelEnv = PROVIDER_MODEL_ENVS.get(provider.id);
+  const envModel = modelEnv ? env[modelEnv]?.trim() : undefined;
 
-  if (provider.id === 'anthropic' && env.ANTHROPIC_MODEL?.trim()) {
-    return env.ANTHROPIC_MODEL.trim();
-  }
-
-  return provider.defaultModel ?? 'echo-local';
+  return envModel || (provider.defaultModel ?? 'echo-local');
 };
 
 const getPreviewModel = (
@@ -287,9 +306,6 @@ const getPreviewModel = (
   request: AIAskRequest,
   env: NodeJS.ProcessEnv
 ): string => resolveAIModel(provider, { model: request.model, env });
-
-const getOpenAIModel = (request: AIAskRequest, env: NodeJS.ProcessEnv): string =>
-  getPreviewModel(createProviderDescriptor(OPENAI_PROVIDER_DESCRIPTOR, env), request, env);
 
 const MAX_PROVIDER_STATUS_TEXT_CHARACTERS = 80;
 
@@ -559,19 +575,6 @@ const extractOpenAIOutputText = (payload: unknown): string => {
   });
 };
 
-const parseOpenAIJsonResponse = async (response: AIFetchResponse): Promise<unknown> => {
-  try {
-    return await response.json();
-  } catch {
-    throw new ZaoWuError({
-      code: 'AI_PROVIDER_RESPONSE_INVALID',
-      message: 'AI provider response is invalid.',
-      why: 'OpenAI returned a successful HTTP response, but the response body was not valid JSON.',
-      fix: 'Retry the request. If it repeats, check provider status or update the OpenAI adapter parser.',
-    });
-  }
-};
-
 const asUsageNumber = (value: unknown): number | undefined =>
   typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
 
@@ -639,56 +642,78 @@ const extractAnthropicOutputText = (payload: unknown): string => {
   });
 };
 
-const OPENAI_PROVIDER: AIProvider = {
-  descriptor: createProviderDescriptor(OPENAI_PROVIDER_DESCRIPTOR),
+interface NetworkProviderConfig {
+  descriptor: Omit<AIProviderDescriptor, 'configured'>;
+  /** `why` text for the network-confirmation guard. */
+  networkWhy: string;
+  /** Environment variable holding the API key, when the provider needs one. */
+  apiKeyEnv?: string;
+  buildHeaders: (apiKey: string | undefined) => Record<string, string>;
+  buildBody: (model: string, combinedPrompt: string) => unknown;
+  /** Full error for a successful HTTP response whose body is not valid JSON. */
+  invalidJson: { why: string; fix: string };
+  /** Extract the generated text; throws AI_PROVIDER_RESPONSE_INVALID itself. */
+  extractOutput: (payload: unknown) => string;
+}
+
+/**
+ * Shared network-provider skeleton. Every HTTP-backed provider follows the
+ * same sequence — confirmation guard, key check, input preparation, retried
+ * fetch, JSON parse, text extraction — so the per-provider code reduces to
+ * the request shape and response parsing that genuinely differ.
+ */
+const createNetworkProvider = (config: NetworkProviderConfig): AIProvider => ({
+  descriptor: createProviderDescriptor(config.descriptor),
   async ask(request) {
     const env = request.env ?? process.env;
-    const apiKey = env.OPENAI_API_KEY?.trim();
+    const apiKey = config.apiKeyEnv ? env[config.apiKeyEnv]?.trim() : undefined;
 
     if (!request.allowNetwork) {
       throw new ZaoWuError({
         code: 'AI_NETWORK_CONFIRMATION_REQUIRED',
         message: 'Network AI request requires confirmation.',
-        why: 'The OpenAI provider sends prompt input to a network service.',
+        why: config.networkWhy,
         fix: 'Use the CLI preview first, then re-run with `--yes` when the operation plan is acceptable.',
       });
     }
 
-    if (!apiKey) {
+    if (config.apiKeyEnv && !apiKey) {
       throw new ZaoWuError({
         code: 'AI_PROVIDER_CONFIG_MISSING',
         message: 'AI provider configuration is missing.',
-        why: 'The OpenAI provider requires `OPENAI_API_KEY` in the environment.',
-        fix: 'Set `OPENAI_API_KEY` in the shell environment. Do not store it in `zw.yml`.',
+        why: `The ${config.descriptor.name} provider requires \`${config.apiKeyEnv}\` in the environment.`,
+        fix: `Set \`${config.apiKeyEnv}\` in the shell environment. Do not store it in \`zw.yml\`.`,
       });
     }
 
     const prepared = await prepareAIInput(request);
-
-    const model = getOpenAIModel(request, env);
-    const url = resolveAIProviderNetworkTarget(OPENAI_PROVIDER_DESCRIPTOR.id, env)!;
+    const descriptor = createProviderDescriptor(config.descriptor, env);
+    const model = resolveAIModel(descriptor, { model: request.model, env });
+    const url = resolveAIProviderNetworkTarget(config.descriptor.id, env)!;
 
     const response = await fetchWithRetry(
       getFetcher(request.fetcher),
       url,
       {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model,
-          input: prepared.combinedPrompt,
-        }),
+        headers: config.buildHeaders(apiKey),
+        body: JSON.stringify(config.buildBody(model, prepared.combinedPrompt)),
       },
-      OPENAI_PROVIDER_DESCRIPTOR.name,
+      config.descriptor.name,
       request.timeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS
     );
 
-    const payload = await parseOpenAIJsonResponse(response);
-    const output = extractOpenAIOutputText(payload);
-    const descriptor = createProviderDescriptor(OPENAI_PROVIDER_DESCRIPTOR, env);
+    let payload: unknown;
+    try {
+      payload = await response.json();
+    } catch {
+      throw new ZaoWuError({
+        code: 'AI_PROVIDER_RESPONSE_INVALID',
+        message: 'AI provider response is invalid.',
+        why: config.invalidJson.why,
+        fix: config.invalidJson.fix,
+      });
+    }
 
     return {
       schemaVersion: AI_RESULT_SCHEMA_VERSION,
@@ -697,11 +722,30 @@ const OPENAI_PROVIDER: AIProvider = {
       model,
       endpoint: url,
       input: prepared.input,
-      output,
+      output: config.extractOutput(payload),
       usage: extractProviderUsage(payload),
     };
   },
-};
+});
+
+const OPENAI_PROVIDER = createNetworkProvider({
+  descriptor: OPENAI_PROVIDER_DESCRIPTOR,
+  networkWhy: 'The OpenAI provider sends prompt input to a network service.',
+  apiKeyEnv: 'OPENAI_API_KEY',
+  buildHeaders: (apiKey) => ({
+    Authorization: `Bearer ${apiKey}`,
+    'Content-Type': 'application/json',
+  }),
+  buildBody: (model, combinedPrompt) => ({
+    model,
+    input: combinedPrompt,
+  }),
+  invalidJson: {
+    why: 'OpenAI returned a successful HTTP response, but the response body was not valid JSON.',
+    fix: 'Retry the request. If it repeats, check provider status or update the OpenAI adapter parser.',
+  },
+  extractOutput: extractOpenAIOutputText,
+});
 
 const OLLAMA_PROVIDER_DESCRIPTOR: Omit<AIProviderDescriptor, 'configured'> = {
   id: 'ollama',
@@ -711,78 +755,38 @@ const OLLAMA_PROVIDER_DESCRIPTOR: Omit<AIProviderDescriptor, 'configured'> = {
   defaultModel: 'llama3',
 };
 
-const OLLAMA_PROVIDER: AIProvider = {
-  descriptor: createProviderDescriptor(OLLAMA_PROVIDER_DESCRIPTOR),
-  async ask(request) {
-    const env = request.env ?? process.env;
+const extractOllamaOutputText = (payload: unknown): string => {
+  const resObj = payload as { response?: unknown };
 
-    if (!request.allowNetwork) {
-      throw new ZaoWuError({
-        code: 'AI_NETWORK_CONFIRMATION_REQUIRED',
-        message: 'Network AI request requires confirmation.',
-        why: 'The Ollama provider sends prompt input to an HTTP endpoint.',
-        fix: 'Use the CLI preview first, then re-run with `--yes` when the operation plan is acceptable.',
-      });
-    }
+  if (typeof resObj !== 'object' || resObj === null || typeof resObj.response !== 'string') {
+    throw new ZaoWuError({
+      code: 'AI_PROVIDER_RESPONSE_INVALID',
+      message: 'AI provider response is invalid.',
+      why: 'The response from Ollama did not contain the generated text.',
+      fix: 'Check the Ollama version and settings.',
+    });
+  }
 
-    const prepared = await prepareAIInput(request);
-    const descriptor = createProviderDescriptor(OLLAMA_PROVIDER_DESCRIPTOR, env);
-    const model = resolveAIModel(descriptor, { model: request.model, env });
-    const url = resolveAIProviderNetworkTarget(OLLAMA_PROVIDER_DESCRIPTOR.id, env)!;
-
-    const response = await fetchWithRetry(
-      getFetcher(request.fetcher),
-      url,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model,
-          prompt: prepared.combinedPrompt,
-          stream: false,
-        }),
-      },
-      OLLAMA_PROVIDER_DESCRIPTOR.name,
-      request.timeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS
-    );
-
-    let payload: unknown;
-    try {
-      payload = await response.json();
-    } catch {
-      throw new ZaoWuError({
-        code: 'AI_PROVIDER_RESPONSE_INVALID',
-        message: 'AI provider response is invalid.',
-        why: 'Ollama returned a successful HTTP response, but the response body was not valid JSON.',
-        fix: 'Check the Ollama version and settings.',
-      });
-    }
-
-    const resObj = payload as { response?: unknown };
-    if (typeof resObj !== 'object' || resObj === null || typeof resObj.response !== 'string') {
-      throw new ZaoWuError({
-        code: 'AI_PROVIDER_RESPONSE_INVALID',
-        message: 'AI provider response is invalid.',
-        why: 'The response from Ollama did not contain the generated text.',
-        fix: 'Check the Ollama version and settings.',
-      });
-    }
-    const output = resObj.response;
-
-    return {
-      schemaVersion: AI_RESULT_SCHEMA_VERSION,
-      status: 'ok',
-      provider: descriptor,
-      model,
-      endpoint: url,
-      input: prepared.input,
-      output,
-      usage: extractProviderUsage(payload),
-    };
-  },
+  return resObj.response;
 };
+
+const OLLAMA_PROVIDER = createNetworkProvider({
+  descriptor: OLLAMA_PROVIDER_DESCRIPTOR,
+  networkWhy: 'The Ollama provider sends prompt input to an HTTP endpoint.',
+  buildHeaders: () => ({
+    'Content-Type': 'application/json',
+  }),
+  buildBody: (model, combinedPrompt) => ({
+    model,
+    prompt: combinedPrompt,
+    stream: false,
+  }),
+  invalidJson: {
+    why: 'Ollama returned a successful HTTP response, but the response body was not valid JSON.',
+    fix: 'Check the Ollama version and settings.',
+  },
+  extractOutput: extractOllamaOutputText,
+});
 
 const ANTHROPIC_PROVIDER_DESCRIPTOR: Omit<AIProviderDescriptor, 'configured'> = {
   id: 'anthropic',
@@ -792,83 +796,27 @@ const ANTHROPIC_PROVIDER_DESCRIPTOR: Omit<AIProviderDescriptor, 'configured'> = 
   defaultModel: 'claude-3-5-sonnet-latest',
 };
 
-const ANTHROPIC_PROVIDER: AIProvider = {
-  descriptor: createProviderDescriptor(ANTHROPIC_PROVIDER_DESCRIPTOR),
-  async ask(request) {
-    const env = request.env ?? process.env;
-    const apiKey = env.ANTHROPIC_API_KEY?.trim();
-
-    if (!request.allowNetwork) {
-      throw new ZaoWuError({
-        code: 'AI_NETWORK_CONFIRMATION_REQUIRED',
-        message: 'Network AI request requires confirmation.',
-        why: 'The Anthropic provider sends prompt input to a network service.',
-        fix: 'Use the CLI preview first, then re-run with `--yes` when the operation plan is acceptable.',
-      });
-    }
-
-    if (!apiKey) {
-      throw new ZaoWuError({
-        code: 'AI_PROVIDER_CONFIG_MISSING',
-        message: 'AI provider configuration is missing.',
-        why: 'The Anthropic provider requires `ANTHROPIC_API_KEY` in the environment.',
-        fix: 'Set `ANTHROPIC_API_KEY` in the shell environment. Do not store it in `zw.yml`.',
-      });
-    }
-
-    const prepared = await prepareAIInput(request);
-    const model = resolveAIModel(this.descriptor, { model: request.model, env });
-    const url = resolveAIProviderNetworkTarget(ANTHROPIC_PROVIDER_DESCRIPTOR.id, env)!;
-
-    const response = await fetchWithRetry(
-      getFetcher(request.fetcher),
-      url,
-      {
-        method: 'POST',
-        headers: {
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model,
-          messages: [{ role: 'user', content: prepared.combinedPrompt }],
-          max_tokens: 4096,
-          stream: false,
-        }),
-      },
-      ANTHROPIC_PROVIDER_DESCRIPTOR.name,
-      request.timeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS
-    );
-
-    let payload: unknown;
-    try {
-      payload = await response.json();
-    } catch {
-      throw new ZaoWuError({
-        code: 'AI_PROVIDER_RESPONSE_INVALID',
-        message: 'AI provider response is invalid.',
-        why: 'Anthropic returned a successful HTTP response, but the response body was not valid JSON.',
-        fix: 'Retry the request.',
-      });
-    }
-
-    const output = extractAnthropicOutputText(payload);
-
-    const descriptor = createProviderDescriptor(ANTHROPIC_PROVIDER_DESCRIPTOR, env);
-
-    return {
-      schemaVersion: AI_RESULT_SCHEMA_VERSION,
-      status: 'ok',
-      provider: descriptor,
-      model,
-      endpoint: url,
-      input: prepared.input,
-      output,
-      usage: extractProviderUsage(payload),
-    };
+const ANTHROPIC_PROVIDER = createNetworkProvider({
+  descriptor: ANTHROPIC_PROVIDER_DESCRIPTOR,
+  networkWhy: 'The Anthropic provider sends prompt input to a network service.',
+  apiKeyEnv: 'ANTHROPIC_API_KEY',
+  buildHeaders: (apiKey) => ({
+    'x-api-key': apiKey ?? '',
+    'anthropic-version': '2023-06-01',
+    'Content-Type': 'application/json',
+  }),
+  buildBody: (model, combinedPrompt) => ({
+    model,
+    messages: [{ role: 'user', content: combinedPrompt }],
+    max_tokens: 4096,
+    stream: false,
+  }),
+  invalidJson: {
+    why: 'Anthropic returned a successful HTTP response, but the response body was not valid JSON.',
+    fix: 'Retry the request.',
   },
-};
+  extractOutput: extractAnthropicOutputText,
+});
 
 const PROVIDERS = new Map<string, AIProvider>([
   [ECHO_PROVIDER.descriptor.id, ECHO_PROVIDER],

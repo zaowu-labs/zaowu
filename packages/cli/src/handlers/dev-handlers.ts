@@ -1,11 +1,4 @@
-import {
-  askAI,
-  resolveAIModel,
-  resolveAIProviderNetworkTarget,
-  validateAIProviderConfig,
-  type AIProviderDescriptor,
-} from '@zaowu-labs/ai';
-import { loadResolvedConfig } from '@zaowu-labs/config';
+import { askAI } from '@zaowu-labs/ai';
 import {
   applyDevAiCommitSuggestion,
   buildDevAiCommitPrompt,
@@ -26,49 +19,16 @@ import {
   formatFinding,
   formatList,
   formatOperationPlan,
-  getValue,
   hasFlag,
+  resolveAiProvider,
   result,
   withOperationPlan,
   ZaoWuError,
   type DomainActionHandler,
   type DomainHandlerContext,
   type OperationPlan,
+  type ResolvedAiProvider,
 } from '../handler-utils.js';
-
-interface ResolvedDevAiProvider {
-  providerId: string;
-  requestedModel?: string;
-  provider: AIProviderDescriptor;
-  resolvedModel: string;
-  networkTarget?: string;
-}
-
-const resolveDevAiProvider = async (
-  context: DomainHandlerContext
-): Promise<ResolvedDevAiProvider> => {
-  let providerId = getValue(context.parsed, '--provider');
-
-  if (!providerId) {
-    try {
-      const config = await loadResolvedConfig(context.cwd);
-      providerId = config.config.ai.provider ?? undefined;
-    } catch {
-      // ignore — fall back to default provider
-    }
-  }
-
-  const requestedModel = getValue(context.parsed, '--model');
-  const provider = validateAIProviderConfig(providerId).provider;
-
-  return {
-    providerId: provider.id,
-    requestedModel,
-    provider,
-    resolvedModel: resolveAIModel(provider, { model: requestedModel }),
-    networkTarget: provider.network ? resolveAIProviderNetworkTarget(provider.id) : undefined,
-  };
-};
 
 const getGitDiffText = (context: DomainHandlerContext, gitArgs: string[]): string => {
   try {
@@ -86,7 +46,7 @@ const getGitDiffText = (context: DomainHandlerContext, gitArgs: string[]): strin
  * a diff staged between preview and confirm invalidates the plan.
  */
 const buildAiOperationPlan = (
-  ai: ResolvedDevAiProvider,
+  ai: ResolvedAiProvider,
   prompt: string,
   context: DomainHandlerContext,
   options: { isReview: boolean; reviewUsesWorktree: boolean }
@@ -123,7 +83,7 @@ const buildAiOperationPlan = (
 
 const buildAiConfirmCommand = (
   commandParts: readonly string[],
-  ai: ResolvedDevAiProvider,
+  ai: ResolvedAiProvider,
   operationPlan: OperationPlan
 ): string =>
   formatConfirmCommand([
@@ -139,7 +99,7 @@ const buildAiConfirmCommand = (
 
 const formatAiPreviewHuman = (
   title: string,
-  ai: ResolvedDevAiProvider,
+  ai: ResolvedAiProvider,
   operationPlan: OperationPlan,
   confirmCommand: string
 ): string =>
@@ -169,10 +129,10 @@ export const handleDevCommit: DomainActionHandler = async (_args, context) => {
     notes: ['No Git state is modified.'],
   });
 
-  if (context.parsed.flags.has('--ai')) {
+  if (hasFlag(context.parsed, '--ai')) {
     const diffText = getGitDiffText(context, ['diff', '--cached']);
     const prompt = buildDevAiCommitPrompt(diffText);
-    const ai = await resolveDevAiProvider(context);
+    const ai = await resolveAiProvider(context);
 
     operationPlan = buildAiOperationPlan(ai, prompt, context, {
       isReview: false,
@@ -236,12 +196,22 @@ export const handleDevCommit: DomainActionHandler = async (_args, context) => {
   return result(context, withOperationPlan(payload, operationPlan), human);
 };
 
+const resolveReviewMode = (
+  context: DomainHandlerContext
+): { mode: DevReviewMode; modeFlags: string[] } => {
+  if (hasFlag(context.parsed, '--staged')) {
+    return { mode: 'staged', modeFlags: ['--staged'] };
+  }
+
+  if (hasFlag(context.parsed, '--worktree')) {
+    return { mode: 'worktree', modeFlags: ['--worktree'] };
+  }
+
+  return { mode: 'auto', modeFlags: [] };
+};
+
 export const handleDevReview: DomainActionHandler = async (_args, context) => {
-  const mode: DevReviewMode = context.parsed.flags.has('--staged')
-    ? 'staged'
-    : context.parsed.flags.has('--worktree')
-      ? 'worktree'
-      : 'auto';
+  const { mode, modeFlags } = resolveReviewMode(context);
   const review = reviewDevChanges(context.commandRunner, { cwd: context.cwd, mode });
   const reviewUsesWorktree = review.source === 'working-tree';
   let payload = review;
@@ -256,11 +226,11 @@ export const handleDevReview: DomainActionHandler = async (_args, context) => {
     notes: ['No Git state is modified.'],
   });
 
-  if (context.parsed.flags.has('--ai')) {
+  if (hasFlag(context.parsed, '--ai')) {
     const gitArgs = reviewUsesWorktree ? ['diff'] : ['diff', '--cached'];
     const diffText = getGitDiffText(context, gitArgs);
     const prompt = buildDevAiReviewPrompt(diffText);
-    const ai = await resolveDevAiProvider(context);
+    const ai = await resolveAiProvider(context);
 
     operationPlan = buildAiOperationPlan(ai, prompt, context, {
       isReview: true,
@@ -268,11 +238,6 @@ export const handleDevReview: DomainActionHandler = async (_args, context) => {
     });
 
     if (ai.provider.network && !context.yes) {
-      const modeFlags = context.parsed.flags.has('--staged')
-        ? ['--staged']
-        : context.parsed.flags.has('--worktree')
-          ? ['--worktree']
-          : [];
       const confirmCommand = buildAiConfirmCommand(
         ['zw', 'dev', 'review', ...modeFlags],
         ai,

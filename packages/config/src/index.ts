@@ -147,15 +147,6 @@ const assertNoSecretValues = (value: string): void => {
     });
   }
 };
-const CONFIG_KEYS: readonly ConfigKey[] = [
-  'version',
-  'project.name',
-  'ai.provider',
-  'defaults.output',
-  'paths.workspace',
-  'paths.cache',
-];
-
 const DEFAULT_CONFIG: ZaoWuConfig = {
   version: 1,
   project: {
@@ -173,21 +164,92 @@ const DEFAULT_CONFIG: ZaoWuConfig = {
   },
 };
 
-export const createDefaultConfig = (): ZaoWuConfig => ({
-  version: DEFAULT_CONFIG.version,
-  project: {
-    ...DEFAULT_CONFIG.project,
-  },
-  ai: {
-    ...DEFAULT_CONFIG.ai,
-  },
-  defaults: {
-    ...DEFAULT_CONFIG.defaults,
-  },
-  paths: {
-    ...DEFAULT_CONFIG.paths,
-  },
+const cloneConfig = (config: ZaoWuConfig): ZaoWuConfig => ({
+  version: config.version,
+  project: { ...config.project },
+  ai: { ...config.ai },
+  defaults: { ...config.defaults },
+  paths: { ...config.paths },
 });
+
+export const createDefaultConfig = (): ZaoWuConfig => cloneConfig(DEFAULT_CONFIG);
+
+interface ConfigKeyDescriptor {
+  /** Reads the current value for `zw config get` and YAML serialization. */
+  get: (config: ZaoWuConfig) => string | null;
+  /** Writes a normalized value onto an already-cloned config. */
+  set: (config: ZaoWuConfig, value: string | null) => void;
+}
+
+/**
+ * Single source of truth for the managed config schema. Adding a key means
+ * adding one descriptor here (plus the `ConfigKey` union member and, for a new
+ * section or YAML line, one `YAML_CONFIG_LAYOUT` entry) — `CONFIG_KEYS`,
+ * `getConfigValue`, `withConfigValue`, `serializeConfig`, and
+ * `KNOWN_CONFIG_KEYS` all derive from these tables. The `Record<ConfigKey, …>`
+ * type keeps the table compile-time exhaustive.
+ */
+const CONFIG_KEY_DESCRIPTORS: Record<ConfigKey, ConfigKeyDescriptor> = {
+  version: {
+    get: (config) => String(config.version),
+    set: (config) => {
+      config.version = 1;
+    },
+  },
+  'project.name': {
+    get: (config) => config.project.name,
+    set: (config, value) => {
+      config.project.name = value ?? DEFAULT_CONFIG.project.name;
+    },
+  },
+  'ai.provider': {
+    get: (config) => config.ai.provider,
+    set: (config, value) => {
+      config.ai.provider = value;
+    },
+  },
+  'defaults.output': {
+    get: (config) => config.defaults.output,
+    set: (config, value) => {
+      config.defaults.output = value === 'json' ? 'json' : 'human';
+    },
+  },
+  'paths.workspace': {
+    get: (config) => config.paths.workspace,
+    set: (config, value) => {
+      config.paths.workspace = value ?? DEFAULT_CONFIG.paths.workspace;
+    },
+  },
+  'paths.cache': {
+    get: (config) => config.paths.cache,
+    set: (config, value) => {
+      config.paths.cache = value ?? DEFAULT_CONFIG.paths.cache;
+    },
+  },
+};
+
+const CONFIG_KEYS = Object.keys(CONFIG_KEY_DESCRIPTORS) as readonly ConfigKey[];
+
+/**
+ * Section-by-section YAML layout. `serializeConfig` emits exactly these lines
+ * (the byte layout is contract: `migrateResolvedConfig` compares it against
+ * file content), and `KNOWN_CONFIG_KEYS` derives its section map from it.
+ */
+const YAML_CONFIG_LAYOUT: readonly {
+  section: string;
+  entries: readonly { key: ConfigKey; yamlKey: string }[];
+}[] = [
+  { section: 'project', entries: [{ key: 'project.name', yamlKey: 'name' }] },
+  { section: 'ai', entries: [{ key: 'ai.provider', yamlKey: 'provider' }] },
+  { section: 'defaults', entries: [{ key: 'defaults.output', yamlKey: 'output' }] },
+  {
+    section: 'paths',
+    entries: [
+      { key: 'paths.workspace', yamlKey: 'workspace' },
+      { key: 'paths.cache', yamlKey: 'cache' },
+    ],
+  },
+];
 
 const isReadableFile = async (filePath: string): Promise<boolean> => {
   try {
@@ -333,6 +395,14 @@ export const loadConfig = async (filePath: string): Promise<LoadedConfig> => {
   };
 };
 
+const configParseError = (error: unknown, fallbackWhy: string, fix: string): ZaoWuError =>
+  new ZaoWuError({
+    code: 'CONFIG_PARSE_FAILED',
+    message: 'Could not parse ZaoWu config.',
+    why: error instanceof Error ? error.message : fallbackWhy,
+    fix,
+  });
+
 const parseConfigObject = (content: string, filePath: string): Record<string, unknown> => {
   const normalizedContent = stripUtf8Bom(content);
   const extension = path.extname(filePath).toLowerCase();
@@ -341,12 +411,11 @@ const parseConfigObject = (content: string, filePath: string): Record<string, un
     try {
       return JSON.parse(normalizedContent) as Record<string, unknown>;
     } catch (error) {
-      throw new ZaoWuError({
-        code: 'CONFIG_PARSE_FAILED',
-        message: 'Could not parse ZaoWu config.',
-        why: error instanceof Error ? error.message : 'The JSON parser rejected the file.',
-        fix: 'Fix the JSON syntax and run `zw config show` again.',
-      });
+      throw configParseError(
+        error,
+        'The JSON parser rejected the file.',
+        'Fix the JSON syntax and run `zw config show` again.'
+      );
     }
   }
 
@@ -361,12 +430,11 @@ const parseConfigObject = (content: string, filePath: string): Record<string, un
       }
       return parsed as Record<string, unknown>;
     } catch (error) {
-      throw new ZaoWuError({
-        code: 'CONFIG_PARSE_FAILED',
-        message: 'Could not parse ZaoWu config.',
-        why: error instanceof Error ? error.message : 'The YAML parser rejected the file.',
-        fix: 'Use the supported simple subset (top-level keys + one level of 2-space indented sections) or switch to JSON (zaowu.config.json).',
-      });
+      throw configParseError(
+        error,
+        'The YAML parser rejected the file.',
+        'Use the supported simple subset (top-level keys + one level of 2-space indented sections) or switch to JSON (zaowu.config.json).'
+      );
     }
   }
 
@@ -407,8 +475,16 @@ const getString = (value: unknown, fallback: string): string =>
 
 const getOutput = (value: unknown): 'human' | 'json' => (value === 'json' ? 'json' : 'human');
 
-const getVersion = (value: unknown): 1 => {
-  if (value === undefined || value === null || value === '' || value === 1 || value === '1') {
+/**
+ * Returns 1 for a supported declared version, null when no version is
+ * declared, and throws for anything else.
+ */
+const parseSupportedConfigVersion = (value: unknown): 1 | null => {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+
+  if (value === 1 || value === '1') {
     return 1;
   }
 
@@ -419,6 +495,8 @@ const getVersion = (value: unknown): 1 => {
     fix: 'Run a newer ZaoWu version that supports this config, or migrate the file manually.',
   });
 };
+
+const getVersion = (value: unknown): 1 => parseSupportedConfigVersion(value) ?? 1;
 
 const assertConfigKey = (key: string): ConfigKey => {
   if (SECRET_KEY_PATTERN.test(key)) {
@@ -442,6 +520,14 @@ const assertConfigKey = (key: string): ConfigKey => {
   return key as ConfigKey;
 };
 
+const configValueInvalidError = (why: string, fix: string): ZaoWuError =>
+  new ZaoWuError({
+    code: 'CONFIG_VALUE_INVALID',
+    message: 'Config value is invalid.',
+    why,
+    fix,
+  });
+
 const normalizeConfigValue = (key: ConfigKey, value: string): string | null => {
   const trimmed = value.trim();
 
@@ -450,30 +536,21 @@ const normalizeConfigValue = (key: ConfigKey, value: string): string | null => {
   }
 
   if (key === 'defaults.output' && !['human', 'json'].includes(trimmed)) {
-    throw new ZaoWuError({
-      code: 'CONFIG_VALUE_INVALID',
-      message: 'Config value is invalid.',
-      why: '`defaults.output` must be either `human` or `json`.',
-      fix: 'Run `zw config set defaults.output json --yes` or `zw config set defaults.output human --yes`.',
-    });
+    throw configValueInvalidError(
+      '`defaults.output` must be either `human` or `json`.',
+      'Run `zw config set defaults.output json --yes` or `zw config set defaults.output human --yes`.'
+    );
   }
 
   if (key === 'version' && trimmed !== '1') {
-    throw new ZaoWuError({
-      code: 'CONFIG_VALUE_INVALID',
-      message: 'Config value is invalid.',
-      why: '`version` must be `1` in this ZaoWu release.',
-      fix: 'Run `zw config migrate` to preview the supported config version.',
-    });
+    throw configValueInvalidError(
+      '`version` must be `1` in this ZaoWu release.',
+      'Run `zw config migrate` to preview the supported config version.'
+    );
   }
 
   if (!trimmed) {
-    throw new ZaoWuError({
-      code: 'CONFIG_VALUE_INVALID',
-      message: 'Config value is invalid.',
-      why: `\`${key}\` cannot be empty.`,
-      fix: 'Provide a non-empty value.',
-    });
+    throw configValueInvalidError(`\`${key}\` cannot be empty.`, 'Provide a non-empty value.');
   }
 
   if (['paths.workspace', 'paths.cache'].includes(key)) {
@@ -483,56 +560,17 @@ const normalizeConfigValue = (key: ConfigKey, value: string): string | null => {
   return trimmed;
 };
 
-const getConfigValue = (config: ZaoWuConfig, key: ConfigKey): string | null => {
-  switch (key) {
-    case 'version':
-      return String(config.version);
-    case 'project.name':
-      return config.project.name;
-    case 'ai.provider':
-      return config.ai.provider;
-    case 'defaults.output':
-      return config.defaults.output;
-    case 'paths.workspace':
-      return config.paths.workspace;
-    case 'paths.cache':
-      return config.paths.cache;
-  }
-};
+const getConfigValue = (config: ZaoWuConfig, key: ConfigKey): string | null =>
+  CONFIG_KEY_DESCRIPTORS[key].get(config);
 
 const withConfigValue = (
   config: ZaoWuConfig,
   key: ConfigKey,
   value: string | null
 ): ZaoWuConfig => {
-  const next: ZaoWuConfig = {
-    version: config.version,
-    project: { ...config.project },
-    ai: { ...config.ai },
-    defaults: { ...config.defaults },
-    paths: { ...config.paths },
-  };
+  const next = cloneConfig(config);
 
-  switch (key) {
-    case 'version':
-      next.version = 1;
-      break;
-    case 'project.name':
-      next.project.name = value ?? DEFAULT_CONFIG.project.name;
-      break;
-    case 'ai.provider':
-      next.ai.provider = value;
-      break;
-    case 'defaults.output':
-      next.defaults.output = value === 'json' ? 'json' : 'human';
-      break;
-    case 'paths.workspace':
-      next.paths.workspace = value ?? DEFAULT_CONFIG.paths.workspace;
-      break;
-    case 'paths.cache':
-      next.paths.cache = value ?? DEFAULT_CONFIG.paths.cache;
-      break;
-  }
+  CONFIG_KEY_DESCRIPTORS[key].set(next, value);
 
   return next;
 };
@@ -546,19 +584,14 @@ export const serializeConfig = (config: ZaoWuConfig, filePath: string): string =
 
   return [
     'version: 1',
-    '',
-    'project:',
-    `  name: ${formatYamlConfigValue('project.name', config.project.name)}`,
-    '',
-    'ai:',
-    `  provider: ${formatYamlConfigValue('ai.provider', config.ai.provider)}`,
-    '',
-    'defaults:',
-    `  output: ${formatYamlConfigValue('defaults.output', config.defaults.output)}`,
-    '',
-    'paths:',
-    `  workspace: ${formatYamlConfigValue('paths.workspace', config.paths.workspace)}`,
-    `  cache: ${formatYamlConfigValue('paths.cache', config.paths.cache)}`,
+    ...YAML_CONFIG_LAYOUT.flatMap(({ section, entries }) => [
+      '',
+      `${section}:`,
+      ...entries.map(
+        ({ key, yamlKey }) =>
+          `  ${yamlKey}: ${formatYamlConfigValue(key, CONFIG_KEY_DESCRIPTORS[key].get(config))}`
+      ),
+    ]),
     '',
   ].join('\n');
 };
@@ -614,10 +647,12 @@ export const parseConfig = (content: string, filePath = 'zw.yml'): ZaoWuConfig =
 
 const KNOWN_CONFIG_KEYS: Record<string, readonly string[] | null> = {
   version: null,
-  project: ['name'],
-  ai: ['provider'],
-  defaults: ['output'],
-  paths: ['workspace', 'cache'],
+  ...Object.fromEntries(
+    YAML_CONFIG_LAYOUT.map(({ section, entries }) => [
+      section,
+      entries.map((entry) => entry.yamlKey),
+    ])
+  ),
 };
 
 const collectUnknownConfigKeys = (parsed: Record<string, unknown>): string[] => {
@@ -700,25 +735,8 @@ export const loadResolvedConfig = async (cwd?: string): Promise<ResolvedConfig> 
   };
 };
 
-const getRawConfigVersion = (content: string, filePath: string): number | null => {
-  const parsed = parseConfigObject(content, filePath);
-  const rawVersion = parsed.version;
-
-  if (rawVersion === undefined || rawVersion === null || rawVersion === '') {
-    return null;
-  }
-
-  if (rawVersion === 1 || rawVersion === '1') {
-    return 1;
-  }
-
-  throw new ZaoWuError({
-    code: 'CONFIG_VERSION_UNSUPPORTED',
-    message: 'Config version is not supported.',
-    why: `ZaoWu supports config version 1, but this file declares \`${String(rawVersion)}\`.`,
-    fix: 'Run a newer ZaoWu version that supports this config, or migrate the file manually.',
-  });
-};
+const getRawConfigVersion = (content: string, filePath: string): number | null =>
+  parseSupportedConfigVersion(parseConfigObject(content, filePath).version);
 
 export const validateResolvedConfig = async (cwd?: string): Promise<ConfigValidationResult> => {
   const resolved = await loadResolvedConfig(cwd);

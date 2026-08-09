@@ -924,6 +924,18 @@ describe('AI provider registry', () => {
     expect(requestedUrl).toBe('https://my-custom-proxy.internal/v1/responses');
   });
 
+  it('returns undefined for unknown provider ids, including prototype-chain keys', () => {
+    for (const providerId of [
+      'unknown',
+      'toString',
+      'constructor',
+      '__proto__',
+      'hasOwnProperty',
+    ]) {
+      expect(resolveAIProviderNetworkTarget(providerId, {})).toBeUndefined();
+    }
+  });
+
   it('rejects provider base URLs with query strings or fragments', () => {
     for (const [provider, env] of [
       ['openai', { OPENAI_BASE_URL: 'https://my-custom-proxy.internal?tenant=demo' }],

@@ -17,10 +17,19 @@ export const parseArgs = (args: readonly string[]): ParsedArgs => {
   const missingValues: string[] = [];
   const options = new Set<string>();
 
+  let optionsEnded = false;
+
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
 
-    if (!arg.startsWith('--')) {
+    // Standard end-of-options separator: everything after a bare `--` is a
+    // positional, so targets that begin with dashes stay expressible.
+    if (arg === '--' && !optionsEnded) {
+      optionsEnded = true;
+      continue;
+    }
+
+    if (optionsEnded || !arg.startsWith('--')) {
       positionals.push(arg);
       continue;
     }

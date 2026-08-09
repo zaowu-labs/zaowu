@@ -385,6 +385,7 @@ describe('doc domain', () => {
       [
         '<html><head><title>Test</title><style>body { color: red; }</style></head>',
         '<body><h1>Hello</h1><p>World &amp; code</p>',
+        '<p>caf&#233; na&#xEF;ve &#8212; dash</p>',
         '<table><tr><th>Name</th><th>Amount</th></tr><tr><td>A</td><td>10</td></tr></table>',
         '</body></html>',
       ].join(''),
@@ -394,7 +395,7 @@ describe('doc domain', () => {
     try {
       await expect(convertDocument(filePath)).resolves.toMatchObject({
         status: 'ok',
-        content: '# Hello\nWorld & code\nName | Amount\nA | 10',
+        content: '# Hello\nWorld & code\ncafé naïve — dash\nName | Amount\nA | 10',
       });
       await expect(outlineDocument(filePath)).resolves.toMatchObject({
         outline: [

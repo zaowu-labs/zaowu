@@ -35,6 +35,16 @@ describe('teach domain', () => {
     expect(result.outline).toContain('Section 2: Functions');
   });
 
+  it('keeps decimals and dotted names whole when splitting sentences', async () => {
+    const result = await createTeachingQuiz('Node.js uses V8. Pi is roughly 3.14. Use v1.0 now.');
+
+    expect(result.questions).toEqual([
+      'Q1: Explain this idea in your own words: Node.js uses V8.',
+      'Q2: Explain this idea in your own words: Pi is roughly 3.14.',
+      'Q3: Explain this idea in your own words: Use v1.0 now.',
+    ]);
+  });
+
   it('creates quiz questions from material', async () => {
     await expect(
       createTeachingQuiz('Variables store values. Functions group behavior.')

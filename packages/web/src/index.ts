@@ -85,20 +85,34 @@ class WebRequestTimeoutError extends Error {
   }
 }
 
-const normalizeMaxBodyLength = (value: number | undefined): number =>
-  Number.isFinite(value) && value !== undefined && value >= 0
+const WEB_REQUEST_RETRY_FIX =
+  'Check the URL, network connection, DNS, TLS, and proxy settings, then run the command again.';
+
+const webRequestFailedError = (why: string, fix: string = WEB_REQUEST_RETRY_FIX): ZaoWuError =>
+  new ZaoWuError({
+    code: 'WEB_REQUEST_FAILED',
+    message: 'Web request failed.',
+    why,
+    fix,
+  });
+
+const normalizeNumericOption = (
+  value: number | undefined,
+  fallback: number,
+  options: { allowZero?: boolean } = {}
+): number =>
+  Number.isFinite(value) && value !== undefined && (options.allowZero ? value >= 0 : value > 0)
     ? Math.floor(value)
-    : DEFAULT_MAX_BODY_LENGTH;
+    : fallback;
+
+const normalizeMaxBodyLength = (value: number | undefined): number =>
+  normalizeNumericOption(value, DEFAULT_MAX_BODY_LENGTH, { allowZero: true });
 
 const normalizeTimeoutMs = (value: number | undefined): number =>
-  Number.isFinite(value) && value !== undefined && value > 0
-    ? Math.floor(value)
-    : DEFAULT_REQUEST_TIMEOUT_MS;
+  normalizeNumericOption(value, DEFAULT_REQUEST_TIMEOUT_MS);
 
 const normalizeMaxResponseBytes = (value: number | undefined): number =>
-  Number.isFinite(value) && value !== undefined && value > 0
-    ? Math.floor(value)
-    : DEFAULT_MAX_RESPONSE_BYTES;
+  normalizeNumericOption(value, DEFAULT_MAX_RESPONSE_BYTES);
 
 const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
   let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -117,6 +131,14 @@ const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T
   }
 };
 
+const webUrlInvalidError = (): ZaoWuError =>
+  new ZaoWuError({
+    code: 'WEB_URL_INVALID',
+    message: 'Web URL is invalid.',
+    why: '`zw web` only accepts explicit http or https URLs.',
+    fix: 'Run a command like `zw web inspect https://example.com --yes`.',
+  });
+
 const assertWebUrl = (url: string): string => {
   let targetUrl = url.trim();
 
@@ -130,21 +152,11 @@ const assertWebUrl = (url: string): string => {
   try {
     parsed = new URL(targetUrl);
   } catch {
-    throw new ZaoWuError({
-      code: 'WEB_URL_INVALID',
-      message: 'Web URL is invalid.',
-      why: '`zw web` only accepts explicit http or https URLs.',
-      fix: 'Run a command like `zw web inspect https://example.com --yes`.',
-    });
+    throw webUrlInvalidError();
   }
 
   if (!['http:', 'https:'].includes(parsed.protocol)) {
-    throw new ZaoWuError({
-      code: 'WEB_URL_INVALID',
-      message: 'Web URL is invalid.',
-      why: '`zw web` only accepts explicit http or https URLs.',
-      fix: 'Run a command like `zw web inspect https://example.com --yes`.',
-    });
+    throw webUrlInvalidError();
   }
 
   return parsed.toString();
@@ -195,20 +207,14 @@ const requestWebTarget = async (
     if (error instanceof WebRequestTimeoutError) {
       controller.abort();
 
-      throw new ZaoWuError({
-        code: 'WEB_REQUEST_FAILED',
-        message: 'Web request failed.',
-        why: `ZaoWu tried to send a ${method} request to \`${url}\`, but it did not complete within ${error.timeoutMs}ms.`,
-        fix: 'Check the URL, network connection, DNS, TLS, and proxy settings, then run the command again.',
-      });
+      throw webRequestFailedError(
+        `ZaoWu tried to send a ${method} request to \`${url}\`, but it did not complete within ${error.timeoutMs}ms.`
+      );
     }
 
-    throw new ZaoWuError({
-      code: 'WEB_REQUEST_FAILED',
-      message: 'Web request failed.',
-      why: `ZaoWu tried to send a ${method} request to \`${url}\`, but the request failed before a usable response was available.`,
-      fix: 'Check the URL, network connection, DNS, TLS, and proxy settings, then run the command again.',
-    });
+    throw webRequestFailedError(
+      `ZaoWu tried to send a ${method} request to \`${url}\`, but the request failed before a usable response was available.`
+    );
   }
 };
 
@@ -245,6 +251,32 @@ export const inspectWebTarget = async (
   };
 };
 
+/**
+ * Text decoder honoring the response `Content-Type` charset. Unknown or
+ * missing charsets fall back to UTF-8 so decoding never fails outright.
+ */
+const createResponseTextDecoder = (response: WebResponseLike): InstanceType<typeof TextDecoder> => {
+  let contentType: string | undefined;
+
+  response.headers?.forEach((value, key) => {
+    if (key.toLowerCase() === 'content-type') {
+      contentType = value;
+    }
+  });
+
+  const charset = /charset=["']?([^;"'\s]+)/i.exec(contentType ?? '')?.[1];
+
+  if (charset) {
+    try {
+      return new TextDecoder(charset);
+    } catch {
+      // Unrecognized charset label — fall through to UTF-8.
+    }
+  }
+
+  return new TextDecoder();
+};
+
 export const fetchWebTarget = async (
   url: string,
   options: {
@@ -278,7 +310,7 @@ export const fetchWebTarget = async (
   try {
     if (response.body) {
       const reader = response.body.getReader();
-      const decoder = new TextDecoder();
+      const decoder = createResponseTextDecoder(response);
       const bodyDeadline = Date.now() + timeoutMs;
       let preview = '';
       let observedCharacters = 0;
@@ -334,21 +366,20 @@ export const fetchWebTarget = async (
   } catch (error) {
     request.abort();
 
+    const bodyFix =
+      'Try `zw web inspect <url> --yes` first, then retry fetch or inspect the server response outside ZaoWu.';
+
     if (error instanceof WebRequestTimeoutError) {
-      throw new ZaoWuError({
-        code: 'WEB_REQUEST_FAILED',
-        message: 'Web request failed.',
-        why: `ZaoWu received a response from \`${normalizedUrl}\`, but the response body was not readable within ${error.timeoutMs}ms.`,
-        fix: 'Try `zw web inspect <url> --yes` first, then retry fetch or inspect the server response outside ZaoWu.',
-      });
+      throw webRequestFailedError(
+        `ZaoWu received a response from \`${normalizedUrl}\`, but the response body was not readable within ${error.timeoutMs}ms.`,
+        bodyFix
+      );
     }
 
-    throw new ZaoWuError({
-      code: 'WEB_REQUEST_FAILED',
-      message: 'Web request failed.',
-      why: `ZaoWu received a response from \`${normalizedUrl}\`, but could not read the response body.`,
-      fix: 'Try `zw web inspect <url> --yes` first, then retry fetch or inspect the server response outside ZaoWu.',
-    });
+    throw webRequestFailedError(
+      `ZaoWu received a response from \`${normalizedUrl}\`, but could not read the response body.`,
+      bodyFix
+    );
   }
 
   const bodyTruncated = !bodyLengthExact || bodyLength > maxBodyLength;

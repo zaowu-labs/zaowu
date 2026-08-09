@@ -63,10 +63,11 @@ export const handleDataClean: DomainActionHandler = async (args, context) => {
   const target = requireTarget(args, 'zw data clean');
   const outputPath = getValue(context.parsed, '--output');
   const sheet = getValue(context.parsed, '--sheet');
-  const preview = await cleanData(target, {
-    outputPath,
-    sheet,
-  });
+  // One options object for both the preview and the confirmed call: the
+  // fingerprint the user confirms is computed from the preview, so the two
+  // calls must be structurally unable to drift apart.
+  const cleanOptions = { outputPath, sheet };
+  const preview = await cleanData(target, cleanOptions);
   const operationPlan = createOperationPlan({
     risk: preview.outputPath ? 'medium' : 'low',
     confirmationRequired: Boolean(preview.outputPath && !context.yes),
@@ -83,11 +84,7 @@ export const handleDataClean: DomainActionHandler = async (args, context) => {
 
   const cleaned =
     context.yes && preview.outputPath
-      ? await cleanData(target, {
-          outputPath,
-          sheet,
-          yes: true,
-        })
+      ? await cleanData(target, { ...cleanOptions, yes: true })
       : preview;
   const confirmCommand =
     preview.outputPath && !context.yes

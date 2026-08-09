@@ -4,7 +4,8 @@ import type { CommandRunner } from './types.js';
 
 const WINDOWS_COMMAND_PART_PATTERN = /^[a-zA-Z0-9._@:/\\=-]+$/;
 
-const toWindowsCommand = (command: string, args: readonly string[]): string => {
+/** Exported for tests: the Windows cmd.exe argument sanitizer. */
+export const toWindowsCommand = (command: string, args: readonly string[]): string => {
   const parts = [command, ...args];
 
   for (const part of parts) {

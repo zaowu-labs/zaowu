@@ -9,6 +9,45 @@ import { ACTION_HELP } from './help-text';
 import { BOOLEAN_OPTIONS, COMMAND_OPTIONS, VALUE_OPTIONS } from './option-registry';
 import { DEFAULT_CONFIG_FILE_NAME, DOMAIN_DEFINITIONS, executeCli } from './run';
 
+describe('action help / option registry consistency', () => {
+  it('documents exactly the options each command supports', () => {
+    for (const [commandKey, allowed] of Object.entries(COMMAND_OPTIONS)) {
+      if (!commandKey.includes(':')) {
+        continue; // Root commands (init, doctor) have dedicated help builders.
+      }
+
+      const [domainName, action] = commandKey.split(':');
+      const helpText = ACTION_HELP[domainName]?.[action];
+
+      expect(helpText, `missing ACTION_HELP for ${commandKey}`).toBeTruthy();
+
+      const documented = new Set([...helpText!.matchAll(/--[a-z][a-z-]*/g)].map((m) => m[0]));
+      const allowedSet = new Set(allowed);
+
+      // Every option shown in help must actually be supported.
+      for (const option of documented) {
+        expect(
+          allowedSet.has(option),
+          `${commandKey} help documents unsupported option ${option}`
+        ).toBe(true);
+      }
+
+      // Every supported option must be documented, except the universal
+      // --help/--version which the root help surface covers.
+      for (const option of allowedSet) {
+        if (option === '--help' || option === '--version') {
+          continue;
+        }
+
+        expect(
+          documented.has(option),
+          `${commandKey} supports ${option} but its help does not document it`
+        ).toBe(true);
+      }
+    }
+  });
+});
+
 describe('option registry', () => {
   it('declares every command option exactly once as value-taking or boolean', () => {
     const valueOptions = new Set<string>(VALUE_OPTIONS);
@@ -90,6 +129,32 @@ describe('executeCli', () => {
     expect(getValue(parsed, '--sheet')).toBe('Details');
     expect(getValue(parsed, '--rows')).toBe('5');
     expect([...parsed.options]).toEqual(['--sheet', '--rows']);
+  });
+
+  it('treats everything after a bare -- separator as positionals', () => {
+    const parsed = parseArgs(['teach', 'plan', '--json', '--', '--not-an-option', '--file']);
+
+    expect(parsed.positionals).toEqual(['teach', 'plan', '--not-an-option', '--file']);
+    expect(parsed.flags.has('--json')).toBe(true);
+    expect(parsed.flags.has('--file')).toBe(false);
+    expect(parsed.missingValues).toEqual([]);
+  });
+
+  it('records an option value that starts with -- as missing, not swallowed', () => {
+    const parsed = parseArgs(['ai', 'ask', 'question', '--file', '--json']);
+
+    // `--json` must stay a flag rather than becoming the --file value.
+    expect(parsed.missingValues).toEqual(['--file']);
+    expect(parsed.flags.has('--json')).toBe(true);
+  });
+
+  it('records an empty =value as missing and keeps last duplicate value', () => {
+    const empty = parseArgs(['data', 'sample', 'file.csv', '--sheet=']);
+    expect(empty.missingValues).toEqual(['--sheet']);
+
+    // Duplicate value options follow common CLI convention: last one wins.
+    const duplicated = parseArgs(['data', 'sample', 'file.csv', '--sheet', 'A', '--sheet', 'B']);
+    expect(getValue(duplicated, '--sheet')).toBe('B');
   });
 
   it('tracks options that are missing required values', () => {
@@ -368,6 +433,42 @@ describe('executeCli', () => {
       output: expect.stringContaining('Explain ZaoWu'),
       usage: null,
     });
+  });
+
+  it('honors ai.provider from project config when --provider is absent', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
+
+    try {
+      await writeFile(path.join(root, 'zw.yml'), 'version: 1\n\nai:\n  provider: openai\n', 'utf8');
+      const result = await executeCli(['ai', 'ask', 'Explain', 'ZaoWu', '--json'], { cwd: root });
+      const payload = JSON.parse(result.stdout);
+
+      expect(result.exitCode).toBe(0);
+      expect(payload.status).toBe('preview');
+      expect(payload.provider.id).toBe('openai');
+      expect(payload.output).toBeNull();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('lets --provider override the configured ai.provider', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
+
+    try {
+      await writeFile(path.join(root, 'zw.yml'), 'version: 1\n\nai:\n  provider: openai\n', 'utf8');
+      const result = await executeCli(
+        ['ai', 'ask', 'Explain', 'ZaoWu', '--provider', 'echo', '--json'],
+        { cwd: root }
+      );
+      const payload = JSON.parse(result.stdout);
+
+      expect(result.exitCode).toBe(0);
+      expect(payload.status).toBe('ok');
+      expect(payload.provider.id).toBe('echo');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 
   it('prints full output in human mode when the provider does not stream', async () => {
@@ -2070,6 +2171,34 @@ describe('executeCli', () => {
 
     try {
       const result = await executeCli(['init'], { cwd: root });
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('No files were written.');
+      await expect(readFile(path.join(root, DEFAULT_CONFIG_FILE_NAME), 'utf8')).rejects.toThrow();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('previews init when --dry-run carries an = value alongside --yes', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
+
+    try {
+      const result = await executeCli(['init', '--yes', '--dry-run=1'], { cwd: root });
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('No files were written.');
+      await expect(readFile(path.join(root, DEFAULT_CONFIG_FILE_NAME), 'utf8')).rejects.toThrow();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('previews init when --yes appears after the end-of-options separator', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
+
+    try {
+      const result = await executeCli(['init', '--', '--yes'], { cwd: root });
 
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('No files were written.');

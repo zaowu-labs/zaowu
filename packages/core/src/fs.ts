@@ -7,9 +7,6 @@ import { stripUtf8Bom } from './text.js';
 /**
  * Returns true if the given file path exists and is accessible.
  * Returns false for any access error (not found, permission denied, etc.).
- *
- * This is the shared implementation used by doc and data packages
- * to avoid duplicating the try/catch access pattern.
  */
 export const pathExists = async (filePath: string): Promise<boolean> => {
   try {

@@ -152,6 +152,8 @@ type PdfRuntimeGlobal = typeof globalThis & {
   Path2D?: new (path?: unknown) => unknown;
 };
 
+const PDF_SHIM_KEYS = ['DOMMatrix', 'ImageData', 'Path2D'] as const;
+
 type PdfParseModule = typeof import('pdf-parse');
 
 let pdfParseModulePromise: Promise<PdfParseModule> | undefined;
@@ -279,20 +281,33 @@ const stripHtmlTags = (html: string): string => {
   clean = clean.replace(/<\/(p|div|li)>\s*/gi, '\n');
   clean = clean.replace(/<br\s*\/?>\s*/gi, '\n');
   clean = clean.replace(/<[^>]+>/g, ' ');
+  const decodeCodePoint = (match: string, codePoint: number): string => {
+    if (!Number.isInteger(codePoint) || codePoint <= 0 || codePoint > 0x10ffff) {
+      return match;
+    }
+
+    try {
+      return String.fromCodePoint(codePoint);
+    } catch {
+      return match;
+    }
+  };
+
+  // Decode numeric entities generically, then named entities. `&amp;` is
+  // decoded last so `&amp;#60;` stays literal text instead of becoming `<`.
   clean = clean
     .replaceAll('&nbsp;', ' ')
-    .replaceAll('&amp;', '&')
+    .replace(/&#x([0-9a-f]+);/gi, (match, hex: string) =>
+      decodeCodePoint(match, Number.parseInt(hex, 16))
+    )
+    .replace(/&#(\d+);/g, (match, decimal: string) =>
+      decodeCodePoint(match, Number.parseInt(decimal, 10))
+    )
     .replaceAll('&lt;', '<')
     .replaceAll('&gt;', '>')
     .replaceAll('&quot;', '"')
     .replaceAll('&apos;', "'")
-    .replaceAll('&#39;', "'")
-    .replaceAll('&#x27;', "'")
-    .replaceAll('&#x22;', '"')
-    .replaceAll('&#34;', '"')
-    .replaceAll('&#38;', '&')
-    .replaceAll('&#60;', '<')
-    .replaceAll('&#62;', '>');
+    .replaceAll('&amp;', '&');
   return clean
     .split(/\r?\n/)
     .map((line) =>
@@ -316,12 +331,14 @@ const readTextDocument = async (
   try {
     if (extension === '.pdf') {
       const runtime = globalThis as PdfRuntimeGlobal;
-      const hadDOMMatrix = 'DOMMatrix' in runtime;
-      const hadImageData = 'ImageData' in runtime;
-      const hadPath2D = 'Path2D' in runtime;
-      const oldDOMMatrix = runtime.DOMMatrix;
-      const oldImageData = runtime.ImageData;
-      const oldPath2D = runtime.Path2D;
+      // Snapshot each shim slot before parsing: restore the previous value if
+      // one existed, and delete the key entirely if it was absent — a shim key
+      // left behind as `undefined` would still shadow `'key' in runtime`.
+      const saved = PDF_SHIM_KEYS.map((key) => ({
+        key,
+        had: key in runtime,
+        old: runtime[key],
+      }));
 
       try {
         const { PDFParse } = await importPdfParse();
@@ -337,36 +354,40 @@ const readTextDocument = async (
           await parser.destroy();
         }
       } finally {
-        if (!hadDOMMatrix) {
-          delete runtime.DOMMatrix;
-        } else {
-          runtime.DOMMatrix = oldDOMMatrix;
-        }
-        if (!hadImageData) {
-          delete runtime.ImageData;
-        } else {
-          runtime.ImageData = oldImageData;
-        }
-        if (!hadPath2D) {
-          delete runtime.Path2D;
-        } else {
-          runtime.Path2D = oldPath2D;
+        for (const { key, had, old } of saved) {
+          if (!had) {
+            delete runtime[key];
+          } else {
+            (runtime[key] as unknown) = old;
+          }
         }
       }
     }
 
     if (extension === '.docx') {
       const mammoth = await import('mammoth');
+      const mammothModule = mammoth as unknown as {
+        extractRawText: (options: { buffer: Buffer }) => Promise<{ value: string }>;
+        convertToMarkdown?: (options: { buffer: Buffer }) => Promise<{ value: string }>;
+      };
+
+      // convertToMarkdown is a version-dependent mammoth export. Distinguish a
+      // missing capability from an unreadable file so the error is actionable.
+      if (format !== 'text' && typeof mammothModule.convertToMarkdown !== 'function') {
+        throw new ZaoWuError({
+          code: 'DOCUMENT_FORMAT_UNSUPPORTED',
+          message: 'DOCX markdown conversion is not available.',
+          why: 'The installed mammoth build does not provide `convertToMarkdown`, so ZaoWu cannot produce Markdown from this DOCX.',
+          fix: 'Use `--format text` for raw text extraction, or update the `mammoth` dependency to a build with markdown support.',
+        });
+      }
+
       const parsed =
         format === 'text'
-          ? await mammoth.extractRawText({
+          ? await mammothModule.extractRawText({
               buffer: await readFile(filePath),
             })
-          : await (
-              mammoth as unknown as {
-                convertToMarkdown: (options: { buffer: Buffer }) => Promise<{ value: string }>;
-              }
-            ).convertToMarkdown({
+          : await mammothModule.convertToMarkdown!({
               buffer: await readFile(filePath),
             });
 
@@ -405,14 +426,8 @@ const assertSafeDocumentOutputPath = (inputPath: string, outputPath: string): Pr
     },
   });
 
-const getTitle = (content: string, filePath: string): string => {
-  const heading = content
-    .split(/\r?\n/)
-    .map((line) => /^#\s+(.+)$/.exec(line.trim())?.[1])
-    .find((value): value is string => Boolean(value));
-
-  return heading ?? path.basename(filePath);
-};
+const getTitle = (content: string, filePath: string): string =>
+  parseHeadings(content).find((heading) => heading.level === 1)?.title ?? path.basename(filePath);
 
 const getWords = (content: string): string[] => content.match(/[\p{L}\p{N}_-]+/gu) ?? [];
 
@@ -449,7 +464,7 @@ const getFrontmatter = (content: string): Record<string, string> => {
   return frontmatter;
 };
 
-const getOutline = (content: string): DocumentOutlineItem[] =>
+const parseHeadings = (content: string): DocumentOutlineItem[] =>
   content
     .split(/\r?\n/)
     .map((line, index) => {
@@ -506,7 +521,7 @@ export const outlineDocument = async (filePath: string): Promise<DocumentOutline
     schemaVersion: 1,
     status: 'ok',
     filePath,
-    outline: getOutline(content),
+    outline: parseHeadings(content),
   };
 };
 

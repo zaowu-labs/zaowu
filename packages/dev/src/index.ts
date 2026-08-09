@@ -31,14 +31,33 @@ const DEV_STATUS_SCHEMA_VERSION = 1;
 const createEmptyCategories = (): DevChangeCategories =>
   Object.fromEntries(DEV_CHANGE_CATEGORIES.map((cat) => [cat, 0])) as DevChangeCategories;
 
-const getFileCategory = (filePath: string): DevChangeCategory => {
-  const file = filePath.replaceAll('\\', '/');
+const normalizePath = (filePath: string): string => filePath.replaceAll('\\', '/');
 
-  if (file.includes('.test.') || file.includes('.spec.')) {
+const isTestFile = (filePath: string): boolean =>
+  filePath.includes('.test.') || filePath.includes('.spec.');
+
+const isPackageManifestPath = (filePath: string): boolean => {
+  const file = normalizePath(filePath);
+
+  return file === 'package.json' || file.endsWith('/package.json');
+};
+
+/**
+ * A dependency-relevant path: any package.json plus the root lockfile. The
+ * exact-name checks are deliberate — a file merely *ending* in `package.json`
+ * (for example `my-package.json`) is not a dependency manifest.
+ */
+const isDependencyPath = (filePath: string): boolean =>
+  isPackageManifestPath(filePath) || normalizePath(filePath) === 'pnpm-lock.yaml';
+
+const getFileCategory = (filePath: string): DevChangeCategory => {
+  const file = normalizePath(filePath);
+
+  if (isTestFile(file)) {
     return 'test';
   }
 
-  if (file === 'package.json' || file === 'pnpm-lock.yaml' || file.endsWith('/package.json')) {
+  if (isDependencyPath(file)) {
     return 'dependency';
   }
 
@@ -254,13 +273,13 @@ const inferCommitType = (files: readonly string[]): string => {
     return 'docs';
   }
 
-  if (files.some((file) => file.endsWith('package.json') || file.endsWith('pnpm-lock.yaml'))) {
+  if (files.some(isDependencyPath)) {
     return 'chore';
   }
 
   // Test-only changes must be classified before the general src/ check;
   // test files live under src/, so the previous order made `test` unreachable.
-  if (files.every((file) => file.includes('.test.') || file.includes('.spec.'))) {
+  if (files.every(isTestFile)) {
     return 'test';
   }
 
@@ -284,12 +303,7 @@ const inferScope = (files: readonly string[]): string => {
     return 'docs';
   }
 
-  if (
-    files.some(
-      (file) =>
-        file === 'package.json' || file === 'pnpm-lock.yaml' || file.endsWith('/package.json')
-    )
-  ) {
+  if (files.some(isDependencyPath)) {
     return 'deps';
   }
 
@@ -453,7 +467,7 @@ const SENSITIVE_REVIEW_FILE_NAMES = new Set([
 ]);
 
 const isSensitiveReviewFile = (filePath: string): boolean => {
-  const normalized = filePath.replaceAll('\\', '/');
+  const normalized = normalizePath(filePath);
   const fileName = path.basename(filePath);
 
   if (SENSITIVE_REVIEW_FILE_NAMES.has(fileName)) {
@@ -496,6 +510,9 @@ const hasDestructiveGitCommandAdded = (line: string): boolean =>
       /[`'"]clean[`'"]\s*,\s*[`'"]-[A-Za-z]*[fd][A-Za-z]*[`'"]/.test(line) ||
       /[`'"]checkout[`'"]\s*,\s*[`'"]--[`'"]/.test(line)));
 
+const hasFocusedTestAdded = (line: string): boolean =>
+  /\b(?:it|describe|test)\.only\s*\(/.test(line);
+
 const findFirstAddedLineNumber = (
   hunk: ParsedDiffHunk,
   predicate: (line: string) => boolean
@@ -504,6 +521,70 @@ const findFirstAddedLineNumber = (
 
   return index >= 0 ? hunk.addedLineNumbers[index] : undefined;
 };
+
+interface DiffHeuristicRule {
+  predicate: (line: string) => boolean;
+  /** When true, the rule only scans files classified as review-sensitive. */
+  sensitiveOnly: boolean;
+  priority: DevReviewFinding['priority'];
+  category: DevReviewFinding['category'];
+  title: string;
+  detail: string;
+}
+
+const DIFF_HEURISTIC_RULES: readonly DiffHeuristicRule[] = [
+  {
+    predicate: hasShellExecutionAdded,
+    sensitiveOnly: true,
+    priority: 'high',
+    category: 'execution',
+    title: 'Shell execution added',
+    detail: 'Added code appears to run shell commands; confirm preview or confirmation behavior.',
+  },
+  {
+    predicate: hasFileMutationAdded,
+    sensitiveOnly: true,
+    priority: 'medium',
+    category: 'filesystem',
+    title: 'File mutation added',
+    detail:
+      'Added code appears to write or delete files; confirm it cannot silently overwrite user data.',
+  },
+  {
+    predicate: hasNetworkAccessAdded,
+    sensitiveOnly: true,
+    priority: 'medium',
+    category: 'network',
+    title: 'Network access added',
+    detail: 'Added code appears to access the network; confirm preview and user consent behavior.',
+  },
+  {
+    predicate: hasFocusedTestAdded,
+    sensitiveOnly: false,
+    priority: 'high',
+    category: 'test',
+    title: 'Focused test committed',
+    detail: 'A focused test marker was added and would narrow the test run.',
+  },
+  {
+    predicate: hasSecretLikeLiteralAdded,
+    sensitiveOnly: true,
+    priority: 'high',
+    category: 'security',
+    title: 'Secret-like literal added',
+    detail:
+      'Added code appears to contain a credential-like literal; move secrets to environment variables and rotate any exposed value.',
+  },
+  {
+    predicate: hasDestructiveGitCommandAdded,
+    sensitiveOnly: true,
+    priority: 'high',
+    category: 'git',
+    title: 'Destructive Git command added',
+    detail:
+      'Added code appears to run a destructive Git command; confirm it cannot reset, clean, or force-push user work without explicit consent.',
+  },
+];
 
 const addDiffHeuristicFindings = (
   findings: DevReviewFinding[],
@@ -525,88 +606,24 @@ const addDiffHeuristicFindings = (
       });
     }
 
-    if (shouldScanSensitiveText && hunk.addedText.some(hasShellExecutionAdded)) {
-      addFindingOnce(findings, {
-        severity: 'warning',
-        priority: 'high',
-        category: 'execution',
-        title: 'Shell execution added',
-        detail:
-          'Added code appears to run shell commands; confirm preview or confirmation behavior.',
-        filePath: hunk.filePath,
-        hunkHeader: hunk.header,
-        line: findFirstAddedLineNumber(hunk, hasShellExecutionAdded),
-      });
-    }
+    for (const rule of DIFF_HEURISTIC_RULES) {
+      if (rule.sensitiveOnly && !shouldScanSensitiveText) {
+        continue;
+      }
 
-    if (shouldScanSensitiveText && hunk.addedText.some(hasFileMutationAdded)) {
-      addFindingOnce(findings, {
-        severity: 'warning',
-        priority: 'medium',
-        category: 'filesystem',
-        title: 'File mutation added',
-        detail:
-          'Added code appears to write or delete files; confirm it cannot silently overwrite user data.',
-        filePath: hunk.filePath,
-        hunkHeader: hunk.header,
-        line: findFirstAddedLineNumber(hunk, hasFileMutationAdded),
-      });
-    }
+      if (!hunk.addedText.some(rule.predicate)) {
+        continue;
+      }
 
-    if (shouldScanSensitiveText && hunk.addedText.some(hasNetworkAccessAdded)) {
       addFindingOnce(findings, {
         severity: 'warning',
-        priority: 'medium',
-        category: 'network',
-        title: 'Network access added',
-        detail:
-          'Added code appears to access the network; confirm preview and user consent behavior.',
+        priority: rule.priority,
+        category: rule.category,
+        title: rule.title,
+        detail: rule.detail,
         filePath: hunk.filePath,
         hunkHeader: hunk.header,
-        line: findFirstAddedLineNumber(hunk, hasNetworkAccessAdded),
-      });
-    }
-
-    if (hunk.addedText.some((line) => /\b(?:it|describe|test)\.only\s*\(/.test(line))) {
-      addFindingOnce(findings, {
-        severity: 'warning',
-        priority: 'high',
-        category: 'test',
-        title: 'Focused test committed',
-        detail: 'A focused test marker was added and would narrow the test run.',
-        filePath: hunk.filePath,
-        hunkHeader: hunk.header,
-        line: findFirstAddedLineNumber(hunk, (line) =>
-          /\b(?:it|describe|test)\.only\s*\(/.test(line)
-        ),
-      });
-    }
-
-    if (shouldScanSensitiveText && hunk.addedText.some(hasSecretLikeLiteralAdded)) {
-      addFindingOnce(findings, {
-        severity: 'warning',
-        priority: 'high',
-        category: 'security',
-        title: 'Secret-like literal added',
-        detail:
-          'Added code appears to contain a credential-like literal; move secrets to environment variables and rotate any exposed value.',
-        filePath: hunk.filePath,
-        hunkHeader: hunk.header,
-        line: findFirstAddedLineNumber(hunk, hasSecretLikeLiteralAdded),
-      });
-    }
-
-    if (shouldScanSensitiveText && hunk.addedText.some(hasDestructiveGitCommandAdded)) {
-      addFindingOnce(findings, {
-        severity: 'warning',
-        priority: 'high',
-        category: 'git',
-        title: 'Destructive Git command added',
-        detail:
-          'Added code appears to run a destructive Git command; confirm it cannot reset, clean, or force-push user work without explicit consent.',
-        filePath: hunk.filePath,
-        hunkHeader: hunk.header,
-        line: findFirstAddedLineNumber(hunk, hasDestructiveGitCommandAdded),
+        line: findFirstAddedLineNumber(hunk, rule.predicate),
       });
     }
   }
@@ -616,9 +633,7 @@ const addDependencyConsistencyFindings = (
   findings: DevReviewFinding[],
   files: readonly string[]
 ): void => {
-  const hasPackageManifest = files.some(
-    (file) => file === 'package.json' || file.endsWith('/package.json')
-  );
+  const hasPackageManifest = files.some(isPackageManifestPath);
   const hasLockfile = files.includes('pnpm-lock.yaml');
 
   if (hasPackageManifest && !hasLockfile) {
@@ -645,7 +660,7 @@ const addDependencyConsistencyFindings = (
 };
 
 const isGeneratedArtifactFile = (filePath: string): boolean => {
-  const normalized = filePath.replaceAll('\\', '/');
+  const normalized = normalizePath(filePath);
   const fileName = path.basename(filePath);
 
   return (
@@ -680,10 +695,7 @@ const addGeneratedArtifactFindings = (
 };
 
 const getPackageName = (filePath: string): string | undefined =>
-  /^packages\/([^/]+)\//.exec(filePath.replaceAll('\\', '/'))?.[1];
-
-const isTestFile = (filePath: string): boolean =>
-  filePath.includes('.test.') || filePath.includes('.spec.');
+  /^packages\/([^/]+)\//.exec(normalizePath(filePath))?.[1];
 
 const addPackageTestCoverageFindings = (
   findings: DevReviewFinding[],
@@ -692,12 +704,13 @@ const addPackageTestCoverageFindings = (
   const changedSourcePackages = [
     ...new Set(
       files
-        .filter(
-          (file) =>
-            file.replaceAll('\\', '/').startsWith('packages/') &&
-            file.replaceAll('\\', '/').includes('/src/') &&
-            !isTestFile(file)
-        )
+        .filter((file) => {
+          const normalized = normalizePath(file);
+
+          return (
+            normalized.startsWith('packages/') && normalized.includes('/src/') && !isTestFile(file)
+          );
+        })
         .map((file) => getPackageName(file))
         .filter((packageName): packageName is string => Boolean(packageName))
     ),
@@ -759,7 +772,7 @@ const createDevChangeFindings = (
 
   if (
     summary.files.some((file) => file.startsWith('packages/') && file.includes('/src/')) &&
-    !summary.files.some((file) => file.includes('.test.') || file.includes('.spec.'))
+    !summary.files.some(isTestFile)
   ) {
     findings.push({
       severity: 'warning',
@@ -770,9 +783,7 @@ const createDevChangeFindings = (
     });
   }
 
-  if (
-    summary.files.some((file) => file.endsWith('package.json') || file.endsWith('pnpm-lock.yaml'))
-  ) {
+  if (summary.files.some(isDependencyPath)) {
     findings.push({
       severity: 'warning',
       priority: 'medium',

@@ -2,6 +2,7 @@ import { planWorkflowFile, runWorkflowPlan, validateWorkflowFile } from '@zaowu-
 import {
   assertOperationPlanFingerprint,
   createOperationPlan,
+  formatLabeledList,
   formatOperationPlan,
   formatPolicy,
   formatSandbox,
@@ -28,9 +29,7 @@ export const handleAutoValidate: DomainActionHandler = async (args, context) => 
     'Sandbox:',
     formatSandbox(validation.sandbox),
     '',
-    validation.warnings.length > 0
-      ? ['Warnings:', ...validation.warnings.map((warning) => `- ${warning}`)].join('\n')
-      : 'Warnings: none',
+    formatLabeledList('Warnings', validation.warnings),
   ].join('\n');
 
   return result(context, validation, human);
@@ -148,9 +147,7 @@ export const handleAutoPlan: DomainActionHandler = async (args, context) => {
     '',
     ...plan.steps.map((step) => formatAutoPlanStep(step)),
     '',
-    plan.warnings.length > 0
-      ? ['Warnings:', ...plan.warnings.map((warning) => `- ${warning}`)].join('\n')
-      : 'Warnings: none',
+    formatLabeledList('Warnings', plan.warnings),
   ].join('\n');
 
   return result(context, plan, human);

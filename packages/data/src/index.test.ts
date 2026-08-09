@@ -118,6 +118,19 @@ describe('data domain', () => {
     }
   });
 
+  it('refuses to clean JSON input instead of silently emitting CSV', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-data-'));
+    const filePath = path.join(root, 'records.json');
+
+    await writeFile(filePath, '[{"name":"A","amount":1}]', 'utf8');
+
+    try {
+      await expect(cleanData(filePath)).rejects.toThrow(/JSON input/);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('treats leading-zero identifiers as text, not numbers', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-data-'));
     const filePath = path.join(root, 'zips.csv');
