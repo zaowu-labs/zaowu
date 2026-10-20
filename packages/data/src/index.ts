@@ -406,14 +406,15 @@ export const loadDataTable = async (
             }
           }
         }
-        headers = normalizeHeaders(Array.from(uniqueKeys));
+        const sourceKeys = Array.from(uniqueKeys);
+        headers = normalizeHeaders(sourceKeys);
 
         for (const item of parsed) {
           const row: string[] = [];
           if (item && typeof item === 'object') {
             const obj = item as Record<string, unknown>;
-            for (const header of headers) {
-              const val = obj[header];
+            for (const key of sourceKeys) {
+              const val = Object.hasOwn(obj, key) ? obj[key] : undefined;
               row.push(val === undefined || val === null ? '' : String(val).trim());
             }
           } else {
@@ -424,11 +425,12 @@ export const loadDataTable = async (
           rows.push(row);
         }
       } else if (parsed && typeof parsed === 'object') {
-        headers = normalizeHeaders(Object.keys(parsed));
+        const sourceKeys = Object.keys(parsed);
+        headers = normalizeHeaders(sourceKeys);
         const row: string[] = [];
         const obj = parsed as Record<string, unknown>;
-        for (const header of headers) {
-          const val = obj[header];
+        for (const key of sourceKeys) {
+          const val = obj[key];
           row.push(val === undefined || val === null ? '' : String(val).trim());
         }
         rows.push(row);
@@ -566,13 +568,12 @@ const assertSafeDataOutputPath = (inputPath: string, outputPath: string): Promis
   });
 
 const getMissingByColumn = (table: DataTable): Record<string, number> => {
-  const missingByColumn: Record<string, number> = {};
-
-  for (const [index, header] of table.headers.entries()) {
-    missingByColumn[header] = table.rows.filter((row) => !row[index]?.trim()).length;
-  }
-
-  return missingByColumn;
+  return Object.fromEntries(
+    table.headers.map((header, index) => [
+      header,
+      table.rows.filter((row) => !row[index]?.trim()).length,
+    ])
+  );
 };
 
 export const inspectData = async (

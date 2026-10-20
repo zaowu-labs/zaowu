@@ -18,6 +18,7 @@ Run:
 ```bash
 corepack pnpm install --frozen-lockfile
 corepack pnpm verify
+corepack pnpm audit:prod
 git diff --check
 ```
 
@@ -29,6 +30,7 @@ full gate. Do not continue if any check fails.
 - Open a release pull request against `main`.
 - Require review of version, changelog, package contents, and safety changes.
 - Confirm all supported Node.js and operating-system CI jobs pass.
+- Review any visible production-audit exception and its expiration date.
 - Merge without bypassing required checks.
 - Record the exact merge commit SHA.
 

@@ -1,6 +1,6 @@
 {
   "name": "@zaowu-labs/web",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "ZaoWu web workflows",
   "type": "module",
   "license": "Apache-2.0",

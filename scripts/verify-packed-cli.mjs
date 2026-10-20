@@ -1,11 +1,12 @@
 /* global console, process */
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const expectedVersion = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8')).version;
 const scratch = mkdtempSync(path.join(tmpdir(), 'zaowu-pack-install-'));
 const appDir = path.join(scratch, 'app');
 const tarballDir = path.join(appDir, 'tarballs');
@@ -97,9 +98,11 @@ try {
 
   run(['pnpm', 'install'], { cwd: appDir });
 
-  const version = JSON.parse(run(['pnpm', 'exec', 'zw', '--version', '--json'], { cwd: appDir, capture: true }));
+  const version = JSON.parse(
+    run(['pnpm', 'exec', 'zw', '--version', '--json'], { cwd: appDir, capture: true })
+  );
   assert(version.status === 'ok', 'Packed CLI should return version JSON.');
-  assert(version.version === '1.0.2', 'Packed CLI should report the package version.');
+  assert(version.version === expectedVersion, 'Packed CLI should report the package version.');
 
   const help = run(['pnpm', 'exec', 'zw', '--help'], { cwd: appDir, capture: true });
   assert(help.includes('ZaoWu'), 'Packed CLI help should mention ZaoWu.');
@@ -107,8 +110,13 @@ try {
   assert(help.includes('zw auto'), 'Packed CLI help should expose the auto domain.');
   assert(help.includes('zw plugin'), 'Packed CLI help should expose the plugin domain.');
 
-  const doctor = JSON.parse(run(['pnpm', 'exec', 'zw', 'doctor', '--json'], { cwd: appDir, capture: true }));
-  assert(['ok', 'warning'].includes(doctor.status), 'Packed CLI doctor should return a known status.');
+  const doctor = JSON.parse(
+    run(['pnpm', 'exec', 'zw', 'doctor', '--json'], { cwd: appDir, capture: true })
+  );
+  assert(
+    ['ok', 'warning'].includes(doctor.status),
+    'Packed CLI doctor should return a known status.'
+  );
 
   console.log('ZaoWu packed CLI install: ok');
 } finally {

@@ -589,13 +589,26 @@ describe('dev domain', () => {
       if (args.join(' ') === 'status --short --branch') {
         return '## main...origin/main\n';
       }
+      if (args.join(' ') === 'symbolic-ref --quiet --short HEAD') return 'main';
+      if (args.join(' ') === 'rev-parse --verify refs/remotes/origin/main')
+        return 'commit_hash_123';
+      if (args.join(' ') === 'rev-list --count refs/remotes/origin/main..HEAD') return '0';
+      if (
+        [
+          'diff --cached --binary --no-ext-diff --no-textconv',
+          'diff HEAD --binary --no-ext-diff --no-textconv',
+          'ls-files --full-name --others --directory -z -- :/',
+          'ls-tree --full-tree -r --name-only -z refs/remotes/origin/main',
+        ].includes(args.join(' '))
+      )
+        return '';
       if (args.join(' ') === 'rev-parse HEAD') {
         return 'commit_hash_123';
       }
       if (args.join(' ') === 'fetch origin') {
         return 'fetched';
       }
-      if (args.join(' ') === 'reset --hard origin/main') {
+      if (args.join(' ') === 'reset --hard refs/remotes/origin/main') {
         return 'reset';
       }
       throw new Error('unexpected git command: ' + args.join(' '));
@@ -607,12 +620,20 @@ describe('dev domain', () => {
       branch: 'main',
       previousCommit: 'commit_hash_123',
       currentCommit: 'commit_hash_123',
-      output: 'Preview: ZaoWu will run `git fetch origin` and `git reset --hard origin/main`.',
+      output:
+        'Preview: ZaoWu will run `git fetch origin` and `git reset --hard refs/remotes/origin/main`.',
       operationPlan: {
         risk: 'high',
         confirmationRequired: true,
-        reads: ['current Git branch', 'current HEAD commit', 'current Git status'],
-        executes: ['git fetch origin', 'git reset --hard origin/main'],
+        reads: [
+          'current Git branch',
+          'current HEAD commit',
+          'current Git status',
+          'tracked Git diff',
+          'origin branch history',
+          'untracked and ignored reset collisions',
+        ],
+        executes: ['git fetch origin', 'git reset --hard refs/remotes/origin/main'],
         network: ['git remote origin'],
       },
     });
@@ -627,7 +648,7 @@ describe('dev domain', () => {
       operationPlan: {
         risk: 'high',
         confirmationRequired: false,
-        executes: ['git fetch origin', 'git reset --hard origin/main'],
+        executes: ['git fetch origin', 'git reset --hard refs/remotes/origin/main'],
         network: ['git remote origin'],
       },
     });
@@ -640,13 +661,26 @@ describe('dev domain', () => {
       if (args.join(' ') === 'status --short --branch') {
         return '## main...origin/main [ahead 2]\nM  packages/dev/src/index.ts\n M README.md\n';
       }
+      if (args.join(' ') === 'symbolic-ref --quiet --short HEAD') return 'main';
+      if (args.join(' ') === 'rev-parse --verify refs/remotes/origin/main')
+        return 'commit_hash_123';
+      if (args.join(' ') === 'rev-list --count refs/remotes/origin/main..HEAD') return '2';
+      if (
+        [
+          'diff --cached --binary --no-ext-diff --no-textconv',
+          'diff HEAD --binary --no-ext-diff --no-textconv',
+          'ls-files --full-name --others --directory -z -- :/',
+          'ls-tree --full-tree -r --name-only -z refs/remotes/origin/main',
+        ].includes(args.join(' '))
+      )
+        return '';
       if (args.join(' ') === 'rev-parse HEAD') {
         return 'commit_hash_123';
       }
       if (args.join(' ') === 'fetch origin') {
         return 'fetched';
       }
-      if (args.join(' ') === 'reset --hard origin/main') {
+      if (args.join(' ') === 'reset --hard refs/remotes/origin/main') {
         return 'reset';
       }
       throw new Error('unexpected git command: ' + args.join(' '));

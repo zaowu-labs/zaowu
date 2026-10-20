@@ -10,6 +10,9 @@ registry package is no longer the current upstream release channel.
 Schema inference recognizes numbers, booleans, ISO or `MM/DD/YYYY` calendar
 dates, percentages, common currency values, strings, empty columns, and mixed
 columns without changing the source values.
+JSON column names are normalized for display while values are read from their
+original keys, so whitespace and duplicate normalized names do not lose data.
+Absent fields remain empty even when their names match JavaScript prototype keys.
 
 Safety:
 

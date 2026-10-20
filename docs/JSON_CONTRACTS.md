@@ -308,12 +308,14 @@ Current result schema: `schemaVersion: 1`.
 Schema file: `schemas/zaowu.command.dev-sync.schema.json`.
 
 Sync previews by default. Its operation plan lists `git fetch origin`,
-`git reset --hard origin/<branch>`, and network access to the origin remote.
+`git reset --hard refs/remotes/origin/<branch>`, and network access to the origin remote.
 Confirmed results keep the same fingerprint and set
 `confirmationRequired: false`.
 If tracked changes or local commits ahead of `origin/<branch>` exist, `--yes`
 alone returns `GIT_SYNC_DISCARD_CONFIRMATION_REQUIRED`; execution also requires
-`--discard-local`.
+`--discard-local`. Obstructing untracked or ignored paths require the same
+acknowledgement. The command rechecks these risks after fetching. Plan subjects
+also bind the cached origin target and staged/working-copy content digests.
 
 ### `zw auto validate --json`
 

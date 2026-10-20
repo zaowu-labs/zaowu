@@ -40,6 +40,9 @@ jobs:
       - name: Run release gates
         run: corepack pnpm verify
 
+      - name: Audit production dependencies
+        run: corepack pnpm audit:prod
+
   publish:
     name: Publish npm packages
     needs: verify

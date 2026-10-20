@@ -108,6 +108,7 @@ describe('AI provider registry', () => {
             'Content-Type': 'application/json',
           },
           signal: expect.any(AbortSignal),
+          redirect: 'error',
           body: JSON.stringify({
             model: 'test-model',
             prompt: 'Explain ZaoWu',
@@ -330,6 +331,7 @@ describe('AI provider registry', () => {
             'Content-Type': 'application/json',
           },
           signal: expect.any(AbortSignal),
+          redirect: 'error',
           body: JSON.stringify({
             model: 'test-model',
             input: 'Explain ZaoWu',
@@ -788,6 +790,7 @@ describe('AI provider registry', () => {
             'Content-Type': 'application/json',
           },
           signal: expect.any(AbortSignal),
+          redirect: 'error',
           body: JSON.stringify({
             model: 'claude-test',
             messages: [{ role: 'user', content: 'Explain ZaoWu' }],

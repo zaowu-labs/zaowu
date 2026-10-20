@@ -49,7 +49,7 @@ jobs:
         run: corepack pnpm verify:structure
 
       - name: Audit production dependencies
-        run: corepack pnpm audit --prod
+        run: corepack pnpm audit:prod
 
       - name: Check schemas and examples
         run: corepack pnpm verify:schemas

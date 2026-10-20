@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+No changes yet.
+
+## 1.0.3 - 2026-10-20
+
+- Hardened Git sync against missing/different upstreams, rewritten origin history,
+  obstructing untracked or ignored files, detached HEAD, and ref-name ambiguity.
+  Confirmation fingerprints bind staged and working-copy contents, and local
+  state is rechecked after fetch.
+- Rejected AI provider redirects and bounded both response-header and JSON-body
+  reads; malformed provider payloads now use stable errors.
+- Preserved YAML scalar boundaries, comments, multiline/empty values, and unknown
+  config keys; rejected non-object JSON config and handled recursive aliases.
+- Preserved JSON dataset values when headers are normalized and treated absent
+  prototype-named fields as missing data.
+- Updated the compatible XML parser patch to 0.8.15, clearing all eight high-severity
+  dependency advisories in the reviewed lockfile.
+- Added 41 regression cases and refreshed command specs, contracts, and documentation.
+- Added a production audit policy with seven gate tests and one maintainer-approved,
+  path/version-specific sprintf-js exception expiring on 2026-11-19. CI and the
+  release workflow retain full audit coverage and reject all other findings.
+- Pinned the reviewed Mammoth library version and made packed CLI version
+  verification derive from the release manifest.
+
 - Made `zw ai ask` honor `ai.provider` from the resolved project config when
   `--provider` is absent, matching `zw dev --ai` and `zw doctor`; previously it
   silently fell back to the local echo provider. The preview confirm command

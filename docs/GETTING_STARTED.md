@@ -10,7 +10,7 @@ This guide starts with the published CLI. Repository development instructions ar
 ## Install
 
 ```bash
-npm install -g @zaowu-labs/cli@1.0.2
+npm install -g @zaowu-labs/cli@1.0.3
 zw --version
 zw doctor
 ```
@@ -18,7 +18,7 @@ zw doctor
 To try the CLI without installing globally:
 
 ```bash
-npx --package @zaowu-labs/cli@1.0.2 zw --help
+npx --package @zaowu-labs/cli@1.0.3 zw --help
 ```
 
 ## Repository development
@@ -109,8 +109,10 @@ diff context.
 `zw dev sync` is different: it fetches `origin` and hard-resets the current
 branch to `origin/<branch>`. It previews by default and requires `--yes`; local
 tracked changes and diverged local commits can be discarded. When either risk
-is present, confirmed execution also requires `--discard-local`. Untracked files
-are not removed by this command.
+is present, confirmed execution also requires `--discard-local`. Untracked or
+ignored paths that obstruct the reset also require `--discard-local`, because
+Git can delete them. Unrelated untracked files remain untouched. Discard risk
+is checked again after fetching, against the actual origin branch.
 
 Work with supported documents. Text, Markdown-like files, HTML, PDF, and DOCX
 are handled as extracted text in this foundation version. HTML headings and
