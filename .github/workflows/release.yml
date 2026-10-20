@@ -68,10 +68,22 @@ jobs:
       - name: Install dependencies
         run: corepack pnpm install --frozen-lockfile
 
-      - name: Publish in dependency order with provenance
+      - name: Build publish artifacts
+        run: corepack pnpm build
+
+      - name: Pack and verify publish artifacts
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/zaowu-npm"
+          corepack pnpm --filter './packages/*' pack --pack-destination "$RUNNER_TEMP/zaowu-npm"
+          node scripts/verify-publish-artifacts.mjs "$RUNNER_TEMP/zaowu-npm"
+
+      - name: Publish verified tarballs in dependency order with provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(node -p 'JSON.parse(require("fs").readFileSync("package.json", "utf8")).version')"
           for package in core ai auto config data dev doc plugin teach web cli; do
-            corepack pnpm --dir "packages/${package}" publish --access public --provenance --no-git-checks
+            npm publish "$RUNNER_TEMP/zaowu-npm/zaowu-labs-${package}-${version}.tgz" --access public --provenance
           done

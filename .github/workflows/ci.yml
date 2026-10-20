@@ -66,6 +66,9 @@ jobs:
       - name: Check package contents
         run: corepack pnpm pack:check
 
+      - name: Verify publish artifacts
+        run: corepack pnpm verify:publish-artifacts
+
       - name: Smoke test packed CLI install
         run: corepack pnpm verify:pack-install
 

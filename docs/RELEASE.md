@@ -22,6 +22,8 @@ The gate includes:
 - lint and format checks
 - release metadata checks
 - package dry-run
+- actual tarball validation for compiled entries, declarations, CLI executables,
+  release versions, and resolved internal dependencies
 - packed CLI install smoke
 - release policy and changelog presence
 - release workflow, provenance, and rollback policy presence
@@ -75,6 +77,9 @@ Protect the environment with required reviewers. The workflow is manual-only, ch
 
 The workflow uses Node.js 24 so its bundled npm satisfies Trusted Publishing's
 Node.js 22.14.0+ and npm 11.5.1+ requirements.
+The publish job builds its own checkout, creates and validates the exact tarballs,
+then passes each tarball path to `npm publish --access public --provenance`.
+Build outputs from the verification job are not assumed to exist in the publish job.
 
 ## Manual Preflight
 
