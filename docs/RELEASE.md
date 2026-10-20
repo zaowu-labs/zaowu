@@ -4,6 +4,30 @@ ZaoWu publishes public packages under `@zaowu-labs`. This document defines the g
 
 ## Current Gate
 
+Before creating another release tag, confirm the npm-side authorization for every
+public package. Passing CI and signing provenance do not prove permission to
+upload a package. A publish E404 can indicate missing or mismatched authorization;
+inspect the npm settings rather than repeatedly trying new versions.
+
+For each of `@zaowu-labs/core`, `ai`, `auto`, `config`, `data`, `dev`, `doc`,
+`plugin`, `teach`, `web`, and `cli`, open its npm package settings and verify a
+GitHub Actions Trusted Publisher with these exact fields:
+
+| Field                | Value                |
+| -------------------- | -------------------- |
+| Organization or user | `zaowu-labs`         |
+| Repository           | `zaowu`              |
+| Workflow filename    | `release.yml`        |
+| Environment          | `npm-production`     |
+| Allowed action       | Direct `npm publish` |
+
+A stage-only connection cannot authorize this workflow's direct publish command.
+New connections must complete their first successful publish within two days;
+expired connections must be replaced through the npm settings. Review and confirm
+any permission changes in the npm account before using them. No npm token should
+be pasted into repository files or chat. See the
+[npm Trusted Publishing documentation](https://docs.npmjs.com/trusted-publishers/).
+
 Run:
 
 ```bash

@@ -12,7 +12,7 @@ body:
     attributes:
       label: ZaoWu version
       description: Output from `zw --version`.
-      placeholder: 1.0.4
+      placeholder: 1.0.5
     validations:
       required: true
   - type: input
