@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
@@ -8,6 +9,10 @@ import { COMMAND_CONTRACTS } from './command-contracts';
 import { ACTION_HELP } from './help-text';
 import { BOOLEAN_OPTIONS, COMMAND_OPTIONS, VALUE_OPTIONS } from './option-registry';
 import { DEFAULT_CONFIG_FILE_NAME, DOMAIN_DEFINITIONS, executeCli } from './run';
+
+const expectedVersion = JSON.parse(
+  readFileSync(new URL('../package.json', import.meta.url), 'utf8')
+).version;
 
 describe('action help / option registry consistency', () => {
   it('documents exactly the options each command supports', () => {
@@ -92,7 +97,7 @@ describe('executeCli', () => {
     const result = await executeCli(['--version']);
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toBe('1.0.2');
+    expect(result.stdout).toBe(expectedVersion);
   });
 
   it('shows version output as JSON', async () => {
@@ -102,7 +107,7 @@ describe('executeCli', () => {
     expect(JSON.parse(result.stdout)).toEqual({
       schemaVersion: 1,
       status: 'ok',
-      version: '1.0.2',
+      version: expectedVersion,
     });
   });
 
@@ -959,11 +964,21 @@ describe('executeCli', () => {
       switch (args.join(' ')) {
         case 'status --short --branch':
           return '## main...origin/main';
+        case 'symbolic-ref --quiet --short HEAD':
+          return 'main';
+        case 'rev-parse --verify refs/remotes/origin/main':
         case 'rev-parse HEAD':
           return 'commit_hash_123';
+        case 'rev-list --count refs/remotes/origin/main..HEAD':
+          return '0';
+        case 'diff --cached --binary --no-ext-diff --no-textconv':
+        case 'diff HEAD --binary --no-ext-diff --no-textconv':
+        case 'ls-files --full-name --others --directory -z -- :/':
+        case 'ls-tree --full-tree -r --name-only -z refs/remotes/origin/main':
+          return '';
         case 'fetch origin':
           return 'fetched';
-        case 'reset --hard origin/main':
+        case 'reset --hard refs/remotes/origin/main':
           return 'reset';
         default:
           throw new Error(`unexpected command: ${args.join(' ')}`);
@@ -987,7 +1002,7 @@ describe('executeCli', () => {
     expect(confirmed.exitCode).toBe(0);
     expect(confirmedPayload.operationPlan).toMatchObject({
       confirmationRequired: false,
-      executes: ['git fetch origin', 'git reset --hard origin/main'],
+      executes: ['git fetch origin', 'git reset --hard refs/remotes/origin/main'],
       network: ['git remote origin'],
       fingerprint: previewPayload.operationPlan.fingerprint,
     });
@@ -1001,11 +1016,21 @@ describe('executeCli', () => {
       switch (args.join(' ')) {
         case 'status --short --branch':
           return statusOutput;
+        case 'symbolic-ref --quiet --short HEAD':
+          return 'main';
+        case 'rev-parse --verify refs/remotes/origin/main':
         case 'rev-parse HEAD':
           return 'commit_hash_123';
+        case 'rev-list --count refs/remotes/origin/main..HEAD':
+          return '0';
+        case 'diff --cached --binary --no-ext-diff --no-textconv':
+        case 'diff HEAD --binary --no-ext-diff --no-textconv':
+        case 'ls-files --full-name --others --directory -z -- :/':
+        case 'ls-tree --full-tree -r --name-only -z refs/remotes/origin/main':
+          return '';
         case 'fetch origin':
           return 'fetched';
-        case 'reset --hard origin/main':
+        case 'reset --hard refs/remotes/origin/main':
           return 'reset';
         default:
           throw new Error(`unexpected command: ${args.join(' ')}`);
@@ -1045,11 +1070,21 @@ describe('executeCli', () => {
       switch (args.join(' ')) {
         case 'status --short --branch':
           return '## main...origin/main [ahead 1]\nM  packages/dev/src/index.ts';
+        case 'symbolic-ref --quiet --short HEAD':
+          return 'main';
+        case 'rev-parse --verify refs/remotes/origin/main':
         case 'rev-parse HEAD':
           return 'commit_hash_123';
+        case 'rev-list --count refs/remotes/origin/main..HEAD':
+          return '0';
+        case 'diff --cached --binary --no-ext-diff --no-textconv':
+        case 'diff HEAD --binary --no-ext-diff --no-textconv':
+        case 'ls-files --full-name --others --directory -z -- :/':
+        case 'ls-tree --full-tree -r --name-only -z refs/remotes/origin/main':
+          return '';
         case 'fetch origin':
           return 'fetched';
-        case 'reset --hard origin/main':
+        case 'reset --hard refs/remotes/origin/main':
           return 'reset';
         default:
           throw new Error(`unexpected command: ${args.join(' ')}`);

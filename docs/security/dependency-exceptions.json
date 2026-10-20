@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "mammothVersion": "1.12.0",
+  "exceptions": [
+    {
+      "ghsa": "GHSA-hp3w-g68c-fv3c",
+      "module": "sprintf-js",
+      "version": "1.0.3",
+      "severity": "moderate",
+      "path": "packages__doc>mammoth>argparse>sprintf-js",
+      "reviewedOn": "2026-10-20",
+      "expiresOn": "2026-11-19",
+      "reason": "The maintainer approved this 30-day exception. Mammoth imports argparse in its standalone bin/mammoth, which ZaoWu does not execute. The audit gate verifies that the pinned Mammoth library entry does not load argparse or sprintf-js. No upstream patched sprintf-js version is published."
+    }
+  ]
+}

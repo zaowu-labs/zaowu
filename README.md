@@ -4,7 +4,7 @@
 
 **One Unified AI-Powered Toolkit for Developers, Automation, Documents, Data, Teaching, and Workflows.**
 
-[![Version](https://img.shields.io/badge/version-1.0.2-blue.svg?style=for-the-badge)](package.json)
+[![Version](https://img.shields.io/badge/version-1.0.3-blue.svg?style=for-the-badge)](package.json)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green.svg?style=for-the-badge)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Node.js%2020.19%2B-orange.svg?style=for-the-badge)](package.json)
 
@@ -47,12 +47,12 @@ ZaoWu is structured as a monorepo containing specialized domain modules. Here is
 Install the public CLI:
 
 ```bash
-npm install -g @zaowu-labs/cli@1.0.2
+npm install -g @zaowu-labs/cli@1.0.3
 zw --version
 zw doctor
 ```
 
-Use `npx --package @zaowu-labs/cli@1.0.2 zw --help` when you want to try ZaoWu without a global install.
+Use `npx --package @zaowu-labs/cli@1.0.3 zw --help` when you want to try ZaoWu without a global install.
 
 ### 3. Basic CLI Executions
 

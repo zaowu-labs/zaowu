@@ -120,11 +120,13 @@ Safety:
 - `zw dev sync` updates Git state by fetching `origin` and hard-resetting the
   current branch to `origin/<branch>`. It previews by default and requires
   `--yes` to execute. If tracked changes or local commits ahead of the remote
-  branch would be discarded, `--discard-local` is also required. Untracked
-  files are preserved.
+  branch would be discarded, `--discard-local` is also required. The same
+  acknowledgement protects obstructing untracked and ignored paths; unrelated
+  untracked files are preserved. Risk is rechecked after fetching.
 - Its operation plan lists both Git commands and the origin network remote.
-  The fingerprint also binds the current HEAD and a normalized Git status digest
-  so stale confirmations are rejected when local state changes.
+  The fingerprint also binds the current HEAD, cached origin target, normalized
+  Git status, and tracked/staged content digests so stale confirmations are
+  rejected when local state changes.
 - `zw dev commit` reads staged changes only.
 - `zw dev review --staged` and `zw dev review --worktree` keep sources explicit.
 - Commit previews include a structured Conventional Commit suggestion, suggested

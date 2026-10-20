@@ -4,14 +4,19 @@ import type {
   AIAskRequest,
   AIAskResponse,
   AIFetcher,
-  AIFetchResponse,
   AIProvider,
   AIProviderDescriptor,
-  AIProviderFailure,
   AIProviderValidation,
   AIUsage,
 } from './contracts.js';
 
+import { fetchWithRetry } from './transport.js';
+
+export {
+  fetchWithRetry,
+  parseRetryAfterHeaderMs,
+  classifyAIProviderHttpFailure,
+} from './transport.js';
 export * from './contracts.js';
 export { AI_DOMAIN } from './domain.js';
 
@@ -29,11 +34,6 @@ const createProviderDescriptor = (
 const DEFAULT_PROVIDER_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_INPUT_CHARACTERS = 200_000;
 const AI_RESULT_SCHEMA_VERSION = 1;
-// Upper bound on any retry sleep. Retry-After is server-controlled input, so
-// without a cap a hostile or misconfigured endpoint could stall the CLI for
-// hours with a single header.
-const MAX_RETRY_WAIT_MS = 30_000;
-
 const createCombinedPrompt = (
   prompt: string,
   filePath: string | undefined,
@@ -307,128 +307,6 @@ const getPreviewModel = (
   env: NodeJS.ProcessEnv
 ): string => resolveAIModel(provider, { model: request.model, env });
 
-const MAX_PROVIDER_STATUS_TEXT_CHARACTERS = 80;
-
-const sanitizeProviderStatusText = (statusText: string): string => {
-  const normalized = statusText.replace(/\s+/g, ' ').trim();
-
-  if (normalized.length <= MAX_PROVIDER_STATUS_TEXT_CHARACTERS) {
-    return normalized;
-  }
-
-  return `${normalized.slice(0, MAX_PROVIDER_STATUS_TEXT_CHARACTERS).trimEnd()}...`;
-};
-
-const createProviderSafeSummary = (
-  providerName: string,
-  status: number,
-  statusText: string
-): string => {
-  const safeStatusText = sanitizeProviderStatusText(statusText);
-  const statusSummary = safeStatusText ? `HTTP ${status} ${safeStatusText}` : `HTTP ${status}`;
-  const punctuation = statusSummary.endsWith('.') ? '' : '.';
-
-  return `${providerName} returned ${statusSummary}${punctuation}`;
-};
-
-export const parseRetryAfterHeaderMs = (value: string | null | undefined): number | undefined => {
-  const normalized = value?.trim();
-
-  if (!normalized) {
-    return undefined;
-  }
-
-  const seconds = Number(normalized);
-
-  if (Number.isFinite(seconds) && seconds >= 0) {
-    return Math.round(seconds * 1000);
-  }
-
-  const date = Date.parse(normalized);
-
-  if (Number.isNaN(date)) {
-    return undefined;
-  }
-
-  return Math.max(0, date - Date.now());
-};
-
-const appendRetryDelay = (fix: string, retryAfterMs: number | undefined): string =>
-  retryAfterMs === undefined ? fix : `${fix} Wait at least ${retryAfterMs}ms before retrying.`;
-
-export const classifyAIProviderHttpFailure = (
-  providerName: string,
-  status: number,
-  statusText: string,
-  retryAfterMs?: number
-): AIProviderFailure => {
-  const safeSummary = createProviderSafeSummary(providerName, status, statusText);
-
-  if (status === 401 || status === 403) {
-    return {
-      kind: 'auth',
-      retryable: false,
-      safeSummary,
-      why: `${safeSummary} Credentials or model access are not accepted.`,
-      fix: 'Check the provider API key, model access, and environment variables before retrying.',
-    };
-  }
-
-  if (status === 429) {
-    return {
-      kind: 'rate-limit',
-      retryable: true,
-      safeSummary,
-      retryAfterMs,
-      why: `${safeSummary} The request was rate-limited.`,
-      fix: appendRetryDelay('Retry later or reduce request frequency/input size.', retryAfterMs),
-    };
-  }
-
-  if (status === 408) {
-    return {
-      kind: 'timeout',
-      retryable: true,
-      safeSummary,
-      retryAfterMs,
-      why: `${safeSummary} The provider timed out before completing the request.`,
-      fix: appendRetryDelay(
-        'Retry later, reduce input size, or increase the timeout if the request is expected to take longer.',
-        retryAfterMs
-      ),
-    };
-  }
-
-  if (status >= 500) {
-    return {
-      kind: 'server',
-      retryable: true,
-      safeSummary,
-      retryAfterMs,
-      why: `${safeSummary} The provider did not complete the request.`,
-      fix: appendRetryDelay('Check provider status and retry later.', retryAfterMs),
-    };
-  }
-
-  if (status >= 400) {
-    return {
-      kind: 'bad-request',
-      retryable: false,
-      safeSummary,
-      why: `${safeSummary} The request was rejected.`,
-      fix: 'Check the model, input size, and provider request settings before retrying.',
-    };
-  }
-
-  return {
-    kind: 'unknown',
-    retryable: false,
-    safeSummary,
-    why: safeSummary,
-    fix: 'Check provider status, credentials, model settings, and network access.',
-  };
-};
-
 const getFetcher = (fetcher?: AIFetcher): AIFetcher => {
   if (fetcher) {
     return fetcher;
@@ -445,80 +323,6 @@ const getFetcher = (fetcher?: AIFetcher): AIFetcher => {
 
   return globalThis.fetch as unknown as AIFetcher;
 };
-
-export async function fetchWithRetry(
-  fetcher: AIFetcher,
-  url: string,
-  init: {
-    method: string;
-    headers: Record<string, string>;
-    body: string;
-    signal?: AbortSignal;
-  },
-  providerName: string,
-  timeoutMs: number,
-  maxRetries = 3
-): Promise<AIFetchResponse> {
-  let attempt = 0;
-  let delay = 1000;
-
-  while (true) {
-    attempt++;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
-    let response: AIFetchResponse;
-
-    try {
-      response = await fetcher(url, {
-        ...init,
-        signal: controller.signal,
-      });
-    } catch {
-      clearTimeout(timeout);
-      if (attempt >= maxRetries) {
-        throw new ZaoWuError({
-          code: 'AI_PROVIDER_REQUEST_FAILED',
-          message: 'AI provider request failed.',
-          why: controller.signal.aborted
-            ? `${providerName} did not respond within ${timeoutMs}ms.`
-            : 'The request failed before a response was received.',
-          fix: 'Check network access, provider status, and timeout settings, then try again.',
-        });
-      }
-      await new Promise((resolve) => setTimeout(resolve, delay));
-      delay *= 2;
-      continue;
-    }
-
-    clearTimeout(timeout);
-
-    if (response.ok) {
-      return response;
-    }
-
-    const retryAfterMs = parseRetryAfterHeaderMs(response.headers?.get('retry-after'));
-    const failure = classifyAIProviderHttpFailure(
-      providerName,
-      response.status,
-      response.statusText,
-      retryAfterMs
-    );
-
-    if (failure.retryable && attempt < maxRetries) {
-      const waitMs = Math.min(retryAfterMs ?? delay, MAX_RETRY_WAIT_MS);
-      await new Promise((resolve) => setTimeout(resolve, waitMs));
-      delay *= 2;
-      continue;
-    }
-
-    throw new ZaoWuError({
-      code: 'AI_PROVIDER_REQUEST_FAILED',
-      message: 'AI provider request failed.',
-      why: failure.why,
-      fix: failure.fix,
-    });
-  }
-}
 
 const extractOpenAIOutputText = (payload: unknown): string => {
   if (!payload || typeof payload !== 'object') {
@@ -545,7 +349,9 @@ const extractOpenAIOutputText = (payload: unknown): string => {
     }>;
   };
 
-  const choiceText = response.choices?.[0]?.message?.content;
+  const choiceText = Array.isArray(response.choices)
+    ? response.choices[0]?.message?.content
+    : undefined;
   if (typeof choiceText === 'string' && choiceText.trim()) {
     return choiceText;
   }
@@ -554,10 +360,12 @@ const extractOpenAIOutputText = (payload: unknown): string => {
     return response.output_text;
   }
 
-  const text = response.output
-    ?.flatMap((item) => item.content ?? [])
+  const text = (Array.isArray(response.output) ? response.output : [])
+    .flatMap((item) => (item && Array.isArray(item.content) ? item.content : []))
     .map((content) =>
-      content.type === 'output_text' && typeof content.text === 'string' ? content.text : ''
+      content && content.type === 'output_text' && typeof content.text === 'string'
+        ? content.text
+        : ''
     )
     .filter(Boolean)
     .join('\n')
@@ -622,9 +430,9 @@ const extractAnthropicOutputText = (payload: unknown): string => {
       text?: unknown;
     }>;
   };
-  const output = response.content
-    ?.map((content) =>
-      content.type === 'text' && typeof content.text === 'string' ? content.text : ''
+  const output = (Array.isArray(response.content) ? response.content : [])
+    .map((content) =>
+      content && content.type === 'text' && typeof content.text === 'string' ? content.text : ''
     )
     .filter(Boolean)
     .join('\n')
@@ -706,7 +514,8 @@ const createNetworkProvider = (config: NetworkProviderConfig): AIProvider => ({
     let payload: unknown;
     try {
       payload = await response.json();
-    } catch {
+    } catch (error) {
+      if (error instanceof ZaoWuError) throw error;
       throw new ZaoWuError({
         code: 'AI_PROVIDER_RESPONSE_INVALID',
         message: 'AI provider response is invalid.',
@@ -758,7 +567,12 @@ const OLLAMA_PROVIDER_DESCRIPTOR: Omit<AIProviderDescriptor, 'configured'> = {
 const extractOllamaOutputText = (payload: unknown): string => {
   const resObj = payload as { response?: unknown };
 
-  if (typeof resObj !== 'object' || resObj === null || typeof resObj.response !== 'string') {
+  if (
+    typeof resObj !== 'object' ||
+    resObj === null ||
+    typeof resObj.response !== 'string' ||
+    !resObj.response.trim()
+  ) {
     throw new ZaoWuError({
       code: 'AI_PROVIDER_RESPONSE_INVALID',
       message: 'AI provider response is invalid.',

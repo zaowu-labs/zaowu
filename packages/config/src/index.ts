@@ -318,46 +318,32 @@ export const modifyYamlContent = (
   key: ConfigKey,
   value: string | null
 ): string => {
-  const lines = content.split(/\r?\n/);
-  const parts = key.split('.');
+  const normalized = stripUtf8Bom(content);
+  const document = YAML.parseDocument(normalized);
+  const node = document.getIn(key.split('.'), true);
 
-  if (parts.length === 1) {
-    const searchKey = parts[0];
-    const index = lines.findIndex((l) => new RegExp(`^${searchKey}:\\s*`).test(l.trim()));
-    const formattedValue = formatYamlConfigValue(key, value);
-    if (index !== -1) {
-      lines[index] = `${searchKey}: ${formattedValue}`;
-      return lines.join('\n');
-    }
-  } else if (parts.length === 2) {
-    const section = parts[0];
-    const subKey = parts[1];
-
-    let inSection = false;
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      const trimmed = line.trim();
-      const indent = line.length - line.trimStart().length;
-
-      if (indent === 0 && trimmed.startsWith(`${section}:`)) {
-        inSection = true;
-        continue;
-      }
-
-      if (inSection && indent === 0 && trimmed && !trimmed.startsWith('#')) {
-        break;
-      }
-
-      if (inSection && indent > 0 && trimmed.startsWith(`${subKey}:`)) {
-        const formattedValue = formatYamlConfigValue(key, value);
-        const leadingIndent = ' '.repeat(indent);
-        lines[i] = `${leadingIndent}${subKey}: ${formattedValue}`;
-        return lines.join('\n');
-      }
-    }
+  // Replace only the scalar's source range. Line matching can hit nested keys
+  // or leave the continuation lines of a block scalar behind.
+  if (document.errors.length > 0 || !YAML.isScalar(node) || !node.range) {
+    return '';
   }
 
-  return '';
+  const [start, end] = node.range;
+  const originalValue = normalized.slice(start, end);
+  const trailingNewline = /\r?\n$/.exec(originalValue)?.[0] ?? '';
+  const bom = content.startsWith('\uFEFF') ? '\uFEFF' : '';
+  const prefix = normalized.slice(0, start);
+  const suffix = normalized.slice(end);
+
+  return (
+    bom +
+    prefix +
+    (prefix.endsWith(':') ? ' ' : '') +
+    formatYamlConfigValue(key, value) +
+    trailingNewline +
+    (suffix.startsWith('#') ? ' ' : '') +
+    suffix
+  );
 };
 
 export const findConfigFile = async (
@@ -409,7 +395,11 @@ const parseConfigObject = (content: string, filePath: string): Record<string, un
 
   if (extension === '.json' || path.basename(filePath) === '.zaowurc') {
     try {
-      return JSON.parse(normalizedContent) as Record<string, unknown>;
+      const parsed: unknown = JSON.parse(normalizedContent);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error('Config must be a JSON object.');
+      }
+      return parsed as Record<string, unknown>;
     } catch (error) {
       throw configParseError(
         error,
@@ -446,10 +436,16 @@ const parseConfigObject = (content: string, filePath: string): Record<string, un
   });
 };
 
-const assertNoSecretKeys = (value: unknown, pathParts: readonly string[] = []): void => {
-  if (!value || typeof value !== 'object') {
+const assertNoSecretKeys = (
+  value: unknown,
+  pathParts: readonly string[] = [],
+  visited = new WeakSet<object>()
+): void => {
+  if (!value || typeof value !== 'object' || visited.has(value)) {
     return;
   }
+
+  visited.add(value);
 
   for (const [key, child] of Object.entries(value)) {
     if (SECRET_KEY_PATTERN.test(key)) {
@@ -461,7 +457,7 @@ const assertNoSecretKeys = (value: unknown, pathParts: readonly string[] = []): 
       });
     }
 
-    assertNoSecretKeys(child, [...pathParts, key]);
+    assertNoSecretKeys(child, [...pathParts, key], visited);
   }
 };
 
@@ -659,7 +655,7 @@ const collectUnknownConfigKeys = (parsed: Record<string, unknown>): string[] => 
   const unknownKeys: string[] = [];
 
   for (const [key, value] of Object.entries(parsed)) {
-    if (!(key in KNOWN_CONFIG_KEYS)) {
+    if (!Object.hasOwn(KNOWN_CONFIG_KEYS, key)) {
       unknownKeys.push(key);
       continue;
     }

@@ -1,6 +1,6 @@
 {
   "name": "@zaowu-labs/doc",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "ZaoWu document workflows",
   "type": "module",
   "license": "Apache-2.0",
@@ -26,7 +26,7 @@
   },
   "dependencies": {
     "@zaowu-labs/core": "workspace:*",
-    "mammoth": "^1.12.0",
+    "mammoth": "1.12.0",
     "pdf-parse": "^2.4.5"
   },
   "keywords": [

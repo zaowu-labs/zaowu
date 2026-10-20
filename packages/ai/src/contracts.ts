@@ -23,6 +23,7 @@ export type AIFetcher = (
     headers: Record<string, string>;
     body: string;
     signal?: AbortSignal;
+    redirect?: 'error';
   }
 ) => Promise<AIFetchResponse>;
 

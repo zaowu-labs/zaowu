@@ -31,6 +31,9 @@ ZaoWu publishes public npm packages under `@zaowu-labs`. This policy defines the
 - Do not publish from a personal fork.
 - Do not publish from an uncommitted working tree.
 - Run `corepack pnpm verify` before any publish attempt.
+- Run `corepack pnpm audit:prod` before publishing. Its reviewed, time-limited
+  exceptions are documented in `docs/security/dependency-review.md`; all other
+  findings and expired exceptions block release.
 - Run package dry-run and packed CLI install smoke before publish.
 - Public npm publishing must use provenance from the release workflow once the
   workflow is intentionally designed.

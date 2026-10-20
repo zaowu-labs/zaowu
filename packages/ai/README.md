@@ -12,6 +12,10 @@ Safety:
 - Every HTTP-backed provider, including Ollama, previews by default.
 - Provider requests require explicit confirmation from the CLI path.
 - Operation plans disclose the resolved provider endpoint, including configured base URLs.
+- Requests reject HTTP redirects so prompts and credentials cannot be sent to
+  another endpoint without a new preview.
+- Each request attempt has a bounded timeout covering both response headers
+  and JSON body reads. Failed attempts and timed-out bodies are aborted.
 - Secrets must come from environment variables, not config files.
 - Provider HTTP failures are classified so authentication, timeout, rate-limit,
   bad-request, and provider-side problems get different fixes.

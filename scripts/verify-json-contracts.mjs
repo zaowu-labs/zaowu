@@ -706,6 +706,18 @@ const runner = (_command, args) => {
     return '## main\nM  packages/dev/src/index.ts';
   }
 
+  if (key === 'symbolic-ref --quiet --short HEAD') return 'main';
+  if (key === 'rev-parse --verify refs/remotes/origin/main') return 'commit_hash_123';
+  if (key === 'rev-list --count refs/remotes/origin/main..HEAD') return '2';
+  if (
+    [
+      'diff --cached --binary --no-ext-diff --no-textconv',
+      'diff HEAD --binary --no-ext-diff --no-textconv',
+      'ls-files --full-name --others --directory -z -- :/',
+      'ls-tree --full-tree -r --name-only -z refs/remotes/origin/main',
+    ].includes(key)
+  )
+    return '';
   if (key === 'rev-parse HEAD') {
     return 'commit_hash_123';
   }
@@ -714,7 +726,7 @@ const runner = (_command, args) => {
     return 'fetched';
   }
 
-  if (key === 'reset --hard origin/main') {
+  if (key === 'reset --hard refs/remotes/origin/main') {
     return 'reset';
   }
 
@@ -774,7 +786,7 @@ assert(
 );
 assert(devSync.status === 'ok', 'dev sync confirmed mode must succeed.');
 assert(
-  devSyncPreview.operationPlan?.executes?.includes('git reset --hard origin/main'),
+  devSyncPreview.operationPlan?.executes?.includes('git reset --hard refs/remotes/origin/main'),
   'dev sync preview must disclose the hard reset command.'
 );
 assert(
@@ -1084,8 +1096,8 @@ try {
     'CLI dev sync preview should require confirmation.'
   );
   assert(
-    cliDevSync.operationPlan?.executes?.includes('git reset --hard origin/master') ||
-      cliDevSync.operationPlan?.executes?.includes('git reset --hard origin/main'),
+    cliDevSync.operationPlan?.executes?.includes('git reset --hard refs/remotes/origin/master') ||
+      cliDevSync.operationPlan?.executes?.includes('git reset --hard refs/remotes/origin/main'),
     'CLI dev sync preview should disclose its hard reset target.'
   );
   assert(
@@ -1143,7 +1155,10 @@ try {
 runCliErrorJson(['auto', 'plan'], 'TARGET_REQUIRED');
 runCliErrorJson(['doc', 'convert', 'README.md', '--output'], 'OPTION_VALUE_REQUIRED');
 runCliErrorJson(['doc', 'convert', 'README.md', '--format', 'pdf'], 'OPTION_VALUE_INVALID');
-runCliErrorJson(['data', 'sample', 'examples/data/sales.csv', '--rows', 'abc'], 'OPTION_VALUE_INVALID');
+runCliErrorJson(
+  ['data', 'sample', 'examples/data/sales.csv', '--rows', 'abc'],
+  'OPTION_VALUE_INVALID'
+);
 runCliErrorJson(['teach', 'quiz', 'TypeScript', '--count', '25'], 'OPTION_VALUE_INVALID');
 runCliErrorJson(['unknown-command'], 'UNKNOWN_COMMAND');
 runCliErrorJson(['web', 'inspect', 'not-a-url'], 'WEB_URL_INVALID');

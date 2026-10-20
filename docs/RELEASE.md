@@ -8,6 +8,7 @@ Run:
 
 ```bash
 corepack pnpm verify
+corepack pnpm audit:prod
 ```
 
 The gate includes:
