@@ -10,7 +10,7 @@ This guide starts with the published CLI. Repository development instructions ar
 ## Install
 
 ```bash
-npm install -g @zaowu-labs/cli@1.0.4
+npm install -g @zaowu-labs/cli@1.0.5
 zw --version
 zw doctor
 ```
@@ -18,7 +18,7 @@ zw doctor
 To try the CLI without installing globally:
 
 ```bash
-npx --package @zaowu-labs/cli@1.0.4 zw --help
+npx --package @zaowu-labs/cli@1.0.5 zw --help
 ```
 
 ## Repository development

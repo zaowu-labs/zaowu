@@ -4,6 +4,17 @@
 
 No changes yet.
 
+## 1.0.5 - 2026-10-20
+
+- Prepared the next candidate after npm rejected the 1.0.4 upload with E404.
+  All 11 public 1.0.4 versions remain unpublished; the failed tag is unchanged.
+- Documented the exact npm Trusted Publisher fields and direct-publish permission
+  required by the protected release workflow. Logged-in inspection confirmed all
+  11 prior connections had expired; their approved replacements now use the same
+  repository, workflow, environment, and direct-publish scope.
+- Retained the reviewed CLI fixes, compiled-artifact release gates, and the
+  previously approved dependency exception without expanding its scope or expiry.
+
 ## 1.0.4 - 2026-10-20
 
 - Fixed the release job to build its own fresh checkout, pack all 11 public
