@@ -92,13 +92,21 @@ for (const requiredText of [
   'fetch-depth: 0',
   'corepack pnpm verify:release-candidate',
   'corepack pnpm verify',
-  'publish --access public --provenance --no-git-checks',
+  'npm publish "$RUNNER_TEMP/zaowu-npm/',
+  '--access public --provenance',
+  'node scripts/verify-publish-artifacts.mjs',
 ]) {
   assert(
     releaseWorkflow.includes(requiredText),
     `Release workflow must include protected publishing text: ${requiredText}.`
   );
 }
+
+const publishJob = releaseWorkflow.split('\n  publish:')[1] ?? '';
+assert(
+  publishJob.includes('corepack pnpm build'),
+  'Publish job must build its own clean checkout.'
+);
 
 const securityPolicy = await readText('SECURITY.md must exist.', 'SECURITY.md');
 assert(

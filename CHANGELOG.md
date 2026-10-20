@@ -4,6 +4,19 @@
 
 No changes yet.
 
+## 1.0.4 - 2026-10-20
+
+- Fixed the release job to build its own fresh checkout, pack all 11 public
+  packages with resolved workspace dependencies, and verify their compiled
+  entry points, declarations, executables, names, and versions before publishing.
+- Published verified tarball paths through npm directly, replacing the pnpm
+  publish invocation that failed with EUSAGE before uploading any 1.0.3 package.
+- Added six artifact regression cases and an artifact verification gate to both
+  the CI matrix and local release verification.
+- Carried forward all CLI safety fixes and the explicitly approved, expiring
+  dependency exception from the 1.0.3 candidate. The failed v1.0.3 tag is retained
+  without modification; no 1.0.3 packages were published to npm.
+
 ## 1.0.3 - 2026-10-20
 
 - Hardened Git sync against missing/different upstreams, rewritten origin history,

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 
-const FALLBACK_VERSION = '1.0.3';
+const FALLBACK_VERSION = '1.0.4';
 
 export const getCliVersion = (): string => {
   try {

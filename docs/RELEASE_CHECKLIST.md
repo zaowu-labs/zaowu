@@ -24,6 +24,8 @@ git diff --check
 
 Inspect package contents and the temporary packed CLI result produced by the
 full gate. Do not continue if any check fails.
+The publish-artifact gate must also validate every real tarball. A fresh publish
+checkout must run its own build before packing, then upload only verified archives.
 
 ## Pull Request And CI
 

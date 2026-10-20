@@ -80,6 +80,11 @@ The publishing workflow must preserve all of these rules:
 - The workflow runs `corepack pnpm verify`.
 - The workflow performs package dry-run and packed CLI install smoke before any
   publish step.
+- The publish job builds its own fresh checkout and validates the exact tarballs
+  before uploading them. Each tarball must include compiled entries, declarations,
+  expected CLI executables, the release version, and resolved internal dependencies.
+- Publish explicit verified tarball paths with npm; do not rely on implicit
+  current-directory publish behavior or another job's build output.
 - The workflow publishes only `@zaowu-labs/*` workspace packages and never publishes
   the private root package.
 - The workflow uses Trusted Publishing or another reviewed provenance mechanism
