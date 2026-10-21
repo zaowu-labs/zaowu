@@ -1,6 +1,11 @@
 import path from 'node:path';
 import { validateAIProviderConfig } from '@zaowu-labs/ai';
-import { findConfigFile, loadResolvedConfig, type ResolvedConfig } from '@zaowu-labs/config';
+import {
+  findConfigFile,
+  loadOptionalResolvedConfig,
+  loadResolvedConfig,
+  type ResolvedConfig,
+} from '@zaowu-labs/config';
 import { createOperationPlan, isZaoWuError, type OperationPlan } from '@zaowu-labs/core';
 import { ADDITIONAL_ROOT_SURFACES, COMMAND_CONTRACTS } from './command-contracts.js';
 import { runSystemCommand } from './system-command.js';
@@ -15,6 +20,7 @@ interface DoctorCheck {
   version?: string;
   details?: string;
   fix?: string;
+  required?: boolean;
 }
 
 export interface DoctorResult {
@@ -32,6 +38,19 @@ const PNPM_MISSING_FIX = 'Run `corepack enable` or install pnpm.';
 const PNPM_VERSION_FIX =
   `Use pnpm ${MINIMUM_PNPM_VERSION} through Corepack: ` +
   `corepack prepare pnpm@${MINIMUM_PNPM_VERSION} --activate.`;
+
+const diagnosticOptions = (command: string) => ({
+  timeout: 5_000,
+  ...(command === 'corepack' || command === 'pnpm'
+    ? {
+        env: {
+          COREPACK_ENABLE_NETWORK: '0',
+          COREPACK_ENABLE_DOWNLOAD_PROMPT: '0',
+          COREPACK_ENABLE_AUTO_PIN: '0',
+        },
+      }
+    : {}),
+});
 
 const satisfiesMinimumVersion = (version: string, minimum: string): boolean => {
   const parse = (value: string): number[] =>
@@ -83,7 +102,7 @@ const checkCommand = (
   details?: string
 ): DoctorCheck => {
   try {
-    const output = commandRunner(command, args);
+    const output = commandRunner(command, args, diagnosticOptions(command));
 
     return {
       name,
@@ -107,7 +126,7 @@ const checkPnpmCommand = (
   details?: string
 ): DoctorCheck => {
   try {
-    const output = commandRunner(command, args);
+    const output = commandRunner(command, args, diagnosticOptions(command));
     const version = extractVersion(output);
     const isSupported = satisfiesPnpmVersion(version);
 
@@ -199,10 +218,11 @@ const getConfigCheck = async (
   }
 };
 
-const checkAIProvider = (
+const checkAIProvider = async (
   resolvedConfig: ResolvedConfig | undefined,
-  checkedInvalidConfig: boolean
-): DoctorCheck => {
+  checkedInvalidConfig: boolean,
+  cwd: string
+): Promise<DoctorCheck> => {
   if (!resolvedConfig && checkedInvalidConfig) {
     return {
       name: 'AI provider',
@@ -213,7 +233,8 @@ const checkAIProvider = (
   }
 
   try {
-    const validation = validateAIProviderConfig(resolvedConfig?.config.ai.provider);
+    const effectiveConfig = resolvedConfig ?? (await loadOptionalResolvedConfig(cwd));
+    const validation = validateAIProviderConfig(effectiveConfig?.config.ai.provider);
     const provider = validation.provider;
     const location = provider.network ? 'network' : 'local';
     const configStatus = provider.configured ? 'configured' : 'missing config';
@@ -268,20 +289,31 @@ export const buildDoctorResult = async (
       commandRunner
     )
   );
-  checks.push(checkPnpm(commandRunner));
+  const pnpm = checkPnpm(commandRunner);
+  checks.push({
+    ...pnpm,
+    required: false,
+    details: [pnpm.details, 'optional for CLI use; required for repository development']
+      .filter(Boolean)
+      .join('; '),
+  });
 
   const config = await getConfigCheck(cwd);
   checks.push(config.check);
-  checks.push(checkAIProvider(config.resolvedConfig, config.checkedInvalidConfig ?? false));
+  checks.push(
+    await checkAIProvider(config.resolvedConfig, config.checkedInvalidConfig ?? false, cwd)
+  );
   checks.push(checkCommandMatrix());
 
   const nextSteps = checks
-    .filter((check) => check.status !== 'ok' && check.fix)
+    .filter((check) => check.required !== false && check.status !== 'ok' && check.fix)
     .map((check) => check.fix as string);
 
   return {
     schemaVersion: 1,
-    status: checks.some((check) => check.status !== 'ok') ? 'warning' : 'ok',
+    status: checks.some((check) => check.required !== false && check.status !== 'ok')
+      ? 'warning'
+      : 'ok',
     checks,
     nextSteps,
     operationPlan: createOperationPlan({
@@ -293,7 +325,10 @@ export const buildDoctorResult = async (
         'command contract registry',
       ],
       executes: ['git --version', 'pnpm --version', 'corepack pnpm --version'],
-      notes: ['Doctor runs fixed local diagnostics and does not write files.'],
+      notes: [
+        'Doctor runs fixed local diagnostics and does not write files.',
+        'Each diagnostic has a five-second timeout; Corepack network access, download prompts, and auto-pinning are disabled.',
+      ],
     }),
   };
 };

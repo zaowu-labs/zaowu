@@ -8,12 +8,8 @@ export const assertSupportedOptions = (
 ): void => {
   const [command, action] = commandArgs;
 
-  if (!command) {
-    return;
-  }
-
   const commandKey = action ? `${command}:${action}` : command;
-  const allowed = new Set(COMMAND_OPTIONS[commandKey] ?? COMMON_OPTIONS);
+  const allowed = new Set((commandKey && COMMAND_OPTIONS[commandKey]) || COMMON_OPTIONS);
   const unsupported = [...parsed.options].filter((option) => !allowed.has(option));
 
   if (unsupported.length === 0) {
@@ -21,7 +17,7 @@ export const assertSupportedOptions = (
   }
 
   const optionList = unsupported.join(', ');
-  const commandName = action ? `zw ${command} ${action}` : `zw ${command}`;
+  const commandName = action ? `zw ${command} ${action}` : command ? `zw ${command}` : 'zw';
 
   throw new ZaoWuError({
     code: 'OPTION_UNSUPPORTED',

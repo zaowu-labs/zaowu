@@ -1,7 +1,6 @@
-import { existsSync } from 'node:fs';
-import { writeFile } from 'node:fs/promises';
+import { lstat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { getDefaultConfigContent } from '@zaowu-labs/config';
+import { CONFIG_FILE_NAMES, getDefaultConfigContent } from '@zaowu-labs/config';
 import {
   assertOperationPlanFingerprint,
   createContentOperationSubjects,
@@ -14,6 +13,28 @@ import { createResult } from './output.js';
 import type { CliExecutionOptions, CliResult } from './types.js';
 
 export const DEFAULT_CONFIG_FILE_NAME = 'zw.yml';
+
+const assertNoLocalConfig = async (cwd: string): Promise<void> => {
+  for (const name of CONFIG_FILE_NAMES) {
+    try {
+      await lstat(path.join(cwd, name));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
+      throw new ZaoWuError({
+        code: 'CONFIG_WRITE_FAILED',
+        message: 'Could not inspect existing ZaoWu config.',
+        why: `The file system rejected checking ${name} in the current directory.`,
+        fix: 'Check directory permissions before running `zw init` again.',
+      });
+    }
+    throw new ZaoWuError({
+      code: 'CONFIG_ALREADY_EXISTS',
+      message: 'ZaoWu config already exists.',
+      why: `${name} already exists in the current directory; creating zw.yml could shadow it.`,
+      fix: 'Use the existing config and run `zw config validate` or `zw doctor` to check it.',
+    });
+  }
+};
 
 const formatInitPreview = (
   configPath: string,
@@ -48,22 +69,15 @@ export const handleInit = async (
   const yes = hasFlag(parsed, '--yes');
   const configPath = path.join(cwd, DEFAULT_CONFIG_FILE_NAME);
   const content = getDefaultConfigContent(configPath);
+  await assertNoLocalConfig(cwd);
   const operationPlan = createOperationPlan({
     risk: 'medium',
     confirmationRequired: !yes || dryRun,
     subjects: [`init:${configPath}`, ...createContentOperationSubjects(content)],
     writes: [configPath],
+    reads: CONFIG_FILE_NAMES.map((name) => path.join(cwd, name)),
     notes: ['Init creates a config file only when --yes is provided and --dry-run is absent.'],
   });
-
-  if (existsSync(configPath)) {
-    throw new ZaoWuError({
-      code: 'CONFIG_ALREADY_EXISTS',
-      message: 'ZaoWu config already exists.',
-      why: `${DEFAULT_CONFIG_FILE_NAME} already exists in the current directory.`,
-      fix: 'Open the existing config file or run `zw doctor` to check it.',
-    });
-  }
 
   if (dryRun || !yes) {
     const payload = {

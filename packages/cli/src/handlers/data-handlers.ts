@@ -92,13 +92,14 @@ export const handleDataClean: DomainActionHandler = async (args, context) => {
           'zw',
           'data',
           'clean',
-          target,
           ...(sheet ? ['--sheet', sheet] : []),
           '--output',
           preview.outputPath,
           '--yes',
           '--plan-fingerprint',
           operationPlan.fingerprint,
+          '--',
+          target,
         ])
       : undefined;
   const human = [

@@ -9,7 +9,7 @@ export const formatHelp = (): string => {
   const commands = formatRows([
     ['zw init', 'Preview or create a ZaoWu config file'],
     ['zw doctor', 'Check local environment health'],
-    ['zw help', 'Show this help'],
+    ['zw help [domain] [action]', 'Find command help without running a command'],
   ]);
   const domains = formatRows(
     DOMAIN_DEFINITIONS.map((domain) => [`zw ${domain.name}`, domain.summary])
@@ -26,12 +26,12 @@ ${commands}
 Domains:
 ${domains}
 
-Global options:
-  --help             Show help
-  --version          Show version
+Common options (support varies by command):
+  -h, --help         Show help
+  -V, --version      Show version
   --json             Output machine-readable JSON
   --dry-run          Preview without applying changes
-  --yes              Apply a safe confirmed action
+  --yes              Confirm an action supported by the command
   --plan-fingerprint <hash>
                      Require confirmed actions to match a previewed plan
 
@@ -41,6 +41,17 @@ Examples:
   zw init --dry-run
   zw init --yes
   zw dev --help
+  zw help data schema
+
+First steps:
+  1. Run zw init to preview a project config, then zw init --yes to create it.
+  2. Run zw doctor to inspect setup and zw ai providers to choose a provider.
+  3. Try zw doc summary <file> or zw data schema <file> for local results.
+
+Safety:
+  Sensitive commands preview by default or require confirmation.
+  Use --dry-run to keep a confirmed command in preview mode.
+  Echo is a local input demonstration; model inference needs a configured provider.
 
 Documentation:
   https://github.com/zaowu-labs/zaowu#quick-start

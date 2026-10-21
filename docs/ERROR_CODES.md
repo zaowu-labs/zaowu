@@ -22,18 +22,19 @@ registry.
 
 ## CLI
 
-| Code                      | Meaning                                           |
-| ------------------------- | ------------------------------------------------- |
-| `COMMAND_HANDLER_MISSING` | A known command has no registered handler.        |
-| `COMMAND_NOT_IMPLEMENTED` | A planned command is not runnable yet.            |
-| `OPERATION_PLAN_MISMATCH` | A confirmed operation did not match preview.      |
-| `OPTION_UNSUPPORTED`      | A command received an option it does not support. |
-| `OPTION_VALUE_INVALID`    | A value-bearing option received an invalid value. |
-| `OPTION_VALUE_REQUIRED`   | A value-bearing option was provided no value.     |
-| `TARGET_REQUIRED`         | A command target or second argument is absent.    |
-| `UNKNOWN_COMMAND`         | The root command is unknown.                      |
-| `UNKNOWN_DOMAIN_ACTION`   | The domain exists but the action is unknown.      |
-| `INTERNAL_ERROR`          | An unexpected internal failure occurred.          |
+| Code                      | Meaning                                                         |
+| ------------------------- | --------------------------------------------------------------- |
+| `COMMAND_HANDLER_MISSING` | A known command has no registered handler.                      |
+| `ARGUMENT_UNEXPECTED`     | A fixed-arity command received excess targets.                  |
+| `COMMAND_NOT_IMPLEMENTED` | A planned command is not runnable yet.                          |
+| `OPERATION_PLAN_MISMATCH` | A confirmed operation did not match preview.                    |
+| `OPTION_UNSUPPORTED`      | A command received an option it does not support.               |
+| `OPTION_VALUE_INVALID`    | An option value is invalid, or a boolean flag received a value. |
+| `OPTION_VALUE_REQUIRED`   | A value-bearing option was provided no value.                   |
+| `TARGET_REQUIRED`         | A command target or second argument is absent.                  |
+| `UNKNOWN_COMMAND`         | The root command is unknown.                                    |
+| `UNKNOWN_DOMAIN_ACTION`   | The domain exists but the action is unknown.                    |
+| `INTERNAL_ERROR`          | An unexpected internal failure occurred.                        |
 
 ## Config
 
