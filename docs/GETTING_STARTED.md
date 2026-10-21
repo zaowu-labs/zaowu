@@ -21,6 +21,30 @@ To try the CLI without installing globally:
 npx --package @zaowu-labs/cli@1.0.5 zw --help
 ```
 
+### npm 12: `EALLOWREMOTE`
+
+npm 12 disables remote URL dependencies by default. ZaoWu's XLSX support uses
+SheetJS 0.20.3, pinned to its official distribution:
+<https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz>.
+
+If installation reports `EALLOWREMOTE`, allow URL dependencies for that command:
+
+```bash
+npm install -g --allow-remote=all @zaowu-labs/cli@1.0.5
+zw --version
+zw doctor --json
+```
+
+For a single invocation:
+
+```bash
+npx --allow-remote=all --package @zaowu-labs/cli@1.0.5 zw --help
+```
+
+`--allow-remote=all` permits URL dependencies for that command, without changing
+global npm configuration. Review the pinned URL before opting in. See npm's
+[`allow-remote` policy](https://docs.npmjs.com/cli/using-npm/config/#allow-remote).
+
 ## Repository development
 
 Contributors also need pnpm `>=10.34.1 <11`. Use Corepack so the workspace follows the pinned version:
