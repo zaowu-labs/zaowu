@@ -54,8 +54,14 @@ checkout must run its own build before packing, then upload only verified archiv
 - Verify each expected package and version on npm.
 - Inspect npm provenance for every published package.
 - Install the released CLI in a clean temporary directory.
+- Run `npm audit signatures` in the clean installed project and confirm no
+  invalid or missing signatures. Check that each public package's verified SLSA
+  statement binds its registry integrity, release commit, and workflow run.
 - Run `zw --version`, `zw --help`, `zw doctor --json`, and representative
   preview-first commands.
+- Test the documented global install and `npx` commands with npm 12 in a temporary
+  prefix and cache. Its URL-dependency policy requires the documented command-level
+  opt-in for the pinned official SheetJS tarball. Include an XLSX read smoke check.
 - Create GitHub release notes containing package names, version, tag, commit
   SHA, CI run URL, user-visible changes, and known limitations.
 - Confirm documentation examples reference the released version and current

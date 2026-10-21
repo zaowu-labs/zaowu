@@ -54,6 +54,17 @@ zw doctor
 
 Use `npx --package @zaowu-labs/cli@1.0.5 zw --help` when you want to try ZaoWu without a global install.
 
+With npm 12, the install can fail with `EALLOWREMOTE` because XLSX support uses
+SheetJS 0.20.3 from its official CDN. Allow URL dependencies for this command:
+
+```bash
+npm install -g --allow-remote=all @zaowu-labs/cli@1.0.5
+npx --allow-remote=all --package @zaowu-labs/cli@1.0.5 zw --help
+```
+
+This flag applies to the command only. See the [installation guide](docs/GETTING_STARTED.md#install)
+for the pinned dependency URL and npm policy reference.
+
 ### 3. Basic CLI Executions
 
 Everything starts with `zw`. Try these diagnostics to verify your local environment:
