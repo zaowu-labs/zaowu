@@ -65,7 +65,11 @@ zw init [options]
 
 ## 6. Input Rules
 
-Reads the current directory and checks whether `zw.yml` already exists.
+Checks every supported config name in the current directory: `zw.yml`,
+`zw.yaml`, `zaowu.config.json`, and `.zaowurc`. Any existing entry, including
+a directory or dangling symlink, prevents creation of a shadowing `zw.yml`.
+The operation plan discloses these reads. A parent project's config does not
+prevent a child project from initializing its own configuration.
 
 If the config already exists, ZaoWu must not overwrite it.
 
@@ -92,10 +96,10 @@ This command does not use AI.
 
 ## 10. Error Cases
 
-| Error                 | Why it happens             | User-facing fix                        |
-| --------------------- | -------------------------- | -------------------------------------- |
-| Config already exists | `zw.yml` already exists    | Open the existing config or run doctor |
-| Write failed          | File system denied writing | Check permissions and retry            |
+| Error                 | Why it happens                         | User-facing fix                            |
+| --------------------- | -------------------------------------- | ------------------------------------------ |
+| Config already exists | A supported config name already exists | Validate the existing config or run doctor |
+| Write failed          | File system denied writing             | Check permissions and retry                |
 
 ## 11. Help Text
 

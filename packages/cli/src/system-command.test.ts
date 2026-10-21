@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { toWindowsCommand } from './system-command';
+import { runSystemCommand, toWindowsCommand } from './system-command';
 
 describe('toWindowsCommand', () => {
+  it('passes scoped environment overrides to a diagnostic subprocess', () => {
+    expect(
+      runSystemCommand(process.execPath, ['-p', 'process.env.ZAOWU_DIAGNOSTIC_TEST'], {
+        env: { ZAOWU_DIAGNOSTIC_TEST: 'diagnostic-only' },
+        timeout: 5000,
+      })
+    ).toBe('diagnostic-only');
+    expect(process.env.ZAOWU_DIAGNOSTIC_TEST).toBeUndefined();
+  });
   it('joins safe command parts into a single cmd.exe command string', () => {
     expect(toWindowsCommand('git', ['status', '--short', '--branch'])).toBe(
       'git status --short --branch'

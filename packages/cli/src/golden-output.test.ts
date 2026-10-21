@@ -37,7 +37,7 @@ describe('golden command output contracts', () => {
         expect.stringMatching(/^- content-sha256:[a-f0-9]{64}$/),
         expect.stringMatching(/^- content-length:\d+$/),
         'Read:',
-        '- none',
+        `- <root>${path.sep}zw.yml`,
       ]);
       expect(lines).toContain('Write:');
       expect(lines).toContain(`- <root>${path.sep}zw.yml`);
@@ -83,7 +83,7 @@ describe('golden command output contracts', () => {
         'Checks:',
         '- Node.js: ok v20.19.0',
         '- Git: ok 2.44.0',
-        '- pnpm: ok 10.34.1',
+        '- pnpm: ok 10.34.1 optional for CLI use; required for repository development',
         '- Config: missing',
         '- AI provider: ok echo (local, configured)',
         `- Command matrix: ok ${COMMAND_CONTRACTS.length + 3} command surface(s) tracked`,
@@ -128,7 +128,7 @@ describe('golden command output contracts', () => {
     expect(lines).toContain('To send exactly this AI request, run:');
     expect(lines).toContainEqual(
       expect.stringMatching(
-        /^zw ai ask Explain ZaoWu --provider openai --yes --plan-fingerprint [a-f0-9]{64}$/
+        /^zw ai ask --provider openai --yes --plan-fingerprint [a-f0-9]{64} -- Explain ZaoWu$/
       )
     );
   });

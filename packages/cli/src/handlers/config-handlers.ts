@@ -11,6 +11,7 @@ import {
   createContentOperationSubjects,
   createOperationPlan,
   formatLabeledList,
+  formatConfirmCommand,
   formatOperationPlan,
   hasFlag,
   requireSecondTarget,
@@ -120,6 +121,24 @@ export const handleConfigSet: DomainActionHandler = async (args, context) => {
     formatOperationPlan(operationPlan),
     '',
     updated.wroteFile ? 'Config updated.' : updated.content,
+    ...(!updated.wroteFile
+      ? [
+          '',
+          'To apply exactly this change, run:',
+          `  ${formatConfirmCommand([
+            'zw',
+            'config',
+            'set',
+            ...(isGlobal ? ['--global'] : []),
+            '--yes',
+            '--plan-fingerprint',
+            operationPlan.fingerprint,
+            '--',
+            key,
+            value,
+          ])}`,
+        ]
+      : []),
   ].join('\n');
 
   return result(context, withOperationPlan(updated, operationPlan), human);
@@ -158,6 +177,13 @@ export const handleConfigMigrate: DomainActionHandler = async (_args, context) =
     formatOperationPlan(operationPlan),
     '',
     migrated.wroteFile || !migrated.changed ? 'Migration complete.' : migrated.content,
+    ...(migrated.changed && !migrated.wroteFile
+      ? [
+          '',
+          'To apply exactly this migration, run:',
+          `  ${formatConfirmCommand(['zw', 'config', 'migrate', '--yes', '--plan-fingerprint', operationPlan.fingerprint])}`,
+        ]
+      : []),
   ].join('\n');
 
   return result(context, withOperationPlan(migrated, operationPlan), human);

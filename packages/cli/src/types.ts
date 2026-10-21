@@ -6,6 +6,8 @@ export interface CliResult {
 
 export interface CommandRunnerOptions {
   cwd?: string;
+  env?: NodeJS.ProcessEnv;
+  timeout?: number;
 }
 
 export type CommandRunner = (

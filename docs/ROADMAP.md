@@ -3,6 +3,9 @@
 This roadmap keeps ZaoWu focused while the foundation is still young. It is not a
 release promise. It is the preferred order of work.
 
+See [Maintenance Priorities](MAINTENANCE.md) for the current baseline,
+near-term order, and the evidence required to complete each improvement.
+
 ## Phase 1: Foundation
 
 Goal: make the repository dependable before adding many tools.
@@ -18,7 +21,7 @@ Scope:
 - stable error-code registry
 - `zw init`
 - `zw doctor`
-- CI on Ubuntu and Windows
+- CI on Ubuntu, Windows, and macOS
 - architecture and contribution rules
 - top-level domain package scaffolds
 - domain help and planned-command guardrails

@@ -45,6 +45,22 @@ zw --version
 
 Do not add root commands for feature modules. Use a domain and action instead.
 
+### Help and input recovery
+
+`zw help <domain> [action]` is equivalent to the matching `--help` query and
+must never execute the command. `-h` and `-V` alias help and version before a
+literal `--` separator.
+
+Boolean flags take no assigned value: reject `--yes=false`, `--yes=true`, and
+`--dry-run=1` with `OPTION_VALUE_INVALID`. A valid `--dry-run` overrides `--yes`.
+Reject excess positional arguments with `ARGUMENT_UNEXPECTED`; free-text AI
+prompts and teaching material remain variadic. Perform validation before side
+effects and retain domain-specific errors for missing required inputs.
+
+Sensitive previews should provide a copyable command with the plan fingerprint.
+Quote literal arguments for POSIX shells on macOS/Linux and PowerShell on Windows.
+Place option-like prompt text after `--` in generated commands.
+
 ---
 
 ## Top-Level Domains

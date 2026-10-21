@@ -11,7 +11,7 @@ import {
   validateAIProviderConfig,
   type AIProviderDescriptor,
 } from '@zaowu-labs/ai';
-import { loadResolvedConfig } from '@zaowu-labs/config';
+import { loadOptionalResolvedConfig } from '@zaowu-labs/config';
 import {
   assertOperationPlanFingerprint as assertOperationPlanFingerprintFromCore,
   createContentOperationSubjects,
@@ -72,12 +72,8 @@ export const resolveAiProvider = async (
   let providerId = getValue(context.parsed, '--provider');
 
   if (!providerId) {
-    try {
-      const config = await loadResolvedConfig(context.cwd);
-      providerId = config.config.ai.provider ?? undefined;
-    } catch {
-      // ignore — fall back to the default provider
-    }
+    const config = await loadOptionalResolvedConfig(context.cwd);
+    providerId = config?.config.ai.provider ?? undefined;
   }
 
   const requestedModel = getValue(context.parsed, '--model');
@@ -162,10 +158,13 @@ export const formatLabeledList = (label: string, items: readonly string[] | unde
     : `${label}: none`;
 
 const quoteCliValue = (value: string): string =>
-  /^[A-Za-z0-9._@:/\\=-]+$/.test(value) ? value : `'${value.replaceAll("'", "''")}'`;
+  value.length > 0 &&
+  (process.platform === 'win32' ? /^[A-Za-z0-9._@:/\\=-]+$/ : /^[A-Za-z0-9._@:/=-]+$/).test(value)
+    ? value
+    : `'${value.replaceAll("'", process.platform === 'win32' ? "''" : "'\\''")}'`;
 
 export const formatConfirmCommand = (parts: readonly string[]): string =>
-  parts.map((part) => (part.startsWith('--') ? part : quoteCliValue(part))).join(' ');
+  parts.map(quoteCliValue).join(' ');
 
 export const formatCounts = (items: Record<string, number>): string => {
   const lines = Object.entries(items)

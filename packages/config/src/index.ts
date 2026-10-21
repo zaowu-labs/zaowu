@@ -275,13 +275,8 @@ export const getGlobalConfigPath = (): string => {
 export const loadGlobalConfig = async (): Promise<ZaoWuConfig | null> => {
   const globalPath = getGlobalConfigPath();
   if (await isReadableFile(globalPath)) {
-    try {
-      const content = await readFile(globalPath, 'utf8');
-      return parseConfig(content, globalPath);
-    } catch {
-      // Global config is optional — silently ignore parse errors and fall back to defaults.
-      return null;
-    }
+    const loaded = await loadConfig(globalPath);
+    return parseConfig(loaded.content, globalPath);
   }
   return null;
 };
@@ -729,6 +724,13 @@ export const loadResolvedConfig = async (cwd?: string): Promise<ResolvedConfig> 
     filePath,
     config: mergedConfig,
   };
+};
+
+/** Optional preferences for commands that also work outside a configured project. */
+export const loadOptionalResolvedConfig = async (cwd?: string): Promise<ResolvedConfig | null> => {
+  if (await findConfigFile({ cwd })) return await loadResolvedConfig(cwd);
+  const global = await loadGlobalConfig();
+  return global ? { schemaVersion: 1, filePath: getGlobalConfigPath(), config: global } : null;
 };
 
 const getRawConfigVersion = (content: string, filePath: string): number | null =>

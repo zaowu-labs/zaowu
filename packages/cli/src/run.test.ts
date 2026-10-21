@@ -2117,7 +2117,7 @@ describe('executeCli', () => {
         `- Command matrix: ok ${COMMAND_CONTRACTS.length + 3} command surface(s) tracked`
       );
       expect(result.stdout).toContain('Install Node.js 20.19.0 or newer.');
-      expect(result.stdout).toContain('Run `corepack enable` or install pnpm.');
+      expect(result.stdout).toContain('optional for CLI use; required for repository development');
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -2154,14 +2154,15 @@ describe('executeCli', () => {
         name: 'pnpm',
         status: 'ok',
         version: '10.34.1',
-        details: 'via corepack',
+        details: 'via corepack; optional for CLI use; required for repository development',
+        required: false,
       });
     } finally {
       await rm(root, { recursive: true, force: true });
     }
   });
 
-  it('warns when pnpm is outside the supported range', async () => {
+  it('reports optional pnpm version issues without blocking CLI readiness', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
 
     try {
@@ -2186,14 +2187,16 @@ describe('executeCli', () => {
       const payload = JSON.parse(result.stdout);
       const pnpmCheck = payload.checks.find((check: { name: string }) => check.name === 'pnpm');
 
-      expect(payload.status).toBe('warning');
+      expect(payload.status).toBe('ok');
       expect(pnpmCheck).toEqual({
         name: 'pnpm',
         status: 'warning',
         version: '11.5.1',
+        required: false,
+        details: 'optional for CLI use; required for repository development',
         fix: 'Use pnpm 10.34.1 through Corepack: corepack prepare pnpm@10.34.1 --activate.',
       });
-      expect(payload.nextSteps).toContain(
+      expect(payload.nextSteps).not.toContain(
         'Use pnpm 10.34.1 through Corepack: corepack prepare pnpm@10.34.1 --activate.'
       );
     } finally {
@@ -2215,28 +2218,28 @@ describe('executeCli', () => {
     }
   });
 
-  it('previews init when --dry-run carries an = value alongside --yes', async () => {
+  it('rejects assigned dry-run values alongside --yes without writing', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
 
     try {
       const result = await executeCli(['init', '--yes', '--dry-run=1'], { cwd: root });
 
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('No files were written.');
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain('Boolean flags do not accept a value.');
       await expect(readFile(path.join(root, DEFAULT_CONFIG_FILE_NAME), 'utf8')).rejects.toThrow();
     } finally {
       await rm(root, { recursive: true, force: true });
     }
   });
 
-  it('previews init when --yes appears after the end-of-options separator', async () => {
+  it('rejects a literal extra init target without treating it as confirmation', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
 
     try {
       const result = await executeCli(['init', '--', '--yes'], { cwd: root });
 
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('No files were written.');
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain('Unexpected positional argument.');
       await expect(readFile(path.join(root, DEFAULT_CONFIG_FILE_NAME), 'utf8')).rejects.toThrow();
     } finally {
       await rm(root, { recursive: true, force: true });

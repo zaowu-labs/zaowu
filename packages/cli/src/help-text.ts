@@ -10,7 +10,7 @@ Description:
 
 Options:
   --file <path>      Include a readable text file as input
-  --provider <id>    Provider id, defaults to echo
+  --provider <id>    Override project/global preferences; defaults to Echo demo
   --model <name>     Provider model hint
   --dry-run          Force preview mode
   --yes              Confirm a network provider request
@@ -56,7 +56,8 @@ Usage:
   zw auto run <workflow.json|workflow.yml|workflow.yaml> [--yes] [options]
 
 Description:
-  Preview a workflow by default. Confirmed runs execute supported message steps only.
+  Preview a workflow by default. Confirmed runs support messages and bounded file creation.
+  Shell steps remain blocked.
 
 Options:
   --dry-run          Force preview mode

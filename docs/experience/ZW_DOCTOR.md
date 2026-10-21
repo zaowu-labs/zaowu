@@ -12,6 +12,16 @@ Developers, technical creators, small teams, and learners setting up ZaoWu.
 
 Identify missing local prerequisites and give actionable next steps.
 
+pnpm is repository development tooling, not a prerequisite for using the
+published CLI. Its check retains the actual `ok`, `warning`, or `missing` status
+and fix, with additive `required: false` metadata. Optional checks do not change
+overall readiness or add mandatory next steps. Human output labels the distinction.
+Provider diagnostics honor project/global preferences, including outside a
+configured project, without sending model requests.
+Each diagnostic subprocess has a five-second timeout. Corepack runs with network
+access, download prompts, and project auto-pinning disabled so checking optional
+tooling cannot initiate an installation or edit package metadata.
+
 ## 4. Golden Path
 
 ```bash

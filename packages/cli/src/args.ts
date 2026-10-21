@@ -1,4 +1,4 @@
-import { VALUE_OPTIONS } from './option-registry.js';
+import { BOOLEAN_OPTIONS, VALUE_OPTIONS } from './option-registry.js';
 
 export interface ParsedArgs {
   positionals: string[];
@@ -6,6 +6,7 @@ export interface ParsedArgs {
   values: ReadonlyMap<string, string>;
   missingValues: readonly string[];
   options: ReadonlySet<string>;
+  assignedBooleans: readonly string[];
 }
 
 const FLAGS_WITH_VALUES: ReadonlySet<string> = new Set(VALUE_OPTIONS);
@@ -16,11 +17,13 @@ export const parseArgs = (args: readonly string[]): ParsedArgs => {
   const values = new Map<string, string>();
   const missingValues: string[] = [];
   const options = new Set<string>();
+  const assignedBooleans: string[] = [];
 
   let optionsEnded = false;
 
   for (let index = 0; index < args.length; index += 1) {
-    const arg = args[index];
+    const raw = args[index];
+    const arg = optionsEnded ? raw : raw === '-h' ? '--help' : raw === '-V' ? '--version' : raw;
 
     // Standard end-of-options separator: everything after a bare `--` is a
     // positional, so targets that begin with dashes stay expressible.
@@ -50,13 +53,19 @@ export const parseArgs = (args: readonly string[]): ParsedArgs => {
       }
 
       flags.add(key);
+      if ((BOOLEAN_OPTIONS as readonly string[]).includes(key)) assignedBooleans.push(key);
       continue;
     }
 
     options.add(arg);
 
     if (FLAGS_WITH_VALUES.has(arg)) {
-      if (args[index + 1] && !args[index + 1].startsWith('--')) {
+      if (
+        args[index + 1] &&
+        !args[index + 1].startsWith('--') &&
+        args[index + 1] !== '-h' &&
+        args[index + 1] !== '-V'
+      ) {
         values.set(arg, args[index + 1]);
         index += 1;
       } else {
@@ -74,6 +83,7 @@ export const parseArgs = (args: readonly string[]): ParsedArgs => {
     values,
     missingValues,
     options,
+    assignedBooleans,
   };
 };
 

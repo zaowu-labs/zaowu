@@ -2,6 +2,7 @@ import { findDomainCommand, isZaoWuError, ZaoWuError } from '@zaowu-labs/core';
 import { getValue, hasFlag, parseArgs } from './args.js';
 import { getDomainActionHandler } from './domain-handlers.js';
 import { DOMAIN_DEFINITIONS, findDomain } from './domains.js';
+import { assertBooleanFlags, assertTargetCount } from './input-validation.js';
 import {
   assertNoMissingOptionValues,
   assertSupportedOptions,
@@ -78,15 +79,17 @@ export const executeCli = async (
 ): Promise<CliResult> => {
   const parsed = parseArgs(args);
   const json = hasFlag(parsed, '--json');
-  const wantsHelp = hasFlag(parsed, '--help');
+  const helpQuery = parsed.positionals[0] === 'help';
+  const wantsHelp = hasFlag(parsed, '--help') || helpQuery;
   const wantsVersion = hasFlag(parsed, '--version');
-  const commandArgs = parsed.positionals;
+  const commandArgs = helpQuery ? parsed.positionals.slice(1) : parsed.positionals;
   const command = commandArgs[0];
   const domain = command ? findDomain(command) : undefined;
   const cwd = options.cwd ?? process.cwd();
   const commandRunner = options.commandRunner ?? runSystemCommand;
 
   try {
+    assertBooleanFlags(parsed);
     if (wantsVersion || command === 'version') {
       return createResult(
         0,
@@ -96,7 +99,9 @@ export const executeCli = async (
       );
     }
 
-    if (!command || command === 'help') {
+    if (!command) {
+      assertNoMissingOptionValues(parsed.missingValues);
+      assertSupportedOptions(parsed, []);
       return createHelpResult(formatHelp(), json);
     }
 
@@ -144,6 +149,7 @@ export const executeCli = async (
     }
 
     assertNoMissingOptionValues(parsed.missingValues);
+    assertTargetCount(commandArgs);
     assertSupportedOptions(parsed, commandArgs);
     assertValidOptionValues(parsed, commandArgs);
 

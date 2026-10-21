@@ -29,6 +29,8 @@ export const runSystemCommand: CommandRunner = (command, args, options) => {
 
   return execFileSync(executable, commandArgs, {
     cwd: options?.cwd,
+    env: options?.env ? { ...process.env, ...options.env } : undefined,
+    timeout: options?.timeout,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
   }).trim();

@@ -72,7 +72,6 @@ export const handleAiAsk: DomainActionHandler = async (args, context) => {
       'zw',
       'ai',
       'ask',
-      ...args,
       ...(filePath ? ['--file', filePath] : []),
       '--provider',
       ai.providerId,
@@ -80,6 +79,8 @@ export const handleAiAsk: DomainActionHandler = async (args, context) => {
       '--yes',
       '--plan-fingerprint',
       operationPlan.fingerprint,
+      '--',
+      ...args,
     ]);
     const human = [
       'ZaoWu AI Ask',

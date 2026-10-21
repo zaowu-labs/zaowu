@@ -53,6 +53,9 @@ Options with constrained values, such as `--format`, `--rows`, and `--count`,
 return `OPTION_VALUE_INVALID` when the value cannot be accepted safely.
 Options that are not supported by the selected command return
 `OPTION_UNSUPPORTED` instead of being silently ignored.
+Boolean flags with an assigned value return `OPTION_VALUE_INVALID`, including
+`--yes=false`. Extra positional targets return `ARGUMENT_UNEXPECTED` before
+execution; variadic prompts and teaching text remain supported.
 
 ### Root Help And Version JSON
 
@@ -65,6 +68,9 @@ Schema files:
 
 Help JSON keeps a stable envelope around the rendered help text. Version JSON
 returns the CLI version without changing the human `zw --version` output.
+`zw help <domain> [action]` returns the same envelope, domain/action metadata,
+and help text as the corresponding `--help` query. `-h` and `-V` are aliases;
+literal text following `--` is not interpreted as an alias.
 
 ### `zw init --json`
 
@@ -113,6 +119,12 @@ Stable fields:
 discovery. The pnpm check may be satisfied by either `pnpm --version` or
 `corepack pnpm --version`; the command-level `operationPlan` discloses both
 diagnostic commands because `doctor` is read-only but still runs shell checks.
+The pnpm check includes additive `required: false` metadata: its actual status
+and fix remain available, but optional repository tools do not cause an overall
+warning or appear in mandatory `nextSteps`. Provider checks use the same optional
+project/global preferences as AI commands.
+The operation plan also discloses the five-second diagnostic timeout and disabled
+Corepack network access, prompts, and project auto-pinning.
 
 ### `zw config validate --json`
 

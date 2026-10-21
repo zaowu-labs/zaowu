@@ -2,180 +2,178 @@
 
 # 🛠️ ZaoWu / 造物
 
-**One Unified AI-Powered Toolkit for Developers, Automation, Documents, Data, Teaching, and Workflows.**
+**面向开发者和技术创作者的本地优先 AI 工作工具箱。**
 
-[![Version](https://img.shields.io/badge/version-1.0.5-blue.svg?style=for-the-badge)](package.json)
-[![License](https://img.shields.io/badge/license-Apache--2.0-green.svg?style=for-the-badge)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Node.js%2020.19%2B-orange.svg?style=for-the-badge)](package.json)
+One CLI for development, documents, data, teaching, and controlled automation.
 
----
+[![Version](https://img.shields.io/badge/version-1.0.6-blue.svg)](package.json)
+[![CI](https://github.com/zaowu-labs/zaowu/actions/workflows/ci.yml/badge.svg)](https://github.com/zaowu-labs/zaowu/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)](LICENSE)
+[![Node.js](https://img.shields.io/badge/Node.js-20.19%2B-orange.svg)](package.json)
 
 </div>
 
-## 🌟 Introduction
+ZaoWu brings repeated technical work under one entry point: `zw`. Review Git
+changes, extract document content, inspect tables, draft teaching material, and
+preview automation with consistent commands, configuration, errors, and JSON
+output. Choose a model provider when a task needs AI.
 
-**ZaoWu / 造物** is a modern, extensible CLI and development suite designed to streamline day-to-day coding, document conversion, data analysis, course design, and workflow automation. It aims to unify diverse developer scripts and utility programs into a cohesive, secure, and predictable ecosystem under a single command entry point: `zw`.
+Sensitive operations preview by default or require explicit confirmation. The
+operation plan shows the files, network targets, and actions involved before you
+confirm. Local document and data commands work without a model account.
 
----
+## Quick Start
 
-## 🛠️ Core Capabilities Matrix
-
-ZaoWu is structured as a monorepo containing specialized domain modules. Here is an overview of what ZaoWu can do out-of-the-box:
-
-| Domain       | Action                                  | Description                                                          | Safety Level                          |
-| :----------- | :-------------------------------------- | :------------------------------------------------------------------- | :------------------------------------ |
-| **`ai`**     | `providers` / `ask`                     | Use echo, Ollama, OpenAI, or Anthropic behind one provider boundary  | Network preview first                 |
-| **`dev`**    | `status` / `review` / `commit` / `sync` | Review changes, suggest commits, and explicitly synchronize branches | Risky sync needs two acknowledgements |
-| **`doc`**    | `convert` / `outline` / `search`        | Parse PDF/DOCX into clean Markdown structure; retrieve doc outlines  | Safe (No write without `--yes`)       |
-| **`data`**   | `schema` / `sample` / `clean`           | Analyze CSV, TSV, JSON, and XLSX structures                          | Writes preview first                  |
-| **`auto`**   | `validate` / `plan` / `run`             | Run messages and bounded structured file writes                      | Shell remains blocked                 |
-| **`teach`**  | `plan` / `quiz`                         | Create learning outline tracks and format Canvas quiz exports        | Safe (Read-only)                      |
-| **`plugin`** | `validate` / `install`                  | Validate and manage local extension manifests                        | Metadata only                         |
-| **`config`** | `get` / `set` / `validate`              | Manage system-wide options, timeouts, and active LLM models          | Safe (Config directory)               |
-
----
-
-## 🚀 Quick Start
-
-### 1. Prerequisites
-
-- **Node.js**: `v20.19.0` or newer
-- **npm**: included with Node.js
-
-### 2. Installation
-
-Install the public CLI:
+Requires **Node.js 20.19+**. Git is needed for developer commands. pnpm is only
+needed for repository development.
 
 ```bash
-npm install -g @zaowu-labs/cli@1.0.5
+npm install -g @zaowu-labs/cli@1.0.6
 zw --version
-zw doctor
-```
-
-Use `npx --package @zaowu-labs/cli@1.0.5 zw --help` when you want to try ZaoWu without a global install.
-
-With npm 12, the install can fail with `EALLOWREMOTE` because XLSX support uses
-SheetJS 0.20.3 from its official CDN. Allow URL dependencies for this command:
-
-```bash
-npm install -g --allow-remote=all @zaowu-labs/cli@1.0.5
-npx --allow-remote=all --package @zaowu-labs/cli@1.0.5 zw --help
-```
-
-This flag applies to the command only. See the [installation guide](docs/GETTING_STARTED.md#install)
-for the pinned dependency URL and npm policy reference.
-
-### 3. Basic CLI Executions
-
-Everything starts with `zw`. Try these diagnostics to verify your local environment:
-
-```bash
-# Run environment diagnostics and check config
-zw doctor
-
-# Get command-line help
 zw --help
 ```
 
----
-
-## 💻 Feature Showcases
-
-### 🤖 Local AI & Code Review
-
-ZaoWu features a provider boundary with explicit network confirmation. Start a
-local Ollama daemon and run:
+**npm 12:** XLSX support uses the pinned official
+[SheetJS 0.20.3 tarball](https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz).
+If npm reports `EALLOWREMOTE`, allow URL dependencies for this installation:
 
 ```bash
-# Set your active provider to Ollama
-zw config set ai.provider ollama --yes
-
-# Perform an AI-assisted code review of your current branch diffs
-zw dev review --ai --provider echo
-zw dev review --ai --provider ollama --yes
+npm install -g --allow-remote=all @zaowu-labs/cli@1.0.6
 ```
 
-### 📄 Document Conversion (DOCX to Markdown)
+The flag applies to that command only. See the
+[installation guide](docs/GETTING_STARTED.md#install) for details.
 
-Extract semantic Markdown documents from DOCX without bloated office dependencies:
+To try help without a global install:
 
 ```bash
-# Convert a document and print the structure
-zw doc convert report.docx --format markdown
+npx --package @zaowu-labs/cli@1.0.6 zw --help
+# With npm 12:
+npx --allow-remote=all --package @zaowu-labs/cli@1.0.6 zw --help
 ```
 
-### 📝 Canvas LMS Quiz Export
+### Set up a project
 
-Generate mock questions from raw study material and export directly to a Canvas-compliant CSV quiz template:
+Run these from your project directory:
 
 ```bash
-zw teach quiz "Variables store values. Functions group behavior." --format canvas-csv
+zw init
+zw init --yes
+zw doctor
 ```
 
-### ⚙️ Safe Workflow Automation
+`zw init` previews the file. `--yes` creates it. An existing `zw.yml`, `zw.yaml`,
+`zaowu.config.json`, or `.zaowurc` is preserved. `doctor` reports setup issues
+and recovery steps; an absent pnpm installation is optional for CLI users.
 
-Run localized workflows defined in simple YAML configs. Message steps and
-bounded `writeFile` steps can run after confirmation; shell steps remain
-visible but blocked:
+### Get a useful local result
+
+In an empty demo directory, create two small inputs. Existing files with these
+names are preserved by exclusive creation:
 
 ```bash
-# Preview the execution plan of a workflow
-zw auto plan examples/workflows/blocked-shell.yml
-
-# Preview the exact file target of a structured write workflow
-zw auto plan examples/workflows/write-file.yml
+node -e "require('node:fs').writeFileSync('zaowu-demo.md', '# Project notes\n\n## Tasks\nReview the release.\n', {flag:'wx'})"
+node -e "require('node:fs').writeFileSync('zaowu-demo.csv', 'name,amount\nalpha,12\nbeta,18\n', {flag:'wx'})"
+zw doc outline zaowu-demo.md
+zw data schema zaowu-demo.csv
+zw data sample zaowu-demo.csv --rows 1 --json
 ```
 
----
+The document command lists headings. The schema identifies `name` as text and
+`amount` as numeric. The sample returns one row as structured JSON. These
+commands read the inputs without changing them or calling a model.
 
-## 📁 Repository Structure
+Inside a Git repository:
 
-The project code is divided into modular domain packages using pnpm workspaces:
-
-```text
-├── packages/
-│   ├── cli/         # The global 'zw' CLI dispatcher and terminal formatter
-│   ├── core/        # Shared errors, domain ledgers, capabilities, and matrix rules
-│   ├── config/      # Config loading and validation (zw.yml / zaowu.config.json)
-│   ├── ai/          # Provider adapters (OpenAI, Ollama) and timeout guards
-│   ├── dev/         # Git parsing, diff chunk extraction, and review builders
-│   ├── doc/         # DOCX/PDF text parsers and Mammoth markdown converter
-│   ├── data/        # CSV/XLSX parser and metadata analyzer
-│   ├── auto/        # Workflow parser, security sandboxing, and script executor
-│   ├── teach/       # LMS quiz exporter and curriculum planner
-│   └── plugin/      # Local manifest validator and extension registry
-├── examples/        # Safe inputs (YAML, Markdown, CSV) for CLI validation
-└── schemas/         # Versioned JSON Schemas for configuration and commands
+```bash
+zw dev status
+zw dev review
+zw dev commit
 ```
 
----
+Review summarizes available changes; commit suggests a message from staged
+changes. If there are no changes, the error explains what to prepare. These
+three commands keep Git state unchanged. `zw dev sync` is a separate sensitive
+operation: read its preview and [sync behavior](docs/experience/ZW_DEV_SYNC.md)
+before confirming a reset.
 
-## 🧑‍💻 Developer Contribution
+### Choose AI explicitly
 
-Repository development uses Corepack and pnpm:
+```bash
+zw ai providers
+zw ai ask "Explain this project" --provider echo
+zw ai ask "Review these notes" --file zaowu-demo.md --provider openai
+```
+
+Echo demonstrates the supplied input locally. OpenAI, Anthropic, and Ollama are
+real model providers. The OpenAI example previews the request; sending it needs
+the provider environment setup and explicit confirmation. Copy the confirmation
+command from the preview to bind it to the exact input and plan.
+
+You can save a project preference after initialization:
+
+```bash
+zw config set ai.provider ollama
+```
+
+This also previews first and prints the exact command to apply the change.
+Provider precedence is explicit `--provider`, project preferences, global
+preferences, then Echo. Invalid configuration produces a recovery error.
+See [provider setup](docs/GETTING_STARTED.md#common-workflows).
+
+## Current Capabilities
+
+| Domain   | Useful commands                                             | Current behavior                                                               |
+| -------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `ai`     | `providers`, `ask`                                          | Echo demo, Ollama, OpenAI, Anthropic; explicit input and network preview       |
+| `dev`    | `status`, `review`, `commit`, `sync`                        | Git inspection, heuristic or AI review, commit suggestions, guarded sync       |
+| `doc`    | `extract`, `convert`, `summary`, `outline`, `search`        | Text/HTML/PDF/DOCX extraction, Markdown conversion, local summaries and search |
+| `data`   | `inspect`, `analyze`, `schema`, `sample`, `sheets`, `clean` | CSV/TSV/JSON/XLSX inspection; previewed cleaning for supported table formats   |
+| `auto`   | `validate`, `plan`, `run`                                   | Workflow messages and bounded new-file writes; shell execution stays blocked   |
+| `web`    | `inspect`, `fetch`                                          | Previewed HTTP requests with bounded responses and redirect rejection          |
+| `teach`  | `plan`, `quiz`                                              | Template-based teaching outlines and practice-question drafts with CSV output  |
+| `plugin` | `validate`, `install`, `list`, `remove`                     | Local plugin manifest management; manifests do not execute plugin code         |
+| `config` | `show`, `path`, `validate`, `get`, `set`, `migrate`         | Project/global preferences, validation, previewed writes and migration         |
+
+Commands use `zw <domain> <action> [target] [options]`. Discover an action with
+`zw help data schema` or `zw data schema -h`; `--json` gives structured output.
+See the [command catalog](docs/experience/COMMAND_CATALOG.md) for complete usage.
+
+## Safety and Current Limits
+
+- Use `--dry-run` to keep sensitive commands in preview mode, even with `--yes`.
+  Boolean flags take no value: `--yes=false` is rejected.
+- Preview fingerprints bind confirmation to the planned targets and content.
+  Document/data outputs and automation file creation refuse existing targets.
+- Network AI and web commands require confirmation. API keys belong in provider
+  environment variables; ordinary config files reject secret-like keys.
+- Document summaries and teaching drafts use local rules/templates. They are
+  useful starting points; inspect their output before using it as finished work.
+- Workflows currently support messages and structured new-file creation. Plugin
+  management handles metadata. Broader workflow execution and distribution remain
+  future work, tracked in the [roadmap](docs/ROADMAP.md).
+- A reviewed, narrowly scoped dependency audit exception expires on
+  **2026-11-19 UTC**. See the [dependency review](docs/security/dependency-review.md).
+
+## Develop and Contribute
+
+The monorepo uses TypeScript and pnpm `>=10.34.1 <11` through Corepack:
 
 ```bash
 corepack enable
 corepack pnpm install --frozen-lockfile
 corepack pnpm verify
+corepack pnpm --silent zw --help
 ```
 
-### Adding a New Command
+Domain behavior belongs in its package under `packages/`; `packages/cli` composes
+commands, and `packages/core` provides shared errors and operation plans. Every
+public package is versioned and released together.
 
-1. Define the action capabilities in your domain's ledger (e.g. `packages/dev/src/index.ts`).
-2. Add command schemas under `schemas/zaowu.command.<domain>-<action>.schema.json`.
-3. Add the command contract checks inside `scripts/verify-command-capability-matrix.mjs`.
-4. Run validation check:
-   ```bash
-   corepack pnpm verify
-   ```
+Start with [contributing](docs/CONTRIBUTING.md), the
+[maintenance priorities](docs/MAINTENANCE.md), and the
+[experience specification template](docs/experience/PRODUCT_SPEC_TEMPLATE.md).
 
----
-
-<div align="center">
-
-Made with ❤️ by ZaoWu Labs.
-
-</div>
-
-Security: [SECURITY.md](SECURITY.md) · Support: [SUPPORT.md](SUPPORT.md) · Privacy: [docs/PRIVACY.md](docs/PRIVACY.md) · Commercial direction: [docs/COMMERCIALIZATION.md](docs/COMMERCIALIZATION.md)
+[Getting Started](docs/GETTING_STARTED.md) · [Architecture](docs/ARCHITECTURE.md) ·
+[Security](SECURITY.md) · [Support](SUPPORT.md) · [Privacy](docs/PRIVACY.md) ·
+[Commercial direction](docs/COMMERCIALIZATION.md)

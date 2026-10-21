@@ -4,6 +4,28 @@
 
 No changes yet.
 
+## 1.0.6 - 2026-10-21
+
+- Made `zw help <domain> [action]` resolve command-specific help and added `-h`
+  and `-V` aliases while preserving literal input after `--`.
+- Rejected assigned boolean flags such as `--yes=false` before they can authorize
+  writes or requests; rejected excess positional arguments instead of ignoring
+  targets. Existing command names and missing-input errors remain intact.
+- Prevented initialization from shadowing any supported local config filename,
+  including directories or dangling links, while allowing nested project setup.
+- Honored optional global provider preferences outside projects and surfaced
+  invalid project/global config instead of silently reverting to Echo.
+- Kept pnpm diagnostics visible but optional for users of the published CLI,
+  with additive `required: false` metadata in doctor JSON.
+  Bounded diagnostic subprocesses to five seconds and disabled Corepack network
+  access, download prompts, and project auto-pinning during diagnostics.
+- Added copyable config/migration confirmation commands, preserved POSIX literal
+  quoting, and protected option-like AI prompts with an end-of-options separator.
+- Reworked README and Getting Started around useful local results, explicit AI
+  selection, accurate domain boundaries, and installation recovery. Recorded
+  maintenance priorities and regression acceptance criteria.
+- Retained the existing scoped dependency exception and its 2026-11-19 expiry.
+
 ## 1.0.5 - 2026-10-20
 
 - Prepared the next candidate after npm rejected the 1.0.4 upload with E404.
