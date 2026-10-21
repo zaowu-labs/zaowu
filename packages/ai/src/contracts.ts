@@ -14,6 +14,8 @@ export interface AIFetchResponse {
   headers?: { get(name: string): string | null };
   json(): Promise<unknown>;
   body?: unknown;
+  consumeBody?<T>(operation: () => Promise<T>): Promise<T>;
+  dispose?(): void;
 }
 
 export type AIFetcher = (
@@ -36,7 +38,9 @@ export interface AIAskRequest {
   fetcher?: AIFetcher;
   allowNetwork?: boolean;
   timeoutMs?: number;
+  signal?: AbortSignal;
   maxInputCharacters?: number;
+  expectedContentSubjects?: readonly string[];
   onChunk?: (chunk: string) => void;
 }
 

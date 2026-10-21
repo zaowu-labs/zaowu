@@ -6,7 +6,9 @@ Usage:
   zw ai ask [prompt] [--file <path>] [--provider <id>] [--model <name>] [options]
 
 Description:
-  Ask a registered provider with explicit prompt and optional file input.
+  Ask a registered provider with explicit prompt and optional UTF-8 file input.
+  Human answers stream; Ctrl+C cancels. --json returns one complete result.
+  Input limit: 200,000 characters. Incomplete streams fail without resending.
 
 Options:
   --file <path>      Include a readable text file as input
@@ -280,7 +282,7 @@ Usage:
   zw doc summary <file> [options]
 
 Description:
-  Summarize a supported document.
+  Summarize locally using the first three prose lines (no model request).
 
 Options:
   --json             Output machine-readable JSON`,

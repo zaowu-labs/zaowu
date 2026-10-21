@@ -62,6 +62,7 @@ const writeDocxFixture = async (filePath, text) => {
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
+    <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Fixture Report</w:t></w:r></w:p>
     <w:p>
       <w:r>
         <w:t>${escapeXml(text)}</w:t>
@@ -118,6 +119,7 @@ const writeXlsxFixture = (filePath) => {
       ['region', 'amount', 'active'],
       ['north', 1200, true],
       ['south', 950, false],
+      ['unknown', null, true],
     ]),
     'Details'
   );
@@ -144,6 +146,13 @@ try {
     docxSummary.summary === 'ZaoWu DOCX Fixture',
     'DOCX fixture should be summarized through the CLI.'
   );
+
+  const outline = runJson(['doc', 'outline', docxPath]);
+  assert(outline.outline?.[0]?.title === 'Fixture Report', 'DOCX headings must survive compiled CLI extraction.');
+  assert(docxSummary.method === 'extractive', 'Document summaries must disclose the local method.');
+  const analysis = runJson(['data', 'analyze', xlsxPath, '--sheet', 'Details']);
+  const amount = analysis.numericColumns?.find((column) => column.column === 'amount');
+  assert(amount?.count === 2 && amount?.missingCount === 1 && amount?.average === 1075, 'XLSX numeric analysis must explain missing cells.');
 
   const xlsxSchema = runJson(['data', 'schema', xlsxPath, '--sheet', 'Details']);
   assert(

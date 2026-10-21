@@ -28,6 +28,7 @@ export const handleDocSummary: DomainActionHandler = async (args, context) => {
     '',
     `File: ${summary.filePath}`,
     `Title: ${summary.title}`,
+    'Method: local extractive heuristic (first three prose lines)',
     `Lines: ${summary.lineCount}`,
     `Words: ${summary.wordCount}`,
     '',
@@ -136,7 +137,11 @@ export const handleDocConvert: DomainActionHandler = async (args, context) => {
 
   const converted =
     context.yes && preview.outputPath
-      ? await convertDocument(target, { ...convertOptions, yes: true })
+      ? await convertDocument(target, {
+          ...convertOptions,
+          yes: true,
+          expectedContent: preview.content,
+        })
       : preview;
   const confirmCommand =
     preview.outputPath && !context.yes

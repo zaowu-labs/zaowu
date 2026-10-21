@@ -40,6 +40,14 @@
           },
           "average": {
             "type": "number"
+          },
+          "missingCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "nonNumericCount": {
+            "type": "integer",
+            "minimum": 0
           }
         }
       }

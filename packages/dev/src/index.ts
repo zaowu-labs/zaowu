@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { parseDiffHunks, type ParsedDiffHunk } from './diff.js';
 import { ZaoWuError } from '@zaowu-labs/core';
 
 export { DEV_DOMAIN } from './domain.js';
@@ -34,7 +35,7 @@ const createEmptyCategories = (): DevChangeCategories =>
 const normalizePath = (filePath: string): string => filePath.replaceAll('\\', '/');
 
 const isTestFile = (filePath: string): boolean =>
-  filePath.includes('.test.') || filePath.includes('.spec.');
+  /(?:^|\/)(?:tests?|__tests__)\/|(?:\.test|\.spec|_test)\.[^/]+$/.test(normalizePath(filePath));
 
 const isPackageManifestPath = (filePath: string): boolean => {
   const file = normalizePath(filePath);
@@ -69,7 +70,7 @@ const getFileCategory = (filePath: string): DevChangeCategory => {
     return 'docs';
   }
 
-  if (file.startsWith('packages/') && (file.includes('/src/') || file.endsWith('/src/index.ts'))) {
+  if (/\.(?:[cm]?[jt]sx?|py|go|rs|java|kt|rb|c|cpp|h|cs)$/.test(file)) {
     return 'source';
   }
 
@@ -104,14 +105,15 @@ const parseNumstat = (
   let deletions = 0;
   const allFiles = [...new Set([...files, ...untrackedFiles])];
 
-  for (const line of output.split(/\r?\n/)) {
-    if (!line.trim()) {
-      continue;
-    }
-
-    const [added, deleted] = line.split(/\s+/);
-    additions += Number.parseInt(added, 10) || 0;
-    deletions += Number.parseInt(deleted, 10) || 0;
+  const nulSeparated = output.includes('\0');
+  const entries = output.split(nulSeparated ? '\0' : /\r?\n/);
+  for (let index = 0; index < entries.length; index++) {
+    const match = /^(\d+|-)\t(\d+|-)\t(.*)$/s.exec(entries[index]);
+    if (!match) continue;
+    additions += Number.parseInt(match[1], 10) || 0;
+    deletions += Number.parseInt(match[2], 10) || 0;
+    // NUL-formatted renames carry two path records after an empty path slot.
+    if (nulSeparated && !match[3]) index += 2;
   }
 
   return {
@@ -127,11 +129,10 @@ const getChangedFiles = (
   commandRunner: DevCommandRunner,
   args: readonly string[],
   cwd?: string
-): string[] =>
-  runGit(commandRunner, args, cwd)
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
+): string[] => {
+  const output = runGit(commandRunner, args, cwd);
+  return output.split(output.includes('\0') ? '\0' : /\r?\n/).filter(Boolean);
+};
 
 const getSummary = (
   commandRunner: DevCommandRunner,
@@ -157,95 +158,17 @@ const getSummary = (
 const getStagedSummary = (commandRunner: DevCommandRunner, cwd?: string): GitChangeSummary =>
   getSummary(
     commandRunner,
-    ['diff', '--cached', '--name-only'],
-    ['diff', '--cached', '--numstat'],
+    ['diff', '--cached', '--name-only', '-z'],
+    ['diff', '--cached', '--numstat', '-z'],
     cwd
   );
 
 const getWorkingTreeSummary = (commandRunner: DevCommandRunner, cwd?: string): GitChangeSummary =>
   parseNumstat(
-    runGit(commandRunner, ['diff', '--numstat'], cwd),
-    getChangedFiles(commandRunner, ['diff', '--name-only'], cwd),
-    getChangedFiles(commandRunner, ['ls-files', '--others', '--exclude-standard'], cwd)
+    runGit(commandRunner, ['diff', '--numstat', '-z'], cwd),
+    getChangedFiles(commandRunner, ['diff', '--name-only', '-z'], cwd),
+    getChangedFiles(commandRunner, ['ls-files', '--others', '--exclude-standard', '-z'], cwd)
   );
-
-interface ParsedDiffHunk extends DevDiffHunk {
-  addedText: string[];
-  addedLineNumbers: number[];
-}
-
-const stripDiffPath = (value: string): string => {
-  let cleaned = value.replace(/^[ab]\//, '');
-
-  if (cleaned.startsWith('"') && cleaned.endsWith('"')) {
-    cleaned = cleaned.slice(1, -1);
-  }
-
-  return cleaned;
-};
-
-const parseDiffHunks = (diff: string): ParsedDiffHunk[] => {
-  const hunks: ParsedDiffHunk[] = [];
-  let currentFile = '';
-  let currentHunk: ParsedDiffHunk | undefined;
-  let currentNewLine = 0;
-
-  for (const line of diff.split(/\r?\n/)) {
-    const fileMatch = /^diff --git a\/(.+?) b\/(.+)$/.exec(line);
-
-    if (fileMatch) {
-      currentFile = stripDiffPath(fileMatch[2]);
-      currentHunk = undefined;
-      currentNewLine = 0;
-      continue;
-    }
-
-    const hunkMatch = /^@@\s+-(?:\d+)(?:,\d+)?\s+\+(\d+)(?:,(\d+))?\s+@@/.exec(line);
-
-    if (hunkMatch && currentFile) {
-      const startLine = Number.parseInt(hunkMatch[1], 10);
-      const lineCount = Number.parseInt(hunkMatch[2] ?? '1', 10);
-      currentNewLine = startLine;
-      currentHunk = {
-        filePath: currentFile,
-        header: hunkMatch[0],
-        addedLines: 0,
-        removedLines: 0,
-        startLine,
-        endLine: Math.max(startLine, startLine + lineCount - 1),
-        addedText: [],
-        addedLineNumbers: [],
-      };
-      hunks.push(currentHunk);
-      continue;
-    }
-
-    if (!currentHunk) {
-      continue;
-    }
-
-    if (line.startsWith('\\ No newline at end of file')) {
-      continue;
-    }
-
-    if (line.startsWith('+')) {
-      currentHunk.addedLines += 1;
-      currentHunk.addedText.push(line.slice(1));
-      currentHunk.addedLineNumbers.push(currentNewLine);
-      currentNewLine += 1;
-      continue;
-    }
-
-    if (line.startsWith('-')) {
-      currentHunk.removedLines += 1;
-      continue;
-    }
-
-    currentNewLine += 1;
-  }
-
-  return hunks;
-};
 
 const toPublicDiffHunks = (hunks: readonly ParsedDiffHunk[]): DevDiffHunk[] =>
   hunks.map(({ filePath, header, addedLines, removedLines, startLine, endLine }) => ({
@@ -291,9 +214,9 @@ const inferCommitType = (files: readonly string[]): string => {
 };
 
 const inferScope = (files: readonly string[]): string => {
-  const packageMatch = files
-    .map((file) => /^packages\/([^/]+)/.exec(file)?.[1])
-    .find((scope): scope is string => Boolean(scope));
+  const scopes = new Set(files.map((file) => /^packages\/([^/]+)/.exec(file)?.[1]).filter(Boolean));
+  const packageMatch = scopes.size === 1 ? [...scopes][0] : undefined;
+  if (scopes.size > 1) return 'project';
 
   if (packageMatch) {
     return packageMatch;
@@ -334,7 +257,9 @@ const normalizeCommitScope = (scope: string): string =>
 
 const inferCommitSubject = (summary: GitChangeSummary, scope: string): string => {
   if (summary.categories.dependency > 0) {
-    return 'update dependency metadata';
+    return summary.categories.source > 0
+      ? `update ${scope} sources and dependencies`
+      : 'update dependency metadata';
   }
 
   if (
@@ -823,6 +748,7 @@ export const previewDevCommit = (
     schemaVersion: DEV_COMMIT_SCHEMA_VERSION,
     status: 'ok',
     source: 'staged',
+    method: 'heuristic',
     summary,
     suggestion,
     message: suggestion.title,
@@ -838,8 +764,9 @@ export const getDevStatus = (
   commandRunner: DevCommandRunner,
   options: { cwd?: string } = {}
 ): DevStatusResult => {
-  const output = runGit(commandRunner, ['status', '--short', '--branch'], options.cwd);
-  const lines = output.split(/\r?\n/).filter(Boolean);
+  const output = runGit(commandRunner, ['status', '--short', '--branch', '-z'], options.cwd);
+  const nulSeparated = output.includes('\0');
+  const lines = output.split(nulSeparated ? '\0' : /\r?\n/).filter(Boolean);
   const firstLine = lines[0] ?? '';
   const branch =
     /^##\s+(.+?)(?:\.{3}.+)?$/.exec(firstLine)?.[1].replace(/\s+\[.+\]$/, '') ?? 'unknown';
@@ -849,17 +776,20 @@ export const getDevStatus = (
   const unstaged: string[] = [];
   const untracked: string[] = [];
 
-  for (const line of lines.slice(firstLine.startsWith('##') ? 1 : 0)) {
+  const entries = lines.slice(firstLine.startsWith('##') ? 1 : 0);
+  for (let index = 0; index < entries.length; index++) {
+    const line = entries[index];
     const indexStatus = line[0] ?? ' ';
     const worktreeStatus = line[1] ?? ' ';
-    let file = line.slice(3).trim();
+    let file = nulSeparated ? line.slice(3) : line.slice(3).trim();
+    if (nulSeparated && /[RC]/.test(indexStatus + worktreeStatus)) index++;
 
-    if (file.includes(' -> ')) {
+    if (!nulSeparated && file.includes(' -> ')) {
       const parts = file.split(' -> ');
       file = parts[parts.length - 1].trim();
     }
 
-    if (file.startsWith('"') && file.endsWith('"')) {
+    if (!nulSeparated && file.startsWith('"') && file.endsWith('"')) {
       file = file.slice(1, -1);
     }
 
@@ -939,6 +869,7 @@ export const reviewDevChanges = (
     schemaVersion: DEV_REVIEW_SCHEMA_VERSION,
     status: 'ok',
     source,
+    method: 'heuristic',
     summary,
     diffHunks: toPublicDiffHunks(diffHunks),
     findings,
@@ -950,3 +881,10 @@ export const syncDevRepo = (
   commandRunner: DevCommandRunner,
   options: DevSyncOptions = {}
 ): DevSyncResult => syncDevRepoInternal(commandRunner, options, getDevStatus);
+
+/** Exact read-only diff used by CLI composition; errors must not become empty prompts. */
+export const readDevDiff = (
+  commandRunner: DevCommandRunner,
+  options: { cwd?: string; source: DevReviewResult['source'] }
+): string =>
+  runGit(commandRunner, options.source === 'staged' ? ['diff', '--cached'] : ['diff'], options.cwd);

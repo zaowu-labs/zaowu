@@ -6,7 +6,7 @@
 
 One CLI for development, documents, data, teaching, and controlled automation.
 
-[![Version](https://img.shields.io/badge/version-1.0.6-blue.svg)](package.json)
+[![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)](package.json)
 [![CI](https://github.com/zaowu-labs/zaowu/actions/workflows/ci.yml/badge.svg)](https://github.com/zaowu-labs/zaowu/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-20.19%2B-orange.svg)](package.json)
@@ -28,7 +28,7 @@ Requires **Node.js 20.19+**. Git is needed for developer commands. pnpm is only
 needed for repository development.
 
 ```bash
-npm install -g @zaowu-labs/cli@1.0.6
+npm install -g @zaowu-labs/cli@1.1.0
 zw --version
 zw --help
 ```
@@ -38,7 +38,7 @@ zw --help
 If npm reports `EALLOWREMOTE`, allow URL dependencies for this installation:
 
 ```bash
-npm install -g --allow-remote=all @zaowu-labs/cli@1.0.6
+npm install -g --allow-remote=all @zaowu-labs/cli@1.1.0
 ```
 
 The flag applies to that command only. See the
@@ -47,9 +47,9 @@ The flag applies to that command only. See the
 To try help without a global install:
 
 ```bash
-npx --package @zaowu-labs/cli@1.0.6 zw --help
+npx --package @zaowu-labs/cli@1.1.0 zw --help
 # With npm 12:
-npx --allow-remote=all --package @zaowu-labs/cli@1.0.6 zw --help
+npx --allow-remote=all --package @zaowu-labs/cli@1.1.0 zw --help
 ```
 
 ### Set up a project
@@ -119,7 +119,9 @@ zw config set ai.provider ollama
 This also previews first and prints the exact command to apply the change.
 Provider precedence is explicit `--provider`, project preferences, global
 preferences, then Echo. Invalid configuration produces a recovery error.
-See [provider setup](docs/GETTING_STARTED.md#common-workflows).
+Human model answers stream; Ctrl+C cancels. `--json` stays one complete result.
+See [provider setup](docs/GETTING_STARTED.md#common-workflows) and the
+[report, spreadsheet, and Git recipes](docs/WORKFLOWS.md).
 
 ## Current Capabilities
 
@@ -152,8 +154,8 @@ See the [command catalog](docs/experience/COMMAND_CATALOG.md) for complete usage
 - Workflows currently support messages and structured new-file creation. Plugin
   management handles metadata. Broader workflow execution and distribution remain
   future work, tracked in the [roadmap](docs/ROADMAP.md).
-- A reviewed, narrowly scoped dependency audit exception expires on
-  **2026-11-19 UTC**. See the [dependency review](docs/security/dependency-review.md).
+- Production dependency auditing has no active exceptions; the DOCX dependency
+  chain behind the previous exception has been removed. See the [dependency review](docs/security/dependency-review.md).
 
 ## Develop and Contribute
 

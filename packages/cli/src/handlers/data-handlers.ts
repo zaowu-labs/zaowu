@@ -52,7 +52,7 @@ export const handleDataAnalyze: DomainActionHandler = async (args, context) => {
     '',
     ...analysis.numericColumns.map(
       (column) =>
-        `- ${column.column}: count ${column.count}, min ${column.min}, max ${column.max}, avg ${column.average}`
+        `- ${column.column}: count ${column.count}, min ${column.min}, max ${column.max}, avg ${column.average}, missing ${column.missingCount}, non-numeric ${column.nonNumericCount}`
     ),
   ].join('\n');
 
@@ -84,7 +84,7 @@ export const handleDataClean: DomainActionHandler = async (args, context) => {
 
   const cleaned =
     context.yes && preview.outputPath
-      ? await cleanData(target, { ...cleanOptions, yes: true })
+      ? await cleanData(target, { ...cleanOptions, yes: true, expectedContent: preview.content })
       : preview;
   const confirmCommand =
     preview.outputPath && !context.yes

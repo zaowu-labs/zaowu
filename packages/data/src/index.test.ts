@@ -227,6 +227,8 @@ describe('data domain', () => {
             min: 10,
             max: 20,
             average: 15,
+            missingCount: 0,
+            nonNumericCount: 0,
           },
         ],
       });
@@ -607,7 +609,7 @@ describe('data domain', () => {
     }
   });
 
-  it('rejects corrupted XLSX workbooks containing bad zip structure with detailed message', async () => {
+  it('rejects corrupt XLSX workbooks with actionable re-export guidance', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-data-'));
     const filePath = path.join(root, 'corrupted.xlsx');
 
@@ -618,7 +620,7 @@ describe('data domain', () => {
     try {
       await expect(inspectData(filePath)).rejects.toMatchObject({
         code: 'DATA_READ_FAILED',
-        why: expect.stringContaining('readable. Details:'),
+        why: expect.stringContaining('corrupt, encrypted, or unsupported'),
       });
     } finally {
       await rm(root, { recursive: true, force: true });

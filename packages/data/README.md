@@ -20,3 +20,26 @@ Safety:
 - Confirmed writes refuse to overwrite the input file or an existing output.
 - XLSX support requires explicit sheet selection when the first sheet is not the
   intended input.
+
+## Real-input limits and analysis
+
+All inputs are bounded to 20 MiB. Tables allow 250,000 data rows, 1,024 columns,
+and two million rectangular cells including the header. XLSX is checked against
+an actual 64 MiB inflated-byte budget and 2,000 archive entries before SheetJS
+parsing. Oversized worksheet ranges fail before sparse cells are enumerated.
+No data is silently truncated to fit a limit.
+
+Numeric `count`, `min`, `max`, and `average` use finite numeric cells only;
+`missingCount` and `nonNumericCount` explain excluded cells. Leading-zero IDs,
+units such as `20kg`, and numeric overflow remain non-numeric source values.
+A scaled compensated mean avoids overflow on finite extreme values.
+
+Extra unnamed columns receive stable `column_N` headers instead of losing data.
+JSON accepts an object or arrays of objects, preserves nested values as JSON
+cell text, and rejects primitive/mixed arrays. Unclosed CSV quotes fail with a
+repair hint. XLSX formulas are not executed: results use stored cell values,
+which may need recalculation in a spreadsheet editor before export.
+
+Confirmation execution also checks the freshly prepared content against the
+already verified plan immediately before the write/request. Changes between
+reads fail with `OPERATION_PLAN_MISMATCH` and produce no write or network call.

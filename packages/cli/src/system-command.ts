@@ -23,15 +23,19 @@ export const toWindowsCommand = (command: string, args: readonly string[]): stri
 };
 
 export const runSystemCommand: CommandRunner = (command, args, options) => {
-  const executable = process.platform === 'win32' ? 'cmd.exe' : command;
-  const commandArgs =
-    process.platform === 'win32' ? ['/d', '/s', '/c', toWindowsCommand(command, args)] : [...args];
+  const batchCommand =
+    process.platform === 'win32' && /(?:^|[/\\])(?:corepack|pnpm|npm)(?:\.cmd)?$/i.test(command);
+  const executable = batchCommand ? 'cmd.exe' : command;
+  const commandArgs = batchCommand
+    ? ['/d', '/s', '/c', toWindowsCommand(command, args)]
+    : [...args];
 
-  return execFileSync(executable, commandArgs, {
+  const output = execFileSync(executable, commandArgs, {
     cwd: options?.cwd,
     env: options?.env ? { ...process.env, ...options.env } : undefined,
     timeout: options?.timeout,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
-  }).trim();
+  });
+  return output.includes('\0') ? output : output.trim();
 };

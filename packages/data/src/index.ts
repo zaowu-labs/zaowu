@@ -1,9 +1,15 @@
-import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import {
+  assertTableSize,
+  assertWorkbookSize,
+  dataTooLarge,
+  MAX_DATA_COLUMNS,
+  MAX_DATA_ROWS,
+  readDataFile,
+} from './input-limits.js';
 import {
   assertSafeOutputPath,
   createCapabilityLedger,
-  readTextFileOrThrow,
   stripUtf8Bom,
   writeTextFileExclusive,
   ZaoWuError,
@@ -38,6 +44,8 @@ export interface NumericColumnAnalysis {
   min: number;
   max: number;
   average: number;
+  missingCount: number;
+  nonNumericCount: number;
 }
 
 export interface DataAnalyzeResult {
@@ -188,6 +196,7 @@ const createCellCollector = (): CellCollector => ({
   values: [],
   trimmedCells: 0,
   push(value: string): void {
+    if (this.values.length >= MAX_DATA_COLUMNS) throw dataTooLarge();
     const trimmed = value.trim();
 
     if (value !== trimmed) {
@@ -201,7 +210,7 @@ const createCellCollector = (): CellCollector => ({
 const parseTsvLine = (line: string): ParsedDelimitedLine => {
   const cells = createCellCollector();
 
-  for (const value of line.split('\t')) {
+  for (const value of line.split('\t', MAX_DATA_COLUMNS + 1)) {
     cells.push(value);
   }
 
@@ -223,6 +232,7 @@ interface ParsedDelimitedRecords {
 const parseCsvRecords = (content: string): ParsedDelimitedRecords => {
   const records: ParsedDelimitedLine[] = [];
   let emptyLineCount = 0;
+  let widestRecord = 0;
   let cells = createCellCollector();
   let current = '';
   let raw = '';
@@ -239,6 +249,8 @@ const parseCsvRecords = (content: string): ParsedDelimitedRecords => {
     if (raw.trim() === '') {
       emptyLineCount += 1;
     } else {
+      widestRecord = Math.max(widestRecord, cells.values.length);
+      assertTableSize(records.length, widestRecord);
       records.push({ values: cells.values, trimmedCells: cells.trimmedCells });
     }
 
@@ -285,6 +297,13 @@ const parseCsvRecords = (content: string): ParsedDelimitedRecords => {
     current += char;
   }
 
+  if (quoted)
+    throw new ZaoWuError({
+      code: 'DATA_READ_FAILED',
+      message: 'CSV contains an unclosed quoted field.',
+      why: 'The file ended before a quoted field was closed; continuing would merge records and lose row boundaries.',
+      fix: 'Close the quoted field or re-export the file as valid CSV.',
+    });
   if (started || current !== '' || cells.values.length > 0) {
     finishRecord();
   }
@@ -297,6 +316,7 @@ const parseTsvRecords = (content: string): ParsedDelimitedRecords => {
   const contentLines = rawLines.at(-1) === '' ? rawLines.slice(0, -1) : rawLines;
   const records: ParsedDelimitedLine[] = [];
   let emptyLineCount = 0;
+  let widestRecord = 0;
 
   for (const line of contentLines) {
     if (line.trim() === '') {
@@ -304,7 +324,10 @@ const parseTsvRecords = (content: string): ParsedDelimitedRecords => {
       continue;
     }
 
-    records.push(parseTsvLine(line));
+    const record = parseTsvLine(line);
+    widestRecord = Math.max(widestRecord, record.values.length);
+    assertTableSize(records.length, widestRecord);
+    records.push(record);
   }
 
   return { records, emptyLineCount };
@@ -349,7 +372,8 @@ const normalizeHeaders = (headers: readonly string[]): string[] => {
  */
 const openXlsxWorkbook = async (filePath: string) => {
   try {
-    const workbookBuffer = await readFile(filePath);
+    const workbookBuffer = await readDataFile(filePath);
+    await assertWorkbookSize(workbookBuffer);
 
     if (workbookBuffer[0] !== 0x50 || workbookBuffer[1] !== 0x4b) {
       throw new ZaoWuError({
@@ -366,6 +390,9 @@ const openXlsxWorkbook = async (filePath: string) => {
       XLSX,
       workbook: XLSX.read(workbookBuffer, {
         type: 'buffer',
+        sheetRows: MAX_DATA_ROWS + 2,
+        cellHTML: false,
+        cellStyles: false,
       }),
     };
   } catch (error) {
@@ -373,11 +400,10 @@ const openXlsxWorkbook = async (filePath: string) => {
       throw error;
     }
 
-    const errorMsg = error instanceof Error ? error.message : String(error);
     throw new ZaoWuError({
       code: 'DATA_READ_FAILED',
       message: 'Could not read data file.',
-      why: `ZaoWu tried to read \`${filePath}\` as an XLSX file, but the file was not readable. Details: ${errorMsg}`,
+      why: `ZaoWu tried to read \`${filePath}\` as an XLSX file, but the file was not readable. The workbook may be corrupt, encrypted, or unsupported.`,
       fix: 'Check the path, file permissions, and workbook format, then run the command again.',
     });
   }
@@ -392,17 +418,32 @@ export const loadDataTable = async (
 
   if (source.format === 'json') {
     try {
-      const jsonContent = await readFile(filePath, 'utf8');
+      const jsonContent = (await readDataFile(filePath)).toString('utf8');
       const parsed = JSON.parse(stripUtf8Bom(jsonContent));
+      if (
+        !parsed ||
+        typeof parsed !== 'object' ||
+        (Array.isArray(parsed) &&
+          parsed.some((item) => !item || typeof item !== 'object' || Array.isArray(item)))
+      ) {
+        throw new ZaoWuError({
+          code: 'DATA_READ_FAILED',
+          message: 'JSON data must contain records.',
+          why: 'Table commands require an object or an array of objects; primitive and mixed arrays have no stable columns.',
+          fix: 'Use records such as [{"name":"A","amount":10}] or export a CSV table.',
+        });
+      }
       let rows: string[][] = [];
       let headers: string[] = [];
 
       if (Array.isArray(parsed)) {
+        assertTableSize(parsed.length, 0);
         const uniqueKeys = new Set<string>();
         for (const item of parsed) {
           if (item && typeof item === 'object') {
             for (const key of Object.keys(item)) {
               uniqueKeys.add(key);
+              assertTableSize(parsed.length, uniqueKeys.size);
             }
           }
         }
@@ -415,7 +456,11 @@ export const loadDataTable = async (
             const obj = item as Record<string, unknown>;
             for (const key of sourceKeys) {
               const val = Object.hasOwn(obj, key) ? obj[key] : undefined;
-              row.push(val === undefined || val === null ? '' : String(val).trim());
+              row.push(
+                val === undefined || val === null
+                  ? ''
+                  : (typeof val === 'object' ? JSON.stringify(val) : String(val)).trim()
+              );
             }
           } else {
             for (let i = 0; i < headers.length; i++) {
@@ -426,12 +471,17 @@ export const loadDataTable = async (
         }
       } else if (parsed && typeof parsed === 'object') {
         const sourceKeys = Object.keys(parsed);
+        assertTableSize(1, sourceKeys.length);
         headers = normalizeHeaders(sourceKeys);
         const row: string[] = [];
         const obj = parsed as Record<string, unknown>;
         for (const key of sourceKeys) {
           const val = obj[key];
-          row.push(val === undefined || val === null ? '' : String(val).trim());
+          row.push(
+            val === undefined || val === null
+              ? ''
+              : (typeof val === 'object' ? JSON.stringify(val) : String(val)).trim()
+          );
         }
         rows.push(row);
       }
@@ -484,6 +534,11 @@ export const loadDataTable = async (
       }
 
       const sheet = sheetName ? workbook.Sheets[sheetName] : undefined;
+      const range = sheet?.['!fullref'] || sheet?.['!ref'];
+      if (range) {
+        const bounds = XLSX.utils.decode_range(range);
+        assertTableSize(bounds.e.r, bounds.e.c + 1);
+      }
       const rows = sheet
         ? (XLSX.utils.sheet_to_json(sheet, {
             header: 1,
@@ -491,7 +546,11 @@ export const loadDataTable = async (
           }) as unknown[][])
         : [];
       const normalizedRows = rows.map((row) => row.map((value) => String(value).trim()));
-      const headers = normalizeHeaders(normalizedRows[0] ?? []);
+      const width = normalizedRows.reduce((max, row) => Math.max(max, row.length), 0);
+      assertTableSize(Math.max(0, normalizedRows.length - 1), width);
+      const headers = normalizeHeaders(
+        Array.from({ length: width }, (_, i) => normalizedRows[0]?.[i] ?? '')
+      );
       const dataRows = normalizedRows.slice(1).filter((row) => row.some((value) => value.trim()));
 
       return {
@@ -511,31 +570,23 @@ export const loadDataTable = async (
         throw error;
       }
 
-      const errorMsg = error instanceof Error ? error.message : String(error);
       throw new ZaoWuError({
         code: 'DATA_READ_FAILED',
         message: 'Could not read data file.',
-        why: `ZaoWu tried to read \`${filePath}\` as an XLSX file, but the file was not readable. Details: ${errorMsg}`,
+        why: `ZaoWu tried to read \`${filePath}\` as an XLSX file, but the file was not readable. The workbook may be corrupt, encrypted, or unsupported.`,
         fix: 'Check the path, file permissions, and workbook format, then run the command again.',
       });
     }
   }
 
-  content = await readTextFileOrThrow(
-    filePath,
-    {
-      code: 'DATA_READ_FAILED',
-      message: 'Could not read data file.',
-      why: `ZaoWu tried to read \`${filePath}\`, but the file was not readable.`,
-      fix: 'Check the path and file permissions, then run the command again.',
-    },
-    { stripBom: true }
-  );
+  content = stripUtf8Bom((await readDataFile(filePath)).toString('utf8'));
 
   const { records, emptyLineCount } =
     source.delimiter === ',' ? parseCsvRecords(content) : parseTsvRecords(content);
   const parsedHeaders = records[0] ?? { values: [], trimmedCells: 0 };
   const parsedRows = records.slice(1);
+  const width = records.reduce((max, record) => Math.max(max, record.values.length), 0);
+  assertTableSize(Math.max(0, records.length - 1), width);
   const trimmedCellCount =
     parsedHeaders.trimmedCells +
     parsedRows.reduce((count, parsedLine) => count + parsedLine.trimmedCells, 0);
@@ -544,7 +595,9 @@ export const loadDataTable = async (
     filePath,
     format: source.format,
     delimiter: source.delimiter,
-    headers: normalizeHeaders(parsedHeaders.values),
+    headers: normalizeHeaders(
+      Array.from({ length: width }, (_, i) => parsedHeaders.values[i] ?? '')
+    ),
     rows: parsedRows.map((row) => row.values),
     emptyLineCount,
     trimmedCellCount,
@@ -614,12 +667,16 @@ export const analyzeData = async (
     // Reduce instead of Math.min(...numbers)/Math.max(...numbers): spreading a
     // large numeric column into an argument list throws RangeError (call stack)
     // once the column has ~100k+ values.
-    let total = 0;
+    let average = 0;
+    let correction = 0;
     let min = numbers[0];
     let max = numbers[0];
 
     for (const value of numbers) {
-      total += value;
+      const adjusted = value / numbers.length - correction;
+      const nextAverage = average + adjusted;
+      correction = nextAverage - average - adjusted;
+      average = nextAverage;
 
       if (value < min) {
         min = value;
@@ -635,7 +692,11 @@ export const analyzeData = async (
       count: numbers.length,
       min,
       max,
-      average: total / numbers.length,
+      average,
+      missingCount: table.rows.filter((row) => !row[index]?.trim()).length,
+      nonNumericCount: table.rows.filter(
+        (row) => row[index]?.trim() && !isNumericText(row[index].trim())
+      ).length,
     });
   }
 
@@ -650,7 +711,7 @@ export const analyzeData = async (
 
 export const cleanData = async (
   inputPath: string,
-  options: { outputPath?: string; yes?: boolean; sheet?: string } = {}
+  options: { outputPath?: string; yes?: boolean; sheet?: string; expectedContent?: string } = {}
 ): Promise<DataCleanResult> => {
   // Clean emits delimited output. JSON input would be silently converted to
   // CSV, which violates "no magic without control" — refuse instead.
@@ -671,6 +732,13 @@ export const cleanData = async (
   const content = `${lines.join('\n')}\n`;
 
   if (options.outputPath && options.yes) {
+    if (options.expectedContent !== undefined && content !== options.expectedContent)
+      throw new ZaoWuError({
+        code: 'OPERATION_PLAN_MISMATCH',
+        message: 'Data content changed after plan verification.',
+        why: 'The cleaned output no longer matches the content authorized by the operation plan. No file was written.',
+        fix: 'Run the preview again and confirm its new fingerprint.',
+      });
     await assertSafeDataOutputPath(inputPath, options.outputPath);
     await writeTextFileExclusive(options.outputPath, content, {
       exists: {
@@ -751,7 +819,9 @@ const isCurrencyLike = (value: string): boolean => {
  * (`0x1A`). Decimal and scientific notation stay supported.
  */
 const isNumericText = (value: string): boolean =>
-  /^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/.test(value) && !/^[+-]?0\d/.test(value);
+  /^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/.test(value) &&
+  !/^[+-]?0\d/.test(value) &&
+  Number.isFinite(Number(value));
 
 const getValueType = (value: string): Exclude<DataColumnSchema['type'], 'empty' | 'mixed'> => {
   if (isNumericText(value)) {

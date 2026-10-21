@@ -28,6 +28,9 @@
     },
     "summary": {
       "type": "string"
+    },
+    "method": {
+      "const": "extractive"
     }
   }
 }

@@ -70,7 +70,11 @@
             "WORKFLOW_PARSE_FAILED",
             "WORKFLOW_READ_FAILED",
             "WORKFLOW_STEP_FAILED",
-            "WORKFLOW_SHELL_DANGEROUS"
+            "WORKFLOW_SHELL_DANGEROUS",
+            "DOCUMENT_INPUT_TOO_LARGE",
+            "DOCUMENT_TEXT_UNAVAILABLE",
+            "DATA_INPUT_TOO_LARGE",
+            "AI_REQUEST_CANCELLED"
           ]
         },
         "message": {

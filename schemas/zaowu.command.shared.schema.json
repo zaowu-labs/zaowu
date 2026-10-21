@@ -270,6 +270,9 @@
         "line": {
           "type": "integer",
           "minimum": 1
+        },
+        "origin": {
+          "enum": ["ai", "echo"]
         }
       }
     },

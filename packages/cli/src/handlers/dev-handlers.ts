@@ -1,5 +1,6 @@
 import { askAI } from '@zaowu-labs/ai';
 import {
+  DEV_AI_DIFF_CHARACTER_LIMIT,
   applyDevAiCommitSuggestion,
   buildDevAiCommitPrompt,
   buildDevAiReviewPrompt,
@@ -7,6 +8,7 @@ import {
   parseDevAiReviewFindings,
   previewDevCommit,
   reviewDevChanges,
+  readDevDiff,
   syncDevRepo,
   type DevReviewMode,
 } from '@zaowu-labs/dev';
@@ -30,15 +32,6 @@ import {
   type ResolvedAiProvider,
 } from '../handler-utils.js';
 
-const getGitDiffText = (context: DomainHandlerContext, gitArgs: string[]): string => {
-  try {
-    return context.commandRunner('git', gitArgs, { cwd: context.cwd });
-  } catch {
-    // ignore — diff may be empty
-    return '';
-  }
-};
-
 /**
  * Operation plan for an AI-assisted dev command. The exact prompt (instructions
  * plus the truncated diff) is folded into the plan subjects, so the preview
@@ -49,7 +42,7 @@ const buildAiOperationPlan = (
   ai: ResolvedAiProvider,
   prompt: string,
   context: DomainHandlerContext,
-  options: { isReview: boolean; reviewUsesWorktree: boolean }
+  options: { isReview: boolean; reviewUsesWorktree: boolean; diffCharacters: number }
 ): OperationPlan => {
   const actionName = options.isReview ? 'review' : 'suggestion';
 
@@ -74,6 +67,7 @@ const buildAiOperationPlan = (
     network: ai.networkTarget ? [ai.networkTarget] : [],
     secrets: ai.provider.requiredEnv,
     notes: [
+      `AI diff context: ${Math.min(options.diffCharacters, DEV_AI_DIFF_CHARACTER_LIMIT)} of ${options.diffCharacters} characters.${options.diffCharacters > DEV_AI_DIFF_CHARACTER_LIMIT ? ' Remaining changes are not sent; stage a smaller change for full coverage.' : ''}`,
       ai.provider.network
         ? `AI ${actionName} sends the diff context to the ${ai.providerId} provider and requires --yes.`
         : `AI ${actionName} was generated using the ${ai.providerId} provider.`,
@@ -130,13 +124,14 @@ export const handleDevCommit: DomainActionHandler = async (_args, context) => {
   });
 
   if (hasFlag(context.parsed, '--ai')) {
-    const diffText = getGitDiffText(context, ['diff', '--cached']);
+    const diffText = readDevDiff(context.commandRunner, { cwd: context.cwd, source: 'staged' });
     const prompt = buildDevAiCommitPrompt(diffText);
     const ai = await resolveAiProvider(context);
 
     operationPlan = buildAiOperationPlan(ai, prompt, context, {
       isReview: false,
       reviewUsesWorktree: false,
+      diffCharacters: diffText.length,
     });
 
     if (ai.provider.network && !context.yes) {
@@ -154,13 +149,17 @@ export const handleDevCommit: DomainActionHandler = async (_args, context) => {
     assertOperationPlanFingerprint(context, operationPlan);
 
     const response = await askAI({
+      signal: context.signal,
       prompt,
       provider: ai.providerId,
       model: ai.requestedModel,
       allowNetwork: context.yes,
     });
 
-    payload = applyDevAiCommitSuggestion(preview, response.output);
+    payload =
+      ai.providerId === 'echo'
+        ? { ...preview, method: 'echo' }
+        : applyDevAiCommitSuggestion(preview, response.output);
   } else {
     assertOperationPlanFingerprint(context, operationPlan);
   }
@@ -169,6 +168,7 @@ export const handleDevCommit: DomainActionHandler = async (_args, context) => {
     'ZaoWu Dev Commit',
     '',
     'No Git state was modified.',
+    `Method: ${payload.method === 'ai-assisted' ? 'local heuristics + AI suggestion' : payload.method === 'echo' ? 'local heuristics; Echo is a diagnostic, not a model' : 'local heuristic rules'}`,
     '',
     `Files: ${payload.summary.files.length}`,
     `Changes: +${payload.summary.additions}/-${payload.summary.deletions}`,
@@ -227,14 +227,24 @@ export const handleDevReview: DomainActionHandler = async (_args, context) => {
   });
 
   if (hasFlag(context.parsed, '--ai')) {
-    const gitArgs = reviewUsesWorktree ? ['diff'] : ['diff', '--cached'];
-    const diffText = getGitDiffText(context, gitArgs);
+    const diffText = readDevDiff(context.commandRunner, {
+      cwd: context.cwd,
+      source: review.source,
+    });
+    if (!diffText.trim())
+      throw new ZaoWuError({
+        code: 'NO_CHANGES_TO_REVIEW',
+        message: 'No tracked diff context is available for AI review.',
+        why: 'Untracked files are listed by name only and cannot be reviewed by a model from an empty diff.',
+        fix: 'Inspect and stage the intended files, then run zw dev review --staged --ai with an explicitly selected provider.',
+      });
     const prompt = buildDevAiReviewPrompt(diffText);
     const ai = await resolveAiProvider(context);
 
     operationPlan = buildAiOperationPlan(ai, prompt, context, {
       isReview: true,
       reviewUsesWorktree,
+      diffCharacters: diffText.length,
     });
 
     if (ai.provider.network && !context.yes) {
@@ -256,6 +266,7 @@ export const handleDevReview: DomainActionHandler = async (_args, context) => {
     assertOperationPlanFingerprint(context, operationPlan);
 
     const response = await askAI({
+      signal: context.signal,
       prompt,
       provider: ai.providerId,
       model: ai.requestedModel,
@@ -264,7 +275,20 @@ export const handleDevReview: DomainActionHandler = async (_args, context) => {
 
     payload = {
       ...review,
-      findings: [...review.findings, ...parseDevAiReviewFindings(response.output)],
+      method: ai.providerId === 'echo' ? 'echo' : 'ai-assisted',
+      findings:
+        ai.providerId === 'echo'
+          ? review.findings
+          : [
+              ...review.findings,
+              ...parseDevAiReviewFindings(response.output, {
+                files: review.summary.files,
+                hunks: review.diffHunks,
+              }).map((finding) => ({
+                ...finding,
+                origin: 'ai' as const,
+              })),
+            ],
     };
   } else {
     assertOperationPlanFingerprint(context, operationPlan);
@@ -274,6 +298,8 @@ export const handleDevReview: DomainActionHandler = async (_args, context) => {
     'ZaoWu Dev Review',
     '',
     `Source: ${payload.source}`,
+    `Method: ${payload.method === 'ai-assisted' ? 'local heuristics + AI review' : payload.method === 'echo' ? 'local heuristics; Echo is a diagnostic, not a model' : 'local heuristic rules'}`,
+    'Scope: tracked diff patterns; untracked content is not reviewed. Findings are risk signals, not a complete code review.',
     `Files: ${payload.summary.files.length}`,
     `Changes: +${payload.summary.additions}/-${payload.summary.deletions}`,
     '',

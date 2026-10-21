@@ -21,4 +21,5 @@ export interface CliExecutionOptions {
   nodeVersion?: string;
   commandRunner?: CommandRunner;
   onChunk?: (chunk: string) => void;
+  signal?: AbortSignal;
 }

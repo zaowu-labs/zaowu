@@ -377,15 +377,19 @@ describe('executeCli', () => {
   it('runs available domain commands through handlers', async () => {
     const result = await executeCli(['dev', 'commit', '--json'], {
       commandRunner: (_command, args) => {
-        if (args.join(' ') === 'diff --cached --name-only') {
+        if (
+          args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+        ) {
           return 'packages/dev/src/index.ts';
         }
 
-        if (args.join(' ') === 'diff --cached --numstat') {
+        if (
+          args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color'
+        ) {
           return '3\t1\tpackages/dev/src/index.ts';
         }
 
-        if (args.join(' ') === 'diff --cached --unified=0') {
+        if (args.join(' ') === 'diff --cached --unified=0 --no-ext-diff --no-textconv --no-color') {
           return '';
         }
 
@@ -935,7 +939,7 @@ describe('executeCli', () => {
   it('runs dev status from CLI', async () => {
     const result = await executeCli(['dev', 'status', '--json'], {
       commandRunner: (_command, args) => {
-        if (args.join(' ') === 'status --short --branch') {
+        if (args.join(' ') === 'status --short --branch -z') {
           return '## main\nM  packages/dev/src/index.ts\n?? README.md';
         }
 
@@ -962,7 +966,7 @@ describe('executeCli', () => {
   it('keeps confirmed dev sync aligned with its previewed operation plan', async () => {
     const commandRunner = (_command: string, args: readonly string[]): string => {
       switch (args.join(' ')) {
-        case 'status --short --branch':
+        case 'status --short --branch -z':
           return '## main...origin/main';
         case 'symbolic-ref --quiet --short HEAD':
           return 'main';
@@ -971,8 +975,8 @@ describe('executeCli', () => {
           return 'commit_hash_123';
         case 'rev-list --count refs/remotes/origin/main..HEAD':
           return '0';
-        case 'diff --cached --binary --no-ext-diff --no-textconv':
-        case 'diff HEAD --binary --no-ext-diff --no-textconv':
+        case 'diff --cached --binary --no-ext-diff --no-textconv --no-color':
+        case 'diff HEAD --binary --no-ext-diff --no-textconv --no-color':
         case 'ls-files --full-name --others --directory -z -- :/':
         case 'ls-tree --full-tree -r --name-only -z refs/remotes/origin/main':
           return '';
@@ -1014,7 +1018,7 @@ describe('executeCli', () => {
     const commandRunner = (_command: string, args: readonly string[]): string => {
       calls.push(args.join(' '));
       switch (args.join(' ')) {
-        case 'status --short --branch':
+        case 'status --short --branch -z':
           return statusOutput;
         case 'symbolic-ref --quiet --short HEAD':
           return 'main';
@@ -1023,8 +1027,8 @@ describe('executeCli', () => {
           return 'commit_hash_123';
         case 'rev-list --count refs/remotes/origin/main..HEAD':
           return '0';
-        case 'diff --cached --binary --no-ext-diff --no-textconv':
-        case 'diff HEAD --binary --no-ext-diff --no-textconv':
+        case 'diff --cached --binary --no-ext-diff --no-textconv --no-color':
+        case 'diff HEAD --binary --no-ext-diff --no-textconv --no-color':
         case 'ls-files --full-name --others --directory -z -- :/':
         case 'ls-tree --full-tree -r --name-only -z refs/remotes/origin/main':
           return '';
@@ -1068,7 +1072,7 @@ describe('executeCli', () => {
   it('requires --discard-local for confirmed dev sync with local discard risk', async () => {
     const commandRunner = (_command: string, args: readonly string[]): string => {
       switch (args.join(' ')) {
-        case 'status --short --branch':
+        case 'status --short --branch -z':
           return '## main...origin/main [ahead 1]\nM  packages/dev/src/index.ts';
         case 'symbolic-ref --quiet --short HEAD':
           return 'main';
@@ -1077,8 +1081,8 @@ describe('executeCli', () => {
           return 'commit_hash_123';
         case 'rev-list --count refs/remotes/origin/main..HEAD':
           return '0';
-        case 'diff --cached --binary --no-ext-diff --no-textconv':
-        case 'diff HEAD --binary --no-ext-diff --no-textconv':
+        case 'diff --cached --binary --no-ext-diff --no-textconv --no-color':
+        case 'diff HEAD --binary --no-ext-diff --no-textconv --no-color':
         case 'ls-files --full-name --others --directory -z -- :/':
         case 'ls-tree --full-tree -r --name-only -z refs/remotes/origin/main':
           return '';
@@ -1127,15 +1131,19 @@ describe('executeCli', () => {
   it('runs dev review with diff hunk analysis from CLI', async () => {
     const result = await executeCli(['dev', 'review', '--staged', '--json'], {
       commandRunner: (_command, args) => {
-        if (args.join(' ') === 'diff --cached --name-only') {
+        if (
+          args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+        ) {
           return 'packages/dev/src/index.ts';
         }
 
-        if (args.join(' ') === 'diff --cached --numstat') {
+        if (
+          args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color'
+        ) {
           return '3\t1\tpackages/dev/src/index.ts';
         }
 
-        if (args.join(' ') === 'diff --cached --unified=0') {
+        if (args.join(' ') === 'diff --cached --unified=0 --no-ext-diff --no-textconv --no-color') {
           return [
             'diff --git a/packages/dev/src/index.ts b/packages/dev/src/index.ts',
             '@@ -10,0 +11 @@',
@@ -1186,16 +1194,22 @@ describe('executeCli', () => {
       ['dev', 'review', '--staged', '--ai', '--provider', 'echo', '--json'],
       {
         commandRunner: (_command, args) => {
-          if (args.join(' ') === 'diff --cached --name-only') {
+          if (
+            args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+          ) {
             return 'packages/dev/src/index.ts';
           }
-          if (args.join(' ') === 'diff --cached --numstat') {
+          if (
+            args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color'
+          ) {
             return '3\t1\tpackages/dev/src/index.ts';
           }
-          if (args.join(' ') === 'diff --cached --unified=0') {
+          if (
+            args.join(' ') === 'diff --cached --unified=0 --no-ext-diff --no-textconv --no-color'
+          ) {
             return 'diff --git a/packages/dev/src/index.ts b/packages/dev/src/index.ts\n@@ -10,0 +11 @@\n+execFileSync("git", ["status"])';
           }
-          if (args.join(' ') === 'diff --cached') {
+          if (args.join(' ') === 'diff --cached --no-ext-diff --no-textconv --no-color') {
             return 'mock diff content';
           }
           throw new Error('unexpected command: ' + args.join(' '));
@@ -1205,26 +1219,28 @@ describe('executeCli', () => {
 
     expect(result.exitCode).toBe(0);
     const payload = JSON.parse(result.stdout);
-    expect(payload.findings).toContainEqual(
-      expect.objectContaining({
-        title: 'AI Code Review Summary',
-        detail: expect.stringContaining('Prompt received:'),
-      })
-    );
+    expect(payload.method).toBe('echo');
+    expect(
+      payload.findings.some(
+        (finding: { title: string }) => finding.title === 'AI Code Review Summary'
+      )
+    ).toBe(false);
   });
 
   it('previews dev commit --ai with a network provider instead of sending the diff', async () => {
     const commandRunner = (_command: string, args: readonly string[]) => {
-      if (args.join(' ') === 'diff --cached --name-only') {
+      if (
+        args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+      ) {
         return 'packages/dev/src/index.ts';
       }
-      if (args.join(' ') === 'diff --cached --numstat') {
+      if (args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color') {
         return '3\t1\tpackages/dev/src/index.ts';
       }
-      if (args.join(' ') === 'diff --cached --unified=0') {
+      if (args.join(' ') === 'diff --cached --unified=0 --no-ext-diff --no-textconv --no-color') {
         return 'diff --git a/x b/x\n@@ -1,0 +2 @@\n+line';
       }
-      if (args.join(' ') === 'diff --cached') {
+      if (args.join(' ') === 'diff --cached --no-ext-diff --no-textconv --no-color') {
         return 'mock diff content';
       }
       throw new Error('unexpected command: ' + args.join(' '));
@@ -1246,16 +1262,18 @@ describe('executeCli', () => {
 
   it('rejects confirmed dev commit --ai when the staged diff changed after preview', async () => {
     const makeRunner = (diff: string) => (_command: string, args: readonly string[]) => {
-      if (args.join(' ') === 'diff --cached --name-only') {
+      if (
+        args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+      ) {
         return 'packages/dev/src/index.ts';
       }
-      if (args.join(' ') === 'diff --cached --numstat') {
+      if (args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color') {
         return '3\t1\tpackages/dev/src/index.ts';
       }
-      if (args.join(' ') === 'diff --cached --unified=0') {
+      if (args.join(' ') === 'diff --cached --unified=0 --no-ext-diff --no-textconv --no-color') {
         return 'diff --git a/x b/x\n@@ -1,0 +2 @@\n+line';
       }
-      if (args.join(' ') === 'diff --cached') {
+      if (args.join(' ') === 'diff --cached --no-ext-diff --no-textconv --no-color') {
         return diff;
       }
       throw new Error('unexpected command: ' + args.join(' '));
@@ -1290,16 +1308,20 @@ describe('executeCli', () => {
   it('runs dev commit with AI assistance from CLI', async () => {
     const result = await executeCli(['dev', 'commit', '--ai', '--provider', 'echo', '--json'], {
       commandRunner: (_command, args) => {
-        if (args.join(' ') === 'diff --cached --name-only') {
+        if (
+          args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+        ) {
           return 'packages/dev/src/index.ts';
         }
-        if (args.join(' ') === 'diff --cached --numstat') {
+        if (
+          args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color'
+        ) {
           return '3\t1\tpackages/dev/src/index.ts';
         }
-        if (args.join(' ') === 'diff --cached --unified=0') {
+        if (args.join(' ') === 'diff --cached --unified=0 --no-ext-diff --no-textconv --no-color') {
           return 'diff --git a/packages/dev/src/index.ts b/packages/dev/src/index.ts\n@@ -10,0 +11 @@\n+execFileSync("git", ["status"])';
         }
-        if (args.join(' ') === 'diff --cached') {
+        if (args.join(' ') === 'diff --cached --no-ext-diff --no-textconv --no-color') {
           return 'mock diff content';
         }
         throw new Error('unexpected command: ' + args.join(' '));
@@ -1308,7 +1330,8 @@ describe('executeCli', () => {
 
     expect(result.exitCode).toBe(0);
     const payload = JSON.parse(result.stdout);
-    expect(payload.message).toContain('This is the local echo provider.');
+    expect(payload.method).toBe('echo');
+    expect(payload.message).not.toContain('This is the local echo provider.');
   });
 
   it('runs dev review against a real working-tree Git diff', async () => {

@@ -3,7 +3,7 @@ import type { OperationPlan } from '@zaowu-labs/core';
 export type DevCommandRunner = (
   command: string,
   args: readonly string[],
-  options?: { cwd?: string }
+  options?: { cwd?: string; env?: NodeJS.ProcessEnv; timeout?: number }
 ) => string;
 
 export const DEV_CHANGE_CATEGORIES = [
@@ -35,6 +35,7 @@ export interface DevCommitSuggestion {
 }
 
 export interface DevReviewFinding {
+  origin?: 'ai' | 'echo';
   severity: 'info' | 'warning';
   priority: 'low' | 'medium' | 'high';
   category:
@@ -55,7 +56,10 @@ export interface DevReviewFinding {
   line?: number;
 }
 
+export type DevAnalysisMethod = 'heuristic' | 'ai-assisted' | 'echo';
+
 export interface DevCommitResult {
+  method?: DevAnalysisMethod;
   schemaVersion: 1;
   status: 'ok';
   source: 'staged';
@@ -106,6 +110,7 @@ export interface DevDiffHunk {
 }
 
 export interface DevReviewResult {
+  method?: DevAnalysisMethod;
   schemaVersion: 1;
   status: 'ok';
   source: 'staged' | 'working-tree';

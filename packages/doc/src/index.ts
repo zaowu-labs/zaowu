@@ -1,15 +1,19 @@
-import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { extractDocx } from './docx.js';
+import { extractPdf } from './pdf.js';
+import { scanMarkdown } from './markdown.js';
 import {
   assertSafeOutputPath,
   createCapabilityLedger,
   stripUtf8Bom,
+  readBoundedFile,
   writeTextFileExclusive,
   ZaoWuError,
   type DomainDefinition,
 } from '@zaowu-labs/core';
 
 export interface DocumentSummary {
+  method: 'extractive';
   schemaVersion: 1;
   status: 'ok';
   filePath: string;
@@ -116,145 +120,6 @@ const SUPPORTED_TEXT_EXTENSIONS = new Set([
   '.htm',
 ]);
 
-/**
- * PDF text extraction runtime shims (foundation-phase workaround).
- *
- * pdf-parse (the library we use for .pdf -> text) has a hard/optional dependency
- * on @napi-rs/canvas for its full rendering pipeline. Even when we only request
- * text extraction, in many Node.js environments the module will:
- *   - log a noisy warning about the missing canvas package, and/or
- *   - assume certain DOM types (DOMMatrix, ImageData, Path2D) exist on the global.
- *
- * We therefore:
- *   1. Provide minimal, no-op shims for those three types **only if they are
- *      not already present** on globalThis. This is the smallest possible
- *      intervention that makes pdf-parse's text path work.
- *   2. Temporarily silence the exact canvas warning during the dynamic import.
- *
- * This is deliberately a "clever" but contained hack. It violates the spirit of
- * "readable code over clever code" and "no magic without control". A proper
- * long-term fix would be to replace pdf-parse with a pure-JS text extractor
- * (pdf.js node build, unpdf, or similar) that has no canvas requirement.
- *
- * The shims are intentionally named with a ZaoWu prefix inside the class
- * definitions so that stack traces / debug output make the origin obvious.
- *
- * See also: packages/doc/README.md (workaround documented).
- */
-
-type PdfRuntimeGlobal = typeof globalThis & {
-  DOMMatrix?: new (init?: unknown) => unknown;
-  ImageData?: new (
-    dataOrWidth: Uint8ClampedArray | number,
-    width?: number,
-    height?: number
-  ) => unknown;
-  Path2D?: new (path?: unknown) => unknown;
-};
-
-const PDF_SHIM_KEYS = ['DOMMatrix', 'ImageData', 'Path2D'] as const;
-
-type PdfParseModule = typeof import('pdf-parse');
-
-let pdfParseModulePromise: Promise<PdfParseModule> | undefined;
-
-const ensurePdfTextRuntime = (): void => {
-  const runtime = globalThis as PdfRuntimeGlobal;
-
-  // Minimal DOMMatrix shim sufficient for pdf-parse text extraction.
-  runtime.DOMMatrix ??= class ZaoWuPdfDomMatrix {
-    a = 1;
-    b = 0;
-    c = 0;
-    d = 1;
-    e = 0;
-    f = 0;
-
-    constructor(init?: unknown) {
-      if (Array.isArray(init) && init.length >= 6) {
-        [this.a, this.b, this.c, this.d, this.e, this.f] = init.map(Number).slice(0, 6);
-      }
-    }
-
-    multiplySelf(): this {
-      return this;
-    }
-    preMultiplySelf(): this {
-      return this;
-    }
-    translateSelf(): this {
-      return this;
-    }
-    scaleSelf(): this {
-      return this;
-    }
-    rotateSelf(): this {
-      return this;
-    }
-    invertSelf(): this {
-      return this;
-    }
-
-    transformPoint(point: { x?: number; y?: number; z?: number; w?: number } = {}) {
-      return {
-        x: point.x ?? 0,
-        y: point.y ?? 0,
-        z: point.z ?? 0,
-        w: point.w ?? 1,
-      };
-    }
-  };
-
-  // Minimal ImageData shim.
-  runtime.ImageData ??= class ZaoWuPdfImageData {
-    data: Uint8ClampedArray;
-    width: number;
-    height: number;
-
-    constructor(dataOrWidth: Uint8ClampedArray | number, width = 0, height = 0) {
-      this.width = typeof dataOrWidth === 'number' ? dataOrWidth : width;
-      this.height = height;
-      this.data =
-        dataOrWidth instanceof Uint8ClampedArray
-          ? dataOrWidth
-          : new Uint8ClampedArray(dataOrWidth * width * 4);
-    }
-  };
-
-  // Path2D is referenced but never actually used in our text-only path.
-  runtime.Path2D ??= class ZaoWuPdfPath2D {};
-};
-
-const importPdfParse = async (): Promise<PdfParseModule> => {
-  ensurePdfTextRuntime();
-
-  if (!pdfParseModulePromise) {
-    const originalWarn = console.warn;
-
-    // Only suppress the specific canvas-missing warning that pdf-parse emits
-    // when it can't find its optional native module. Everything else is passed
-    // through so we don't accidentally hide real problems.
-    console.warn = (...values: unknown[]): void => {
-      const message = values.map(String).join(' ');
-      if (message.includes('Cannot load "@napi-rs/canvas" package')) {
-        return;
-      }
-      originalWarn(...values);
-    };
-
-    pdfParseModulePromise = import('pdf-parse')
-      .catch((error: unknown) => {
-        pdfParseModulePromise = undefined;
-        throw error;
-      })
-      .finally(() => {
-        console.warn = originalWarn;
-      });
-  }
-
-  return pdfParseModulePromise;
-};
-
 const assertSupportedDocument = (filePath: string): void => {
   const extension = path.extname(filePath).toLowerCase();
 
@@ -268,11 +133,42 @@ const assertSupportedDocument = (filePath: string): void => {
   }
 };
 
+const stripHtmlBlocks = (html: string): string => {
+  const uncommented: string[] = [];
+  let cursor = 0;
+  while (true) {
+    const start = html.indexOf('<!--', cursor);
+    if (start < 0) {
+      uncommented.push(html.slice(cursor));
+      break;
+    }
+    uncommented.push(html.slice(cursor, start));
+    const end = html.indexOf('-->', start + 4);
+    if (end < 0) break;
+    cursor = end + 3;
+  }
+  const content = uncommented.join('');
+  const chunks: string[] = [];
+  const open = /<(head|script|style)\b[^<>]*>/gi;
+  cursor = 0;
+  let match: RegExpExecArray | null;
+  while ((match = open.exec(content))) {
+    chunks.push(content.slice(cursor, match.index));
+    const close = new RegExp(`</${match[1]}\\s*>`, 'gi');
+    close.lastIndex = open.lastIndex;
+    const end = close.exec(content);
+    cursor = end ? close.lastIndex : content.length;
+    open.lastIndex = cursor;
+    if (!end) break;
+  }
+  chunks.push(content.slice(cursor));
+  return chunks.join('');
+};
+
 const stripHtmlTags = (html: string): string => {
-  let clean = html.replace(/<!--[\s\S]*?-->/g, '');
-  clean = clean.replace(/<(head|script|style)\b[^>]*>([\s\S]*?)<\/\1>/gi, '');
+  let clean = stripHtmlBlocks(html);
   clean = clean.replace(
-    /<h([1-6])\b[^>]*>/gi,
+    /<h([1-6])\b[^<>]*>/gi,
     (_match, level: string) => `${'#'.repeat(Number(level))} `
   );
   clean = clean.replace(/<\/h[1-6]>\s*/gi, '\n');
@@ -280,7 +176,7 @@ const stripHtmlTags = (html: string): string => {
   clean = clean.replace(/<\/tr>\s*/gi, '\n');
   clean = clean.replace(/<\/(p|div|li)>\s*/gi, '\n');
   clean = clean.replace(/<br\s*\/?>\s*/gi, '\n');
-  clean = clean.replace(/<[^>]+>/g, ' ');
+  clean = clean.replace(/<[^<>]*>/g, ' ');
   const decodeCodePoint = (match: string, codePoint: number): string => {
     if (!Number.isInteger(codePoint) || codePoint <= 0 || codePoint > 0x10ffff) {
       return match;
@@ -328,84 +224,51 @@ const readTextDocument = async (
   assertSupportedDocument(filePath);
   const extension = path.extname(filePath).toLowerCase();
 
+  const buffer = await readBoundedFile(filePath, 20 * 1024 * 1024, {
+    failed: {
+      code: 'DOCUMENT_READ_FAILED',
+      message: 'Could not read document.',
+      why: `ZaoWu could not read \`${filePath}\` as a regular file.`,
+      fix: 'Check the path and file permissions, then run the command again.',
+    },
+    tooLarge: {
+      code: 'DOCUMENT_INPUT_TOO_LARGE',
+      message: 'Document is too large to extract safely.',
+      why: 'Document inputs are limited to 20 MiB.',
+      fix: 'Split the document or export a smaller text-only copy.',
+    },
+  });
   try {
-    if (extension === '.pdf') {
-      const runtime = globalThis as PdfRuntimeGlobal;
-      // Snapshot each shim slot before parsing: restore the previous value if
-      // one existed, and delete the key entirely if it was absent — a shim key
-      // left behind as `undefined` would still shadow `'key' in runtime`.
-      const saved = PDF_SHIM_KEYS.map((key) => ({
-        key,
-        had: key in runtime,
-        old: runtime[key],
-      }));
-
-      try {
-        const { PDFParse } = await importPdfParse();
-        const parser = new PDFParse({
-          data: new Uint8Array(await readFile(filePath)),
-        });
-
-        try {
-          const parsed = await parser.getText();
-
-          return stripUtf8Bom(parsed.text ?? '');
-        } finally {
-          await parser.destroy();
-        }
-      } finally {
-        for (const { key, had, old } of saved) {
-          if (!had) {
-            delete runtime[key];
-          } else {
-            (runtime[key] as unknown) = old;
-          }
-        }
-      }
+    let content: string;
+    if (extension === '.pdf') content = await extractPdf(buffer);
+    else if (extension === '.docx') content = await extractDocx(buffer, format ?? 'markdown');
+    else if (extension === '.html' || extension === '.htm')
+      content = stripHtmlTags(buffer.toString('utf8'));
+    else content = buffer.toString('utf8');
+    if (content.length > 2_000_000) {
+      throw new ZaoWuError({
+        code: 'DOCUMENT_INPUT_TOO_LARGE',
+        message: 'Extracted document text is too large.',
+        why: 'Extracted text exceeds two million characters.',
+        fix: 'Split the document into smaller parts.',
+      });
     }
-
-    if (extension === '.docx') {
-      const mammoth = await import('mammoth');
-      const mammothModule = mammoth as unknown as {
-        extractRawText: (options: { buffer: Buffer }) => Promise<{ value: string }>;
-        convertToMarkdown?: (options: { buffer: Buffer }) => Promise<{ value: string }>;
-      };
-
-      // convertToMarkdown is a version-dependent mammoth export. Distinguish a
-      // missing capability from an unreadable file so the error is actionable.
-      if (format !== 'text' && typeof mammothModule.convertToMarkdown !== 'function') {
-        throw new ZaoWuError({
-          code: 'DOCUMENT_FORMAT_UNSUPPORTED',
-          message: 'DOCX markdown conversion is not available.',
-          why: 'The installed mammoth build does not provide `convertToMarkdown`, so ZaoWu cannot produce Markdown from this DOCX.',
-          fix: 'Use `--format text` for raw text extraction, or update the `mammoth` dependency to a build with markdown support.',
-        });
-      }
-
-      const parsed =
-        format === 'text'
-          ? await mammothModule.extractRawText({
-              buffer: await readFile(filePath),
-            })
-          : await mammothModule.convertToMarkdown!({
-              buffer: await readFile(filePath),
-            });
-
-      return stripUtf8Bom(parsed.value);
+    if (extension === '.pdf' && !content.replace(/-- \d+ of \d+ --/g, '').trim()) {
+      throw new ZaoWuError({
+        code: 'DOCUMENT_TEXT_UNAVAILABLE',
+        message: 'PDF has no extractable text.',
+        why: 'The PDF may contain scanned images rather than a text layer. ZaoWu does not perform OCR.',
+        fix: 'Run OCR in your PDF editor and export a searchable PDF or text file, then try again.',
+      });
     }
-
-    if (extension === '.html' || extension === '.htm') {
-      const rawHtml = await readFile(filePath, 'utf8');
-      return stripUtf8Bom(stripHtmlTags(rawHtml));
-    }
-
-    return stripUtf8Bom(await readFile(filePath, 'utf8'));
-  } catch {
+    return stripUtf8Bom(content);
+  } catch (error) {
+    if (error instanceof ZaoWuError) throw error;
     throw new ZaoWuError({
       code: 'DOCUMENT_READ_FAILED',
       message: 'Could not read document.',
-      why: `ZaoWu tried to read \`${filePath}\`, but the file was not readable.`,
-      fix: 'Check the path and file permissions, then run the command again.',
+      why: `ZaoWu could not extract text from \`${filePath}\`. The file may be corrupt, encrypted, or contain unsupported document structures.`,
+      fix: 'Open the file in its original editor, remove password protection if appropriate, and re-export it as PDF, DOCX, or plain text.',
     });
   }
 };
@@ -432,11 +295,7 @@ const getTitle = (content: string, filePath: string): string =>
 const getWords = (content: string): string[] => content.match(/[\p{L}\p{N}_-]+/gu) ?? [];
 
 const getFirstMeaningfulLines = (content: string, count: number): string[] =>
-  content
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line && !line.startsWith('#'))
-    .slice(0, count);
+  scanMarkdown(content).prose.slice(0, count);
 
 const getFrontmatter = (content: string): Record<string, string> => {
   const lines = content.split(/\r?\n/);
@@ -464,21 +323,7 @@ const getFrontmatter = (content: string): Record<string, string> => {
   return frontmatter;
 };
 
-const parseHeadings = (content: string): DocumentOutlineItem[] =>
-  content
-    .split(/\r?\n/)
-    .map((line, index) => {
-      const match = /^(#{1,6})\s+(.+)$/.exec(line.trim());
-
-      return match
-        ? {
-            level: match[1].length,
-            title: match[2].trim(),
-            line: index + 1,
-          }
-        : null;
-    })
-    .filter((item): item is DocumentOutlineItem => Boolean(item));
+const parseHeadings = (content: string): DocumentOutlineItem[] => scanMarkdown(content).headings;
 
 export const summarizeDocument = async (filePath: string): Promise<DocumentSummary> => {
   const content = await readTextDocument(filePath);
@@ -490,6 +335,7 @@ export const summarizeDocument = async (filePath: string): Promise<DocumentSumma
     schemaVersion: 1,
     status: 'ok',
     filePath,
+    method: 'extractive',
     title: getTitle(content, filePath),
     lineCount: lines.length,
     wordCount: words.length,
@@ -499,9 +345,12 @@ export const summarizeDocument = async (filePath: string): Promise<DocumentSumma
 
 export const extractDocument = async (filePath: string): Promise<DocumentExtract> => {
   const content = await readTextDocument(filePath);
-  const headings = [...content.matchAll(/^#{1,6}\s+(.+)$/gmu)].map((match) => match[1].trim());
-  const links = [...content.matchAll(/\[[^\]]+\]\(([^)]+)\)/gmu)].map((match) => match[1].trim());
-  const codeBlockCount = [...content.matchAll(/^```/gmu)].length / 2;
+  const scan = scanMarkdown(content);
+  const headings = scan.headings.map((heading) => heading.title);
+  const links = [...content.matchAll(/(?<!\\)\[(?:\\.|[^[\]\\])+\]\(([^)]+)\)/gmu)].map((match) =>
+    match[1].trim()
+  );
+  const codeBlockCount = scan.codeBlockCount;
 
   return {
     schemaVersion: 1,
@@ -561,18 +410,33 @@ export const searchDocument = async (
 
 export const convertDocument = async (
   inputPath: string,
-  options: { outputPath?: string; format?: 'markdown' | 'text'; yes?: boolean } = {}
+  options: {
+    outputPath?: string;
+    format?: 'markdown' | 'text';
+    yes?: boolean;
+    expectedContent?: string;
+  } = {}
 ): Promise<DocumentConversion> => {
   const format =
     options.format ??
     (path.extname(options.outputPath ?? '').toLowerCase() === '.txt' ? 'text' : 'markdown');
   const content = await readTextDocument(inputPath, format);
   const converted =
-    format === 'text'
-      ? content.replace(/^#{1,6}\s+/gmu, '').replace(/\[([^\]]+)\]\([^)]+\)/gmu, '$1')
+    format === 'text' &&
+    ['.md', '.markdown', '.html', '.htm'].includes(path.extname(inputPath).toLowerCase())
+      ? content
+          .replace(/^#{1,6}\s+/gmu, '')
+          .replace(/(?<!\\)\[([^[\]\r\n]+)\]\([^)\r\n]+\)/gmu, '$1')
       : content;
 
   if (options.outputPath && options.yes) {
+    if (options.expectedContent !== undefined && converted !== options.expectedContent)
+      throw new ZaoWuError({
+        code: 'OPERATION_PLAN_MISMATCH',
+        message: 'Document content changed after plan verification.',
+        why: 'The converted output no longer matches the content authorized by the operation plan. No file was written.',
+        fix: 'Run the preview again and confirm its new fingerprint.',
+      });
     await assertSafeDocumentOutputPath(inputPath, options.outputPath);
     await writeTextFileExclusive(options.outputPath, converted, {
       exists: {

@@ -30,15 +30,17 @@ describe('dev domain', () => {
 
   it('previews a commit message from staged changes', () => {
     const runner: DevCommandRunner = (_command, args) => {
-      if (args.join(' ') === 'diff --cached --name-only') {
+      if (
+        args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+      ) {
         return 'packages/dev/src/index.ts\npackages/dev/src/index.test.ts';
       }
 
-      if (args.join(' ') === 'diff --cached --numstat') {
+      if (args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color') {
         return '10\t2\tpackages/dev/src/index.ts\n5\t0\tpackages/dev/src/index.test.ts';
       }
 
-      if (args.join(' ') === 'diff --cached --unified=0') {
+      if (args.join(' ') === 'diff --cached --unified=0 --no-ext-diff --no-textconv --no-color') {
         return '';
       }
 
@@ -49,6 +51,7 @@ describe('dev domain', () => {
       schemaVersion: 1,
       status: 'ok',
       source: 'staged',
+      method: 'heuristic',
       summary: {
         files: ['packages/dev/src/index.ts', 'packages/dev/src/index.test.ts'],
         untrackedFiles: [],
@@ -79,15 +82,17 @@ describe('dev domain', () => {
 
   it('includes staged risk findings in commit preview', () => {
     const runner: DevCommandRunner = (_command, args) => {
-      if (args.join(' ') === 'diff --cached --name-only') {
+      if (
+        args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+      ) {
         return 'packages/dev/src/index.ts\ndist/cli.js';
       }
 
-      if (args.join(' ') === 'diff --cached --numstat') {
+      if (args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color') {
         return '1\t0\tpackages/dev/src/index.ts\n1\t0\tdist/cli.js';
       }
 
-      if (args.join(' ') === 'diff --cached --unified=0') {
+      if (args.join(' ') === 'diff --cached --unified=0 --no-ext-diff --no-textconv --no-color') {
         return [
           'diff --git a/packages/dev/src/index.ts b/packages/dev/src/index.ts',
           '@@ -1,0 +1 @@',
@@ -127,19 +132,21 @@ describe('dev domain', () => {
 
   it('reviews working-tree changes when no staged changes exist', () => {
     const runner: DevCommandRunner = (_command, args) => {
-      if (args.join(' ') === 'diff --cached --name-only') {
+      if (
+        args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+      ) {
         return '';
       }
 
-      if (args.join(' ') === 'diff --name-only') {
+      if (args.join(' ') === 'diff --name-only -z --no-ext-diff --no-textconv --no-color') {
         return 'packages/dev/src/index.ts';
       }
 
-      if (args.join(' ') === 'diff --numstat') {
+      if (args.join(' ') === 'diff --numstat -z --no-ext-diff --no-textconv --no-color') {
         return '3\t1\tpackages/dev/src/index.ts';
       }
 
-      if (args.join(' ') === 'diff --unified=0') {
+      if (args.join(' ') === 'diff --unified=0 --no-ext-diff --no-textconv --no-color') {
         return [
           'diff --git a/packages/dev/src/index.ts b/packages/dev/src/index.ts',
           '@@ -1 +1,3 @@',
@@ -149,11 +156,11 @@ describe('dev domain', () => {
         ].join('\n');
       }
 
-      if (args.join(' ') === 'ls-files --others --exclude-standard') {
+      if (args.join(' ') === 'ls-files --others --exclude-standard -z') {
         return '';
       }
 
-      if (args.join(' ') === 'diff --cached --numstat') {
+      if (args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color') {
         return '';
       }
 
@@ -214,27 +221,29 @@ describe('dev domain', () => {
 
   it('includes untracked files in working-tree review', () => {
     const runner: DevCommandRunner = (_command, args) => {
-      if (args.join(' ') === 'diff --cached --name-only') {
+      if (
+        args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+      ) {
         return '';
       }
 
-      if (args.join(' ') === 'diff --cached --numstat') {
+      if (args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color') {
         return '';
       }
 
-      if (args.join(' ') === 'diff --name-only') {
+      if (args.join(' ') === 'diff --name-only -z --no-ext-diff --no-textconv --no-color') {
         return '';
       }
 
-      if (args.join(' ') === 'diff --numstat') {
+      if (args.join(' ') === 'diff --numstat -z --no-ext-diff --no-textconv --no-color') {
         return '';
       }
 
-      if (args.join(' ') === 'ls-files --others --exclude-standard') {
+      if (args.join(' ') === 'ls-files --others --exclude-standard -z') {
         return 'scripts/verify-local.sh';
       }
 
-      if (args.join(' ') === 'diff --unified=0') {
+      if (args.join(' ') === 'diff --unified=0 --no-ext-diff --no-textconv --no-color') {
         return '';
       }
 
@@ -276,15 +285,17 @@ describe('dev domain', () => {
 
   it('keeps added-line parsing accurate for diff-like content and metadata', () => {
     const runner: DevCommandRunner = (_command, args) => {
-      if (args.join(' ') === 'diff --cached --name-only') {
+      if (
+        args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+      ) {
         return 'packages/dev/src/a.ts\npackages/dev/src/b.ts';
       }
 
-      if (args.join(' ') === 'diff --cached --numstat') {
+      if (args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color') {
         return '1\t0\tpackages/dev/src/a.ts\n1\t0\tpackages/dev/src/b.ts';
       }
 
-      if (args.join(' ') === 'diff --cached --unified=0') {
+      if (args.join(' ') === 'diff --cached --unified=0 --no-ext-diff --no-textconv --no-color') {
         return [
           'diff --git a/packages/dev/src/a.ts b/packages/dev/src/a.ts',
           '@@ -0,0 +1 @@',
@@ -333,15 +344,17 @@ describe('dev domain', () => {
 
   it('reviews staged changes when explicitly requested', () => {
     const runner: DevCommandRunner = (_command, args) => {
-      if (args.join(' ') === 'diff --cached --name-only') {
+      if (
+        args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+      ) {
         return 'packages/dev/src/index.ts';
       }
 
-      if (args.join(' ') === 'diff --cached --numstat') {
+      if (args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color') {
         return '3\t1\tpackages/dev/src/index.ts';
       }
 
-      if (args.join(' ') === 'diff --cached --unified=0') {
+      if (args.join(' ') === 'diff --cached --unified=0 --no-ext-diff --no-textconv --no-color') {
         return [
           'diff --git a/packages/dev/src/index.ts b/packages/dev/src/index.ts',
           '@@ -4,0 +5 @@',
@@ -355,6 +368,7 @@ describe('dev domain', () => {
     expect(reviewDevChanges(runner, { mode: 'staged' })).toMatchObject({
       schemaVersion: 1,
       source: 'staged',
+      method: 'heuristic',
       summary: {
         files: ['packages/dev/src/index.ts'],
       },
@@ -388,15 +402,17 @@ describe('dev domain', () => {
 
   it('does not flag sensitive keywords in documentation-only diffs', () => {
     const runner: DevCommandRunner = (_command, args) => {
-      if (args.join(' ') === 'diff --cached --name-only') {
+      if (
+        args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+      ) {
         return 'docs/experience/ZW_AUTO_EXECUTION.md';
       }
 
-      if (args.join(' ') === 'diff --cached --numstat') {
+      if (args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color') {
         return '2\t0\tdocs/experience/ZW_AUTO_EXECUTION.md';
       }
 
-      if (args.join(' ') === 'diff --cached --unified=0') {
+      if (args.join(' ') === 'diff --cached --unified=0 --no-ext-diff --no-textconv --no-color') {
         return [
           'diff --git a/docs/experience/ZW_AUTO_EXECUTION.md b/docs/experience/ZW_AUTO_EXECUTION.md',
           '@@ -1,0 +2,2 @@',
@@ -421,15 +437,17 @@ describe('dev domain', () => {
 
   it('flags package manifest and lockfile consistency risks', () => {
     const runner: DevCommandRunner = (_command, args) => {
-      if (args.join(' ') === 'diff --cached --name-only') {
+      if (
+        args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+      ) {
         return 'packages/auto/package.json';
       }
 
-      if (args.join(' ') === 'diff --cached --numstat') {
+      if (args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color') {
         return '1\t0\tpackages/auto/package.json';
       }
 
-      if (args.join(' ') === 'diff --cached --unified=0') {
+      if (args.join(' ') === 'diff --cached --unified=0 --no-ext-diff --no-textconv --no-color') {
         return '';
       }
 
@@ -452,15 +470,17 @@ describe('dev domain', () => {
 
   it('prioritizes secret-like literals and destructive Git commands', () => {
     const runner: DevCommandRunner = (_command, args) => {
-      if (args.join(' ') === 'diff --cached --name-only') {
+      if (
+        args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+      ) {
         return 'packages/dev/src/index.ts';
       }
 
-      if (args.join(' ') === 'diff --cached --numstat') {
+      if (args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color') {
         return '2\t0\tpackages/dev/src/index.ts';
       }
 
-      if (args.join(' ') === 'diff --cached --unified=0') {
+      if (args.join(' ') === 'diff --cached --unified=0 --no-ext-diff --no-textconv --no-color') {
         return [
           'diff --git a/packages/dev/src/index.ts b/packages/dev/src/index.ts',
           '@@ -1,0 +1,2 @@',
@@ -494,7 +514,9 @@ describe('dev domain', () => {
 
   it('flags package source changes without matching package tests', () => {
     const runner: DevCommandRunner = (_command, args) => {
-      if (args.join(' ') === 'diff --cached --name-only') {
+      if (
+        args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+      ) {
         return [
           'packages/dev/src/index.ts',
           'packages/dev/src/index.test.ts',
@@ -502,7 +524,7 @@ describe('dev domain', () => {
         ].join('\n');
       }
 
-      if (args.join(' ') === 'diff --cached --numstat') {
+      if (args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color') {
         return [
           '1\t0\tpackages/dev/src/index.ts',
           '1\t0\tpackages/dev/src/index.test.ts',
@@ -510,7 +532,7 @@ describe('dev domain', () => {
         ].join('\n');
       }
 
-      if (args.join(' ') === 'diff --cached --unified=0') {
+      if (args.join(' ') === 'diff --cached --unified=0 --no-ext-diff --no-textconv --no-color') {
         return '';
       }
 
@@ -531,15 +553,17 @@ describe('dev domain', () => {
 
   it('flags lockfile changes without package manifests', () => {
     const runner: DevCommandRunner = (_command, args) => {
-      if (args.join(' ') === 'diff --cached --name-only') {
+      if (
+        args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+      ) {
         return 'pnpm-lock.yaml';
       }
 
-      if (args.join(' ') === 'diff --cached --numstat') {
+      if (args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color') {
         return '1\t1\tpnpm-lock.yaml';
       }
 
-      if (args.join(' ') === 'diff --cached --unified=0') {
+      if (args.join(' ') === 'diff --cached --unified=0 --no-ext-diff --no-textconv --no-color') {
         return '';
       }
 
@@ -558,7 +582,7 @@ describe('dev domain', () => {
 
   it('parses Git status output', () => {
     const runner: DevCommandRunner = (_command, args) => {
-      if (args.join(' ') === 'status --short --branch') {
+      if (args.join(' ') === 'status --short --branch -z') {
         return '## codex/work...origin/codex/work [ahead 1]\nM  packages/dev/src/index.ts\n M README.md\n?? scratch.md\nR  old.txt -> new.txt\nA  "quoted file.txt"';
       }
 
@@ -586,7 +610,7 @@ describe('dev domain', () => {
 
   it('previews and performs dev sync operations', () => {
     const runner: DevCommandRunner = (_command, args) => {
-      if (args.join(' ') === 'status --short --branch') {
+      if (args.join(' ') === 'status --short --branch -z') {
         return '## main...origin/main\n';
       }
       if (args.join(' ') === 'symbolic-ref --quiet --short HEAD') return 'main';
@@ -595,8 +619,8 @@ describe('dev domain', () => {
       if (args.join(' ') === 'rev-list --count refs/remotes/origin/main..HEAD') return '0';
       if (
         [
-          'diff --cached --binary --no-ext-diff --no-textconv',
-          'diff HEAD --binary --no-ext-diff --no-textconv',
+          'diff --cached --binary --no-ext-diff --no-textconv --no-color',
+          'diff HEAD --binary --no-ext-diff --no-textconv --no-color',
           'ls-files --full-name --others --directory -z -- :/',
           'ls-tree --full-tree -r --name-only -z refs/remotes/origin/main',
         ].includes(args.join(' '))
@@ -658,7 +682,7 @@ describe('dev domain', () => {
     const calls: string[] = [];
     const runner: DevCommandRunner = (_command, args) => {
       calls.push(args.join(' '));
-      if (args.join(' ') === 'status --short --branch') {
+      if (args.join(' ') === 'status --short --branch -z') {
         return '## main...origin/main [ahead 2]\nM  packages/dev/src/index.ts\n M README.md\n';
       }
       if (args.join(' ') === 'symbolic-ref --quiet --short HEAD') return 'main';
@@ -667,8 +691,8 @@ describe('dev domain', () => {
       if (args.join(' ') === 'rev-list --count refs/remotes/origin/main..HEAD') return '2';
       if (
         [
-          'diff --cached --binary --no-ext-diff --no-textconv',
-          'diff HEAD --binary --no-ext-diff --no-textconv',
+          'diff --cached --binary --no-ext-diff --no-textconv --no-color',
+          'diff HEAD --binary --no-ext-diff --no-textconv --no-color',
           'ls-files --full-name --others --directory -z -- :/',
           'ls-tree --full-tree -r --name-only -z refs/remotes/origin/main',
         ].includes(args.join(' '))
@@ -705,13 +729,15 @@ describe('dev domain', () => {
 
   it('parses quoted file paths with spaces correctly', () => {
     const runner: DevCommandRunner = (_command, args) => {
-      if (args.join(' ') === 'diff --cached --name-only') {
+      if (
+        args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+      ) {
         return '"some folder/file with spaces.ts"';
       }
-      if (args.join(' ') === 'diff --cached --numstat') {
+      if (args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color') {
         return '2\t1\t"some folder/file with spaces.ts"';
       }
-      if (args.join(' ') === 'diff --cached --unified=0') {
+      if (args.join(' ') === 'diff --cached --unified=0 --no-ext-diff --no-textconv --no-color') {
         return [
           'diff --git a/"some folder/file with spaces.ts" b/"some folder/file with spaces.ts"',
           '@@ -1 +1,2 @@',
@@ -736,13 +762,15 @@ describe('dev domain', () => {
 
   it('classifies test-only staged changes as a test commit', () => {
     const runner: DevCommandRunner = (_command, args) => {
-      if (args.join(' ') === 'diff --cached --name-only') {
+      if (
+        args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+      ) {
         return 'packages/dev/src/index.test.ts';
       }
-      if (args.join(' ') === 'diff --cached --numstat') {
+      if (args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color') {
         return '5\t1\tpackages/dev/src/index.test.ts';
       }
-      if (args.join(' ') === 'diff --cached --unified=0') {
+      if (args.join(' ') === 'diff --cached --unified=0 --no-ext-diff --no-textconv --no-color') {
         return '';
       }
       throw new Error('unexpected git command: ' + args.join(' '));
@@ -755,13 +783,15 @@ describe('dev domain', () => {
 
   it('does not classify files merely ending in package.json as dependency changes', () => {
     const runner: DevCommandRunner = (_command, args) => {
-      if (args.join(' ') === 'diff --cached --name-only') {
+      if (
+        args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+      ) {
         return 'packages/dev/src/fixtures/my-package.json';
       }
-      if (args.join(' ') === 'diff --cached --numstat') {
+      if (args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color') {
         return '5\t1\tpackages/dev/src/fixtures/my-package.json';
       }
-      if (args.join(' ') === 'diff --cached --unified=0') {
+      if (args.join(' ') === 'diff --cached --unified=0 --no-ext-diff --no-textconv --no-color') {
         return '';
       }
       throw new Error('unexpected git command: ' + args.join(' '));
@@ -777,6 +807,7 @@ describe('dev domain', () => {
       schemaVersion: 1,
       status: 'ok',
       source: 'staged',
+      method: 'heuristic',
       summary: {
         files: ['a.ts'],
         untrackedFiles: [],
@@ -842,19 +873,14 @@ describe('dev domain', () => {
       },
     ]);
 
-    // Invalid enum values are clamped to safe defaults.
-    expect(parseDevAiReviewFindings('[{"severity":"fatal","line":-2}]')).toEqual([
-      {
-        severity: 'info',
-        priority: 'medium',
-        category: 'quality',
-        title: 'AI Review',
-        detail: '',
-        filePath: undefined,
-        line: undefined,
-        hunkHeader: undefined,
-      },
-    ]);
+    expect(() => parseDevAiReviewFindings('[{"severity":"fatal","line":-2}]')).toThrow(
+      'AI review findings are invalid.'
+    );
+    expect(
+      parseDevAiReviewFindings(
+        '[{"severity":"fatal","title":"Check","detail":"Inspect this.","line":-2}]'
+      )[0]
+    ).toMatchObject({ severity: 'info', line: undefined });
 
     // Non-JSON output becomes a single plain-text summary finding.
     expect(parseDevAiReviewFindings('The change looks fine overall.')).toEqual([

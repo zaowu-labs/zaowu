@@ -146,6 +146,7 @@ describe('doc domain', () => {
         schemaVersion: 1,
         status: 'ok',
         filePath,
+        method: 'extractive',
         title: 'empty.txt',
         lineCount: 1,
         wordCount: 0,
@@ -248,6 +249,27 @@ describe('doc domain', () => {
     }
   });
 
+  it('keeps metadata and fenced examples out of summaries and outlines', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-markdown-'));
+    const filePath = path.join(root, 'report.md');
+    try {
+      await writeFile(
+        filePath,
+        '---\nauthor: team\n---\n# Report\n```md\n# Fake heading\n```\nReal prose.\n~~~js\ncode()\n~~~\n## Actions #\nNext action.'
+      );
+      await expect(summarizeDocument(filePath)).resolves.toMatchObject({
+        method: 'extractive',
+        summary: 'Real prose. Next action.',
+      });
+      await expect(extractDocument(filePath)).resolves.toMatchObject({
+        headings: ['Report', 'Actions'],
+        codeBlockCount: 2,
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('reads real PDF text content', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-doc-'));
     const filePath = path.join(root, 'fixture.pdf');
@@ -264,6 +286,28 @@ describe('doc domain', () => {
           },
         ]),
       });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  }, 20_000);
+
+  it('explains OCR for an image-only PDF and restores runtime globals after concurrent reads', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-pdf-'));
+    const empty = path.join(root, 'scanned.pdf');
+    const text = path.join(root, 'text.pdf');
+    const keys = ['DOMMatrix', 'ImageData', 'Path2D'] as const;
+    const before = keys.map((key) => ({ had: key in globalThis, value: globalThis[key] }));
+    try {
+      await writeFile(empty, createPdfFixture(''));
+      await writeFile(text, createPdfFixture('Concurrent PDF text'));
+      await expect(summarizeDocument(empty)).rejects.toMatchObject({
+        code: 'DOCUMENT_TEXT_UNAVAILABLE',
+        fix: expect.stringContaining('OCR'),
+      });
+      await Promise.all([summarizeDocument(text), summarizeDocument(text)]);
+      expect(keys.map((key) => ({ had: key in globalThis, value: globalThis[key] }))).toEqual(
+        before
+      );
     } finally {
       await rm(root, { recursive: true, force: true });
     }
