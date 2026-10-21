@@ -6,9 +6,29 @@ import { describe, expect, it } from 'vitest';
 import { formatConfirmCommand } from './handler-utils';
 import { COMMAND_TARGET_LIMITS } from './input-validation';
 import { COMMAND_OPTIONS } from './option-registry';
+import { getValue, hasFlag, parseArgs } from './args';
 import { executeCli } from './run';
 
 describe('copyable confirmation commands', () => {
+  it.each([
+    ['--file', '--help'],
+    ['--model', '-h'],
+  ])('preserves option-like values for %s', (option, value) => {
+    const command = formatConfirmCommand(['zw', 'ai', 'ask', option, value, '--', 'Explain']);
+    const parsed = parseArgs(command.split(' ').slice(1));
+    expect(getValue(parsed, option)).toBe(value);
+    expect(hasFlag(parsed, '--help')).toBe(false);
+  });
+
+  it('keeps option-like words literal after a separator', () => {
+    const command = formatConfirmCommand(['zw', 'ai', 'ask', '--', '--file', '--help']);
+    expect(parseArgs(command.split(' ').slice(1)).positionals).toEqual([
+      'ai',
+      'ask',
+      '--file',
+      '--help',
+    ]);
+  });
   it('declares an argument contract for every runnable option surface', () => {
     expect(Object.keys(COMMAND_TARGET_LIMITS).sort()).toEqual(Object.keys(COMMAND_OPTIONS).sort());
   });

@@ -20,7 +20,8 @@ No changes yet.
   Bounded diagnostic subprocesses to five seconds and disabled Corepack network
   access, download prompts, and project auto-pinning during diagnostics.
 - Added copyable config/migration confirmation commands, preserved POSIX literal
-  quoting, and protected option-like AI prompts with an end-of-options separator.
+  quoting, and protected option-like AI prompts, file targets, and option values in generated
+  confirmation commands.
 - Reworked README and Getting Started around useful local results, explicit AI
   selection, accurate domain boundaries, and installation recovery. Recorded
   maintenance priorities and regression acceptance criteria.

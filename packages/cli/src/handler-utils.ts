@@ -21,6 +21,7 @@ import {
   type OperationPlan,
 } from '@zaowu-labs/core';
 import { getValue, hasFlag, type ParsedArgs } from './args.js';
+import { VALUE_OPTIONS } from './option-registry.js';
 import { createResult, stringifyJSON } from './output.js';
 import type { CliResult, CommandRunner } from './types.js';
 
@@ -163,8 +164,27 @@ const quoteCliValue = (value: string): string =>
     ? value
     : `'${value.replaceAll("'", process.platform === 'win32' ? "''" : "'\\''")}'`;
 
-export const formatConfirmCommand = (parts: readonly string[]): string =>
-  parts.map(quoteCliValue).join(' ');
+export const formatConfirmCommand = (parts: readonly string[]): string => {
+  const tokens: string[] = [];
+  let literal = false;
+  for (let index = 0; index < parts.length; index += 1) {
+    const part = parts[index];
+    if (part === '--') literal = true;
+    const value = parts[index + 1];
+    if (
+      !literal &&
+      (VALUE_OPTIONS as readonly string[]).includes(part) &&
+      value !== undefined &&
+      (value.startsWith('--') || value === '-h' || value === '-V')
+    ) {
+      tokens.push(quoteCliValue(`${part}=${value}`));
+      index += 1;
+    } else {
+      tokens.push(quoteCliValue(part));
+    }
+  }
+  return tokens.join(' ');
+};
 
 export const formatCounts = (items: Record<string, number>): string => {
   const lines = Object.entries(items)

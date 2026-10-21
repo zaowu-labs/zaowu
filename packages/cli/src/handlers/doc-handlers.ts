@@ -144,13 +144,14 @@ export const handleDocConvert: DomainActionHandler = async (args, context) => {
           'zw',
           'doc',
           'convert',
-          target,
           ...(format ? ['--format', format] : []),
           '--output',
           preview.outputPath,
           '--yes',
           '--plan-fingerprint',
           operationPlan.fingerprint,
+          '--',
+          target,
         ])
       : undefined;
   const human = [

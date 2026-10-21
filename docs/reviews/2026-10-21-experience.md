@@ -25,7 +25,8 @@ toolkit identity and existing command names across all nine domains.
 - Setup/diagnostics: `root-init.ts`, `root-doctor.ts`, `system-command.ts`, and
   subprocess options in `types.ts`.
 - Provider/configuration: `packages/config/src/index.ts`, CLI `handler-utils.ts`,
-  `handlers/ai-handlers.ts`, and `handlers/config-handlers.ts`.
+  AI/configuration handlers. Document/data handlers also preserve literal targets
+  in generated confirmation commands.
 - Contracts: core error-code registry, shared error schema, doctor schema, error
   and JSON contract docs. Only `required` metadata is added to doctor checks;
   existing envelopes remain version 1.
@@ -39,8 +40,8 @@ toolkit identity and existing command names across all nine domains.
 ## Verification
 
 The initial 36-case first-use regression suite failed 31 cases on the original
-implementation. The final full gate passes **475 functional tests in 24 files**
-and **13 release/audit script tests**, including 45 additional functional cases.
+implementation. The final full gate passes **478 functional tests in 24 files**
+and **13 release/audit script tests**, including 48 additional functional cases.
 
 ```sh
 corepack pnpm verify
@@ -58,7 +59,9 @@ schema, one-row JSON sampling, help parity, preview/confirmed initialization,
 config confirmation containing `O'Reilly`, malformed flag rejection, and an
 OpenAI request preview without a model call. An empty Corepack cache verified
 that doctor returns optional-tool status without downloading pnpm or creating
-`package.json`.
+`package.json`. Additional compiled-CLI checks confirmed document/data filenames
+beginning with `--` and option-like AI file/model values round-trip through copied
+commands.
 
 ## Limits and next work
 
