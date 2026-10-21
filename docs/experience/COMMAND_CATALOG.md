@@ -92,8 +92,11 @@ First-version behavior:
 - Network providers preview by default; use `--yes` to send the request.
 - Network providers require explicit confirmation in the AI package API, not only
   in the CLI layer.
-- Provider requests have a timeout and a bounded combined prompt/file-input
-  length.
+- Human model answers stream; `--json` remains non-streaming. Ctrl+C cancels
+  headers, body, and retry waits with exit code 130. Incomplete streams fail
+  without automatically resending partial output.
+- Provider requests bound input, response bytes, event size, generated text, and
+  the timeout including the body; see the AI package guide for exact limits.
 - Provider HTTP errors are classified so authentication, timeout, rate-limit,
   bad-request, and provider-side failures get clearer fixes.
 - Preview mode reads any `--file` input and reports prompt, file, combined, and
@@ -329,3 +332,11 @@ Domain packages also declare capability ledgers. The boundary guard test checks
 source imports and package manifests so feature packages do not import each other
 directly, shared packages do not depend on feature packages, and no package
 depends on the CLI.
+
+## Foundation quality contracts
+
+[Real-input and reliability spec](ZW_FOUNDATION_QUALITY.md) defines DOCX/PDF/table
+limits, cancellable streaming, Git assistance labeling, and compact human plans.
+The full operation-plan JSON and every sensitive target remain unchanged.
+[Practical workflows](../WORKFLOWS.md) compose existing actions with separate
+approval boundaries; [composition ownership](ZW_COMPOSED_JOBS.md) stays in the CLI.

@@ -684,15 +684,15 @@ try {
 const runner = (_command, args) => {
   const key = args.join(' ');
 
-  if (key === 'diff --cached --name-only') {
+  if (key === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color') {
     return 'packages/dev/src/index.ts';
   }
 
-  if (key === 'diff --cached --numstat') {
+  if (key === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color') {
     return '2\t1\tpackages/dev/src/index.ts';
   }
 
-  if (key === 'diff --cached --unified=0') {
+  if (key === 'diff --cached --unified=0 --no-ext-diff --no-textconv --no-color') {
     return [
       'diff --git a/packages/dev/src/index.ts b/packages/dev/src/index.ts',
       '@@ -1 +1,2 @@',
@@ -702,7 +702,7 @@ const runner = (_command, args) => {
     ].join('\n');
   }
 
-  if (key === 'status --short --branch') {
+  if (key === 'status --short --branch -z') {
     return '## main\nM  packages/dev/src/index.ts';
   }
 
@@ -711,8 +711,8 @@ const runner = (_command, args) => {
   if (key === 'rev-list --count refs/remotes/origin/main..HEAD') return '2';
   if (
     [
-      'diff --cached --binary --no-ext-diff --no-textconv',
-      'diff HEAD --binary --no-ext-diff --no-textconv',
+      'diff --cached --binary --no-ext-diff --no-textconv --no-color',
+      'diff HEAD --binary --no-ext-diff --no-textconv --no-color',
       'ls-files --full-name --others --directory -z -- :/',
       'ls-tree --full-tree -r --name-only -z refs/remotes/origin/main',
     ].includes(key)

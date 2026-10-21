@@ -481,3 +481,18 @@ checks shared fragments instead of accepting copied definitions.
 Shared fragments such as `operationPlan`, AI provider/input metadata, dev change
 summaries, automation `policy`, and automation `sandbox` live in
 `schemas/zaowu.command.shared.schema.json`.
+
+## Foundation quality additions
+
+Schema version remains 1. Document summaries add `method: "extractive"`.
+Numeric analysis adds `missingCount` and `nonNumericCount` per numeric column.
+Git review/commit results add `method` (`heuristic`, `ai-assisted`, or `echo`);
+appended model findings add `origin: "ai"`. Existing keys remain compatible.
+Human plan formatting groups empty sections; operation-plan JSON and fingerprint
+calculation are unchanged.
+
+AI `--json` requests are non-streaming and emit one complete result/error.
+`AI_REQUEST_CANCELLED` uses exit code 130. Truncated, malformed, empty, or
+unterminated streaming responses never return a successful partial envelope.
+Document and data size limits use stable `DOCUMENT_INPUT_TOO_LARGE` and
+`DATA_INPUT_TOO_LARGE` errors; PDFs without text use `DOCUMENT_TEXT_UNAVAILABLE`.

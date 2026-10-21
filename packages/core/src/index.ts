@@ -24,6 +24,7 @@ export {
   assertSafeOutputPath,
   isPathEscapingDirectory,
   pathExists,
+  readBoundedFile,
   readTextFileOrThrow,
   writeTextFileExclusive,
 } from './fs.js';

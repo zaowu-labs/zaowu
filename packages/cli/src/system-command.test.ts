@@ -2,6 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { runSystemCommand, toWindowsCommand } from './system-command';
 
 describe('toWindowsCommand', () => {
+  it('preserves NUL-framed output including leading filename whitespace', () => {
+    expect(
+      runSystemCommand(process.execPath, ['-p', 'String.fromCharCode(32,110,97,109,101,0)'])
+    ).toBe(' name\0\n');
+  });
   it('passes scoped environment overrides to a diagnostic subprocess', () => {
     expect(
       runSystemCommand(process.execPath, ['-p', 'process.env.ZAOWU_DIAGNOSTIC_TEST'], {

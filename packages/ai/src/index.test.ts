@@ -52,7 +52,7 @@ describe('AI provider registry', () => {
         network: true,
         configured: false,
         requiredEnv: ['ANTHROPIC_API_KEY'],
-        defaultModel: 'claude-3-5-sonnet-latest',
+        defaultModel: 'claude-sonnet-4-6',
       },
     ]);
   });

@@ -14,36 +14,39 @@ contracts consistent across its nine domains.
   template teaching drafts, HTTP previews, and local manifest management exist.
 - Workflow shell execution and plugin-code execution remain outside this release.
 
-## Current improvement: first use and recovery
+## Delivered foundation improvements (1.1.0)
 
-Experience contract: [First use](experience/ZW_FIRST_RUN.md).
+Experience contracts: [Foundation quality](experience/ZW_FOUNDATION_QUALITY.md)
+and [composed jobs](experience/ZW_COMPOSED_JOBS.md).
 
-Acceptance evidence belongs in the pull request and release notes:
+- P0: removed Mammoth's vulnerable CLI chain and the approved exception; the full
+  production audit now requires zero accepted findings.
+- P1 AI: streaming for all three real adapters, cancellation across the transport,
+  bounded complete-response validation, retries only before output, local HTTP
+  fixtures, and an active Anthropic default.
+- P1 documents/data: real rich fixtures, bounded inputs/inflation, OCR guidance,
+  Markdown/DOCX structure, missing values, preserved columns, and finite statistics.
+- P1 Git: read-only integration fixtures, safe diff invocation, robust filenames,
+  heuristic/model labeling, and useful Echo behavior.
+- P2 plans: compact human formatting preserves all targets and the JSON contract.
+- P2 composition: runnable [recipes](WORKFLOWS.md), ownership/approval spec, and
+  regressions rejecting stale intermediate-file confirmation and changes between
+  reads during a confirmed command.
 
-- A fresh user obtains document and table results from self-contained README
-  examples, then chooses a real model explicitly.
-- Help can be discovered with `zw help <domain> <action>` and `-h` without
-  executing the requested operation.
-- Malformed boolean flags and extra targets fail before side effects.
-- Initialization preserves every supported local config name; invalid preferences
-  do not silently change providers.
-- Configuration previews provide commands bound to the displayed plan. Shell
-  quoting preserves literal values and option-like prompts.
-- Doctor distinguishes optional repository tooling from CLI prerequisites.
+## Next maintenance priorities
 
-## Next priorities
-
-| Priority | Work                                                                                    | Completion evidence                                                                                                          |
-| -------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| P0       | Resolve or replace the approved `sprintf-js` dependency exception before 2026-11-19 UTC | Production audit passes without the exception; no expiry extension or broader bypass                                         |
-| P1       | Deepen real provider reliability                                                        | Focused fake-server cases for streaming cancellation, retries, timeouts, and malformed events; usable provider setup errors  |
-| P1       | Improve document/data results with real inputs                                          | PDF/DOCX/XLSX fixtures cover extraction limitations, large inputs, missing values, and actionable errors                     |
-| P1       | Improve Git review and commit quality                                                   | Representative repositories demonstrate useful findings/suggestions with clear heuristic/AI labeling and unchanged Git state |
-| P2       | Make operation plans easier to scan                                                     | A proposed compact human view preserves every sensitive target and leaves JSON contracts unchanged                           |
-| P2       | Compose domains around repeated jobs                                                    | An experience spec defines inputs, outputs, approval boundaries, and ownership before implementation                         |
+1. Track provider lifecycle and protocol changes against the documented local HTTP
+   fixtures; live account/model access remains the user's explicit choice.
+2. Expand representative real-world DOCX/PDF/table fixtures before promising layout,
+   OCR, formula evaluation, or additional formats. Keep limits explicit.
+3. Improve semantic Git review quality from reproduced examples rather than treating
+   heuristic warnings or model output as proof that a change is correct.
+4. Introduce structured cross-domain workflow actions only after typed handoffs,
+   per-step plans, approval scope, and failure receipts are implemented and tested.
+   Shell/network execution remains blocked.
 
 Prioritize reproduced user failures over adding domains. Keep the broader
-[roadmap](ROADMAP.md) as direction; the table above defines near-term order.
+[roadmap](ROADMAP.md) as direction.
 
 ## Delivery loop
 

@@ -8,12 +8,14 @@
  * allowed to depend on both `@zaowu-labs/dev` and `@zaowu-labs/ai`.
  */
 
+import { ZaoWuError } from '@zaowu-labs/core';
 import {
   isDevFindingCategory,
   isDevFindingPriority,
   isDevFindingSeverity,
   type DevCommitResult,
   type DevCommitSuggestion,
+  type DevDiffHunk,
   type DevReviewFinding,
 } from './contracts.js';
 
@@ -65,23 +67,35 @@ export const applyDevAiCommitSuggestion = (
   preview: DevCommitResult,
   aiOutput: string
 ): DevCommitResult => {
-  const lines = aiOutput
+  const cleanOutput = aiOutput
+    .trim()
+    .replace(/^```[^\n]*\r?\n/, '')
+    .replace(/\r?\n```$/, '');
+  const lines = cleanOutput
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
-  const title = lines[0] || preview.suggestion.title;
+  const title = lines[0] ?? '';
   const body = lines.slice(1);
-  const match = /^([a-z0-9]+)(?:\(([^)]+)\))?:\s*(.+)$/i.exec(title);
+  const match = /^([a-z][a-z0-9-]*)(?:\(([^():\r\n]+)\))?(!)?:\s+(.+)$/i.exec(title);
+  if (!match || title.length > 100)
+    throw new ZaoWuError({
+      code: 'AI_PROVIDER_RESPONSE_INVALID',
+      message: 'AI commit suggestion is invalid.',
+      why: 'The model did not return a Conventional Commit title of at most 100 characters.',
+      fix: 'Retry with a real model, edit the message yourself, or use the local heuristic preview without --ai.',
+    });
   const suggestion: DevCommitSuggestion = {
     type: match?.[1] || preview.suggestion.type,
-    scope: match?.[2] || preview.suggestion.scope,
-    subject: match?.[3] || preview.suggestion.subject,
+    scope: match[2] ?? '',
+    subject: match[4],
     title,
     body: body.length > 0 ? body : preview.suggestion.body,
   };
 
   return {
     ...preview,
+    method: 'ai-assisted',
     suggestion,
     message: title,
   };
@@ -93,7 +107,10 @@ export const applyDevAiCommitSuggestion = (
  * output that is not a JSON array falls back to a single plain-text summary
  * finding so the review never silently loses the provider's response.
  */
-export const parseDevAiReviewFindings = (aiOutput: string): DevReviewFinding[] => {
+export const parseDevAiReviewFindings = (
+  aiOutput: string,
+  context?: { files: readonly string[]; hunks: readonly DevDiffHunk[] }
+): DevReviewFinding[] => {
   let cleanOutput = aiOutput.trim();
 
   if (cleanOutput.startsWith('```')) {
@@ -126,19 +143,52 @@ export const parseDevAiReviewFindings = (aiOutput: string): DevReviewFinding[] =
 
   return parsedItems.map((item) => {
     const finding = item && typeof item === 'object' ? (item as Record<string, unknown>) : {};
+    if (
+      typeof finding.title !== 'string' ||
+      !finding.title.trim() ||
+      typeof finding.detail !== 'string' ||
+      !finding.detail.trim()
+    )
+      throw new ZaoWuError({
+        code: 'AI_PROVIDER_RESPONSE_INVALID',
+        message: 'AI review findings are invalid.',
+        why: 'Each structured finding must have a non-empty title and detail; empty or malformed items are not review findings.',
+        fix: 'Retry with a real model or use the local review without --ai.',
+      });
+    const path = typeof finding.filePath === 'string' ? finding.filePath : undefined;
+    const locationValid = !context || !path || context.files.includes(path);
+    const validLine =
+      Number.isInteger(finding.line) &&
+      Number(finding.line) > 0 &&
+      locationValid &&
+      (!context ||
+        context.hunks.some(
+          (hunk) =>
+            hunk.filePath === path &&
+            Number(finding.line) >= hunk.startLine &&
+            Number(finding.line) <= hunk.endLine
+        ));
 
     return {
       severity: isDevFindingSeverity(finding.severity) ? finding.severity : 'info',
       priority: isDevFindingPriority(finding.priority) ? finding.priority : 'medium',
       category: isDevFindingCategory(finding.category) ? finding.category : 'quality',
       title: typeof finding.title === 'string' ? finding.title : 'AI Review',
-      detail: typeof finding.detail === 'string' ? finding.detail : '',
-      filePath: typeof finding.filePath === 'string' ? finding.filePath : undefined,
-      line:
-        Number.isInteger(finding.line) && Number(finding.line) > 0
-          ? Number(finding.line)
+      detail:
+        finding.detail +
+        (!locationValid || (finding.line !== undefined && !validLine)
+          ? ' Location could not be verified against this diff.'
+          : ''),
+      filePath: locationValid ? path : undefined,
+      line: validLine ? Number(finding.line) : undefined,
+      hunkHeader:
+        typeof finding.hunkHeader === 'string' &&
+        (!context ||
+          context.hunks.some(
+            (hunk) => hunk.filePath === path && hunk.header === finding.hunkHeader
+          ))
+          ? finding.hunkHeader
           : undefined,
-      hunkHeader: typeof finding.hunkHeader === 'string' ? finding.hunkHeader : undefined,
     };
   });
 };

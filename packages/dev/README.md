@@ -27,3 +27,22 @@ Safety:
 - Review hunks include new-file line ranges, and line-specific findings expose
   an optional line number.
 - Machine-readable commit and review output includes a schema version.
+
+## Trustworthy previews
+
+Local review and commit results identify `method: "heuristic"`. Model assistance
+uses `method: "ai-assisted"`, and appended model findings identify `origin: "ai"`.
+Echo uses `method: "echo"` and retains local results: it is a diagnostic, not a
+code reviewer or commit author. Model commit titles must be Conventional Commit
+messages of at most 100 characters; malformed suggestions fail visibly.
+
+Git paths use NUL framing for lists/status and decode quoted diff paths, so
+Unicode, whitespace, and Unix newline filenames keep their identity. Diff reads
+disable external diff drivers, text conversion, and color. Optional Git locks
+are disabled; read-only commands leave the index and worktree unchanged.
+
+Cross-package commits use a project scope instead of choosing the first package.
+Local rules are risk signals, not a complete review. Untracked files remain
+name-only until staged. AI previews disclose included/total diff characters;
+only the first 100,000 characters are sent, so stage smaller changes for full
+context. Neither local nor AI suggestions commit, stage, or push changes.

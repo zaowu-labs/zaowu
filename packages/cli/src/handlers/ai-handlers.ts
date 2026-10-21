@@ -33,6 +33,13 @@ export const handleAiAsk: DomainActionHandler = async (args, context) => {
     provider: ai.providerId,
     model: ai.requestedModel,
   });
+  const guardedRequest = {
+    prompt,
+    filePath,
+    provider: ai.providerId,
+    model: ai.requestedModel,
+    expectedContentSubjects: contentSubjects,
+  };
   const operationPlan = createOperationPlan({
     risk: provider.network ? 'medium' : 'low',
     confirmationRequired: provider.network && !context.yes,
@@ -48,12 +55,7 @@ export const handleAiAsk: DomainActionHandler = async (args, context) => {
   });
 
   if (provider.network && !context.yes) {
-    const preview = await previewAIRequest({
-      prompt,
-      filePath,
-      provider: ai.providerId,
-      model: ai.requestedModel,
-    });
+    const preview = await previewAIRequest(guardedRequest);
     const payload = {
       schemaVersion: preview.schemaVersion,
       status: 'preview',
@@ -121,35 +123,31 @@ export const handleAiAsk: DomainActionHandler = async (args, context) => {
     onChunk(header);
 
     let streamedAnyChunk = false;
-    const response = await askAI({
-      prompt,
-      filePath,
-      provider: ai.providerId,
-      model: ai.requestedModel,
-      allowNetwork: context.yes,
-      onChunk: (chunk) => {
-        streamedAnyChunk = true;
-        onChunk(chunk);
-      },
-    });
+    try {
+      const response = await askAI({
+        signal: context.signal,
+        ...guardedRequest,
+        allowNetwork: context.yes,
+        onChunk: (chunk) => {
+          streamedAnyChunk = true;
+          onChunk(chunk);
+        },
+      });
 
-    // Providers that do not support streaming (echo, OpenAI, non-stream paths)
-    // never call onChunk. Print their full output so the human-readable
-    // command does not silently produce an empty result.
-    if (!streamedAnyChunk) {
-      onChunk(response.output);
+      // Echo and JSON-compatible proxies may return a complete response.
+      if (!streamedAnyChunk) {
+        onChunk(response.output);
+      }
+
+      return result(context, withOperationPlan(response, operationPlan), '');
+    } finally {
+      onChunk('\n');
     }
-
-    onChunk('\n');
-
-    return result(context, withOperationPlan(response, operationPlan), '');
   }
 
   const response = await askAI({
-    prompt,
-    filePath,
-    provider: ai.providerId,
-    model: ai.requestedModel,
+    signal: context.signal,
+    ...guardedRequest,
     allowNetwork: context.yes,
   });
   const payload = response;

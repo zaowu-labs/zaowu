@@ -45,6 +45,7 @@ export interface DomainHandlerContext {
   parsed: ParsedArgs;
   commandRunner: CommandRunner;
   onChunk?: (chunk: string) => void;
+  signal?: AbortSignal;
 }
 
 export type DomainActionHandler = (
@@ -221,6 +222,7 @@ export const formatSandbox = (sandbox: {
   ].join('\n');
 
 export const formatFinding = (finding: {
+  origin?: string;
   severity: string;
   priority?: string;
   category?: string;
@@ -237,11 +239,22 @@ export const formatFinding = (finding: {
   const location = [fileLocation, finding.hunkHeader].filter(Boolean).join(' ');
   const risk = [finding.severity, finding.priority, finding.category].filter(Boolean).join('/');
 
-  return `- ${risk}: ${finding.title}${location ? ` (${location})` : ''} - ${finding.detail}`;
+  return `- ${risk}${finding.origin ? `/${finding.origin}` : ''}: ${finding.title}${location ? ` (${location})` : ''} - ${finding.detail}`;
 };
 
-export const formatOperationPlan = (plan: OperationPlan): string =>
-  [
+export const formatOperationPlan = (plan: OperationPlan): string => {
+  const sections: Array<[string, readonly string[]]> = [
+    ['Subjects', plan.subjects],
+    ['Read', plan.reads],
+    ['Write', plan.writes],
+    ['Delete', plan.deletes],
+    ['Execute', plan.executes],
+    ['Network', plan.network],
+    ['Secrets', plan.secrets],
+    ['Notes', plan.notes],
+  ];
+  const empty = sections.filter(([, values]) => values.length === 0).map(([label]) => label);
+  return [
     'Operation plan:',
     `Risk: ${plan.risk}`,
     `Confirmation required: ${plan.confirmationRequired ? 'yes' : 'no'}`,
@@ -249,31 +262,12 @@ export const formatOperationPlan = (plan: OperationPlan): string =>
     ...(plan.confirmationRequired
       ? [`Base confirmation flags: --yes --plan-fingerprint ${plan.fingerprint}`]
       : []),
-    '',
-    'Subjects:',
-    formatList(plan.subjects),
-    '',
-    'Read:',
-    formatList(plan.reads),
-    '',
-    'Write:',
-    formatList(plan.writes),
-    '',
-    'Delete:',
-    formatList(plan.deletes),
-    '',
-    'Execute:',
-    formatList(plan.executes),
-    '',
-    'Network:',
-    formatList(plan.network),
-    '',
-    'Secrets:',
-    formatList(plan.secrets),
-    '',
-    'Notes:',
-    formatList(plan.notes),
+    ...sections
+      .filter(([, values]) => values.length > 0)
+      .flatMap(([label, values]) => [`${label}:`, formatList(values)]),
+    ...(empty.length ? [`No targets: ${empty.join(', ')}.`] : []),
   ].join('\n');
+};
 
 export const parsePositiveInteger = (value: string | undefined, fallback: number): number => {
   const parsed = Number.parseInt(value ?? '', 10);

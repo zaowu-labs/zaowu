@@ -104,3 +104,12 @@ registry.
 | `WORKFLOW_READ_FAILED`        | A workflow file could not be read.          |
 | `WORKFLOW_STEP_FAILED`        | A workflow step execution failed.           |
 | `WORKFLOW_SHELL_DANGEROUS`    | A dangerous command pattern was blocked.    |
+
+## Input bounds and cancellation
+
+| Code                        | Meaning                                                            |
+| --------------------------- | ------------------------------------------------------------------ |
+| `DOCUMENT_INPUT_TOO_LARGE`  | The document or extracted text exceeds the safety limit.           |
+| `DOCUMENT_TEXT_UNAVAILABLE` | The PDF has no extractable text layer; OCR is required.            |
+| `DATA_INPUT_TOO_LARGE`      | The dataset exceeds the supported input or table size.             |
+| `AI_REQUEST_CANCELLED`      | The caller cancelled the AI request; partial output is incomplete. |

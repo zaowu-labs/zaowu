@@ -202,6 +202,7 @@ export const executeCli = async (
           parsed,
           yes: hasFlag(parsed, '--yes') && !hasFlag(parsed, '--dry-run'),
           onChunk: options.onChunk,
+          signal: options.signal,
         });
       }
 
@@ -222,11 +223,21 @@ export const executeCli = async (
 };
 
 export const runCli = async (args: readonly string[]): Promise<number> => {
-  const result = await executeCli(args, {
-    onChunk: (chunk) => {
-      process.stdout.write(chunk);
-    },
-  });
+  const controller = new AbortController();
+  const cancel = () => controller.abort();
+  const cancellable = args[0] === 'ai' || (args[0] === 'dev' && args.includes('--ai'));
+  if (cancellable) process.on('SIGINT', cancel);
+  let result: CliResult;
+  try {
+    result = await executeCli(args, {
+      signal: controller.signal,
+      onChunk: (chunk) => {
+        process.stdout.write(chunk);
+      },
+    });
+  } finally {
+    if (cancellable) process.removeListener('SIGINT', cancel);
+  }
 
   if (result.stdout) {
     process.stdout.write(`${result.stdout}\n`);

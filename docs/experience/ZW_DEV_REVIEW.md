@@ -119,3 +119,14 @@ on this later, but should not replace this transparent baseline.
 - No Git state is modified.
 - New review signals include tests.
 - Command docs and catalog stay aligned.
+
+## Reliability and method disclosure
+
+Local results include `method: "heuristic"`. Confirmed model results use
+`method: "ai-assisted"`, with `origin: "ai"` on appended findings. Echo diagnostics
+retain local results and use `method: "echo"`. AI plans disclose the exact diff
+character count and any truncation at 100,000 characters. Model findings are
+suggestions; names of untracked files do not imply their contents were reviewed.
+NUL-framed path lists/status preserve special filenames. Diffs disable external
+drivers/textconv/color, and optional index locking is disabled. Real repository
+fixtures verify unchanged index bytes, HEAD, worktree content, and Git status.

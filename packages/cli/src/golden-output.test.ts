@@ -100,7 +100,7 @@ describe('golden command output contracts', () => {
 
     expect(result.exitCode).toBe(0);
     const lines = getStableLines(result.stdout);
-    expect(lines.slice(0, 22)).toEqual([
+    expect(lines.slice(0, 15)).toEqual([
       'ZaoWu AI Ask',
       'Status: preview',
       'Provider: openai (OpenAI)',
@@ -116,14 +116,8 @@ describe('golden command output contracts', () => {
       '- model:gpt-4.1-mini',
       expect.stringMatching(/^- content-sha256:[a-f0-9]{64}$/),
       '- content-length:13',
-      'Read:',
-      '- none',
-      'Write:',
-      '- none',
-      'Delete:',
-      '- none',
-      'Execute:',
     ]);
+    expect(lines).toContain('No targets: Read, Write, Delete, Execute.');
     expect(result.stdout).toContain('No provider request was sent.');
     expect(lines).toContain('To send exactly this AI request, run:');
     expect(lines).toContainEqual(
@@ -136,15 +130,19 @@ describe('golden command output contracts', () => {
   it('keeps dev review findings prioritized in human output', async () => {
     const result = await executeCli(['dev', 'review', '--staged'], {
       commandRunner: (_command, args) => {
-        if (args.join(' ') === 'diff --cached --name-only') {
+        if (
+          args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+        ) {
           return 'packages/dev/src/index.ts\npackages/dev/src/index.test.ts';
         }
 
-        if (args.join(' ') === 'diff --cached --numstat') {
+        if (
+          args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color'
+        ) {
           return '1\t0\tpackages/dev/src/index.ts\n1\t0\tpackages/dev/src/index.test.ts';
         }
 
-        if (args.join(' ') === 'diff --cached --unified=0') {
+        if (args.join(' ') === 'diff --cached --unified=0 --no-ext-diff --no-textconv --no-color') {
           return [
             'diff --git a/packages/dev/src/index.ts b/packages/dev/src/index.ts',
             '@@ -10,0 +11 @@',
@@ -169,15 +167,19 @@ describe('golden command output contracts', () => {
   it('keeps dev commit human output structured and read-only', async () => {
     const result = await executeCli(['dev', 'commit'], {
       commandRunner: (_command, args) => {
-        if (args.join(' ') === 'diff --cached --name-only') {
+        if (
+          args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+        ) {
           return 'packages/dev/src/index.ts';
         }
 
-        if (args.join(' ') === 'diff --cached --numstat') {
+        if (
+          args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color'
+        ) {
           return '1\t0\tpackages/dev/src/index.ts';
         }
 
-        if (args.join(' ') === 'diff --cached --unified=0') {
+        if (args.join(' ') === 'diff --cached --unified=0 --no-ext-diff --no-textconv --no-color') {
           return [
             'diff --git a/packages/dev/src/index.ts b/packages/dev/src/index.ts',
             '@@ -10,0 +11 @@',
@@ -237,6 +239,7 @@ describe('golden command output contracts', () => {
       expect(getStableLines(result.stdout).filter((line) => !line.startsWith('File:'))).toEqual([
         'ZaoWu Doc Summary',
         'Title: ZaoWu',
+        'Method: local extractive heuristic (first three prose lines)',
         'Lines: 4',
         'Words: 4',
         'Readable output matters.',

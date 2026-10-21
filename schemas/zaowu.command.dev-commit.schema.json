@@ -69,6 +69,9 @@
     },
     "operationPlan": {
       "$ref": "https://schemas.zaowu.dev/zaowu.command.shared.schema.json#/$defs/operationPlan"
+    },
+    "method": {
+      "enum": ["heuristic", "ai-assisted", "echo"]
     }
   }
 }

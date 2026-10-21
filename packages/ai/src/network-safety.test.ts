@@ -1,3 +1,6 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { askAI, fetchWithRetry, type AIFetcher } from './index';
 
@@ -27,6 +30,30 @@ describe('AI request boundaries', () => {
     ).rejects.toMatchObject({ why: 'The request failed before a response was received.' });
     expect(signal?.aborted).toBe(true);
   });
+  it('rejects binary and invalid UTF-8 file input before any provider request', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-ai-file-'));
+    const fetcher = vi.fn();
+    try {
+      for (const [name, bytes] of [
+        ['binary.txt', Buffer.from([65, 0, 66])],
+        ['invalid.txt', Buffer.from([0xff, 0xfe])],
+        ['report.pdf', Buffer.from('%PDF-1.4')],
+      ] as const) {
+        const filePath = path.join(root, name);
+        await writeFile(filePath, bytes);
+        await expect(
+          askAI({ ...request, prompt: 'Read', filePath, fetcher })
+        ).rejects.toMatchObject({
+          code: 'AI_INPUT_FILE_READ_FAILED',
+          fix: expect.stringContaining('Convert PDF/DOCX'),
+        });
+      }
+      expect(fetcher).not.toHaveBeenCalled();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('disables redirects for requests carrying prompts and provider credentials', async () => {
     const fetcher = vi.fn<Parameters<AIFetcher>, ReturnType<AIFetcher>>(async () =>
       response({ response: 'done' })

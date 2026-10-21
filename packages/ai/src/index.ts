@@ -1,4 +1,5 @@
-import { createContentOperationSubjects, readTextFileOrThrow, ZaoWuError } from '@zaowu-labs/core';
+import path from 'node:path';
+import { createContentOperationSubjects, readBoundedFile, ZaoWuError } from '@zaowu-labs/core';
 import type {
   AIAskPreview,
   AIAskRequest,
@@ -10,7 +11,8 @@ import type {
   AIUsage,
 } from './contracts.js';
 
-import { fetchWithRetry } from './transport.js';
+import { readAIJson, readAIStream, invalidAIStream } from './stream.js';
+import { assertAIRequestActive, fetchWithRetry } from './transport.js';
 
 export {
   fetchWithRetry,
@@ -118,15 +120,42 @@ const prepareAIInput = async (
   combinedPrompt: string;
   input: AIAskResponse['input'];
 }> => {
+  assertAIRequestActive(request.signal);
   const prompt = request.prompt.trim();
   const maxInputCharacters = request.maxInputCharacters ?? DEFAULT_MAX_INPUT_CHARACTERS;
 
+  if (
+    !Number.isInteger(maxInputCharacters) ||
+    maxInputCharacters <= 0 ||
+    maxInputCharacters > DEFAULT_MAX_INPUT_CHARACTERS
+  ) {
+    throw new ZaoWuError({
+      code: 'AI_INPUT_TOO_LARGE',
+      message: 'AI input limit is invalid.',
+      why: 'The input limit must be a positive integer no greater than 200,000 characters.',
+      fix: 'Use the default limit or a smaller positive character limit.',
+    });
+  }
   assertPromptInput(prompt, request.filePath);
 
-  const fileContent = request.filePath ? await readPromptFile(request.filePath) : undefined;
+  const fileContent = request.filePath
+    ? await readPromptFile(request.filePath, maxInputCharacters * 4)
+    : undefined;
   const combinedPrompt = createCombinedPrompt(prompt, request.filePath, fileContent);
 
   assertInputSize(combinedPrompt, maxInputCharacters);
+  const actualSubjects = createContentOperationSubjects(combinedPrompt);
+  if (
+    request.expectedContentSubjects &&
+    (request.expectedContentSubjects.length !== actualSubjects.length ||
+      request.expectedContentSubjects.some((value, index) => value !== actualSubjects[index]))
+  )
+    throw new ZaoWuError({
+      code: 'OPERATION_PLAN_MISMATCH',
+      message: 'AI input changed after plan verification.',
+      why: 'The prompt/file payload no longer matches the content authorized by the operation plan. No provider request was sent.',
+      fix: 'Run the preview again and confirm its new fingerprint.',
+    });
 
   return {
     prompt,
@@ -148,17 +177,41 @@ export const resolveAIRequestContentSubjects = async (request: AIAskRequest): Pr
   return createContentOperationSubjects(prepared.combinedPrompt);
 };
 
-const readPromptFile = (filePath: string): Promise<string> =>
-  readTextFileOrThrow(
-    filePath,
-    {
+const readPromptFile = async (filePath: string, maxBytes: number): Promise<string> => {
+  const invalidText = () =>
+    new ZaoWuError({
+      code: 'AI_INPUT_FILE_READ_FAILED',
+      message: 'AI input must be readable UTF-8 text.',
+      why: 'Binary documents and invalid UTF-8 cannot be sent as extracted text through --file.',
+      fix: 'Convert PDF/DOCX with zw doc convert to a fresh text or Markdown output, inspect it, then pass that output to --file. Export spreadsheets as reviewed CSV.',
+    });
+  if (
+    ['.pdf', '.docx', '.xlsx', '.zip', '.png', '.jpg', '.jpeg', '.gif'].includes(
+      path.extname(filePath).toLowerCase()
+    )
+  )
+    throw invalidText();
+  const buffer = await readBoundedFile(filePath, maxBytes, {
+    failed: {
       code: 'AI_INPUT_FILE_READ_FAILED',
       message: 'Could not read AI input file.',
-      why: `ZaoWu tried to read \`${filePath}\`, but the file was not readable.`,
+      why: `ZaoWu could not read \`${filePath}\` as a regular file.`,
       fix: 'Check the path and file permissions, then run the command again.',
     },
-    { stripBom: true }
-  );
+    tooLarge: {
+      code: 'AI_INPUT_TOO_LARGE',
+      message: 'AI input file is too large.',
+      why: `The file exceeds ${maxBytes} bytes.`,
+      fix: 'Use a smaller UTF-8 text file or split the input.',
+    },
+  });
+  if (buffer.includes(0)) throw invalidText();
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(buffer);
+  } catch {
+    throw invalidText();
+  }
+};
 
 const ECHO_PROVIDER: AIProvider = {
   descriptor: createProviderDescriptor({
@@ -457,7 +510,7 @@ interface NetworkProviderConfig {
   /** Environment variable holding the API key, when the provider needs one. */
   apiKeyEnv?: string;
   buildHeaders: (apiKey: string | undefined) => Record<string, string>;
-  buildBody: (model: string, combinedPrompt: string) => unknown;
+  buildBody: (model: string, combinedPrompt: string, stream: boolean) => unknown;
   /** Full error for a successful HTTP response whose body is not valid JSON. */
   invalidJson: { why: string; fix: string };
   /** Extract the generated text; throws AI_PROVIDER_RESPONSE_INVALID itself. */
@@ -505,15 +558,39 @@ const createNetworkProvider = (config: NetworkProviderConfig): AIProvider => ({
       {
         method: 'POST',
         headers: config.buildHeaders(apiKey),
-        body: JSON.stringify(config.buildBody(model, prepared.combinedPrompt)),
+        body: JSON.stringify(
+          config.buildBody(model, prepared.combinedPrompt, Boolean(request.onChunk))
+        ),
+        signal: request.signal,
       },
       config.descriptor.name,
       request.timeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS
     );
 
+    const contentType = response.headers?.get('content-type')?.split(';')[0].trim().toLowerCase();
+    if (
+      request.onChunk &&
+      response.body &&
+      (contentType === 'text/event-stream' || contentType === 'application/x-ndjson')
+    ) {
+      const streamed = await readAIStream(response, config.descriptor.id, (chunk) => {
+        assertAIRequestActive(request.signal);
+        request.onChunk!(chunk);
+        assertAIRequestActive(request.signal);
+      });
+      return {
+        schemaVersion: AI_RESULT_SCHEMA_VERSION,
+        status: 'ok',
+        provider: descriptor,
+        model,
+        endpoint: url,
+        input: prepared.input,
+        ...streamed,
+      };
+    }
     let payload: unknown;
     try {
-      payload = await response.json();
+      payload = await readAIJson(response);
     } catch (error) {
       if (error instanceof ZaoWuError) throw error;
       throw new ZaoWuError({
@@ -524,6 +601,9 @@ const createNetworkProvider = (config: NetworkProviderConfig): AIProvider => ({
       });
     }
 
+    const output = config.extractOutput(payload);
+    if (output.length > 2_000_000)
+      throw invalidAIStream('Generated text exceeds two million characters.');
     return {
       schemaVersion: AI_RESULT_SCHEMA_VERSION,
       status: 'ok',
@@ -531,7 +611,7 @@ const createNetworkProvider = (config: NetworkProviderConfig): AIProvider => ({
       model,
       endpoint: url,
       input: prepared.input,
-      output: config.extractOutput(payload),
+      output,
       usage: extractProviderUsage(payload),
     };
   },
@@ -545,9 +625,10 @@ const OPENAI_PROVIDER = createNetworkProvider({
     Authorization: `Bearer ${apiKey}`,
     'Content-Type': 'application/json',
   }),
-  buildBody: (model, combinedPrompt) => ({
+  buildBody: (model, combinedPrompt, stream) => ({
     model,
     input: combinedPrompt,
+    ...(stream ? { stream: true } : {}),
   }),
   invalidJson: {
     why: 'OpenAI returned a successful HTTP response, but the response body was not valid JSON.',
@@ -590,10 +671,10 @@ const OLLAMA_PROVIDER = createNetworkProvider({
   buildHeaders: () => ({
     'Content-Type': 'application/json',
   }),
-  buildBody: (model, combinedPrompt) => ({
+  buildBody: (model, combinedPrompt, stream) => ({
     model,
     prompt: combinedPrompt,
-    stream: false,
+    stream,
   }),
   invalidJson: {
     why: 'Ollama returned a successful HTTP response, but the response body was not valid JSON.',
@@ -607,7 +688,7 @@ const ANTHROPIC_PROVIDER_DESCRIPTOR: Omit<AIProviderDescriptor, 'configured'> = 
   name: 'Anthropic',
   network: true,
   requiredEnv: ['ANTHROPIC_API_KEY'],
-  defaultModel: 'claude-3-5-sonnet-latest',
+  defaultModel: 'claude-sonnet-4-6',
 };
 
 const ANTHROPIC_PROVIDER = createNetworkProvider({
@@ -619,11 +700,11 @@ const ANTHROPIC_PROVIDER = createNetworkProvider({
     'anthropic-version': '2023-06-01',
     'Content-Type': 'application/json',
   }),
-  buildBody: (model, combinedPrompt) => ({
+  buildBody: (model, combinedPrompt, stream) => ({
     model,
     messages: [{ role: 'user', content: combinedPrompt }],
     max_tokens: 4096,
-    stream: false,
+    stream,
   }),
   invalidJson: {
     why: 'Anthropic returned a successful HTTP response, but the response body was not valid JSON.',

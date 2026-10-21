@@ -4,6 +4,37 @@
 
 No changes yet.
 
+## 1.1.0 - 2026-10-21
+
+- Added real streaming for OpenAI Responses, Anthropic, and Ollama human output;
+  JSON stays one complete result. Ctrl+C / AbortSignal cancels headers, bodies,
+  and retry waits with exit code 130. Incomplete or malformed streams fail without
+  resending partial output. Added byte/event/text limits and local HTTP fixtures.
+- Replaced the retired Anthropic Sonnet 3.5 default with `claude-sonnet-4-6`;
+  explicit model/environment overrides still win. Missing models now get setup hints.
+- Replaced Mammoth with focused, bounded DOCX ZIP/XML extraction, preserving
+  headings, lists, tables, safe links, and strict/inherited heading styles.
+  Removed eleven unused dependencies and the temporary production audit exception.
+- Bounded document/table input and workbook inflation. Added corrupt/encrypted,
+  OCR, nesting, and size guidance; serialized PDF runtime shims for concurrent calls.
+  Local document summaries identify their extractive method and ignore metadata/code.
+- Preserved unnamed extra table columns and nested JSON values; rejected malformed
+  CSV/unsupported JSON shapes. Numeric results explain missing/non-numeric cells,
+  reject non-finite values, and avoid average overflow.
+- Hardened Git previews against external diff/textconv drivers and optional index
+  writes; preserved Unicode, whitespace, and Unix newline paths. Added method/origin
+  labels, project scopes for cross-package commits, visible AI context limits, and
+  validated model commit titles. Echo diagnostics retain useful local suggestions.
+- Closed content-change races after fingerprint verification for document/data
+  writes and AI file requests; changed execution payloads now fail before side
+  effects. Binary/invalid UTF-8 AI inputs get conversion guidance. Hardened
+  malformed HTML/Markdown extraction against repeated delimiter scanning.
+- Compacted human plans while preserving every target, confirmation instruction,
+  fingerprint, and JSON field. Added tested report/table/Git recipes with separate
+  write/network approvals and rejection of edited intermediate content.
+- Kept command names, schema version 1, protected publishing, and six-platform CI
+  gates. New JSON fields are additive; no shell workflow execution was enabled.
+
 ## 1.0.6 - 2026-10-21
 
 - Made `zw help <domain> [action]` resolve command-specific help and added `-h`

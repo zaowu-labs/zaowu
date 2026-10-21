@@ -9,7 +9,14 @@ const MAX_RETRY_WAIT_MS = 30_000;
 const MAX_PROVIDER_STATUS_TEXT_CHARACTERS = 80;
 
 const sanitizeProviderStatusText = (statusText: string): string => {
-  const normalized = statusText.replace(/\s+/g, ' ').trim();
+  const normalized = statusText
+    .split('')
+    .map((character) =>
+      character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127 ? ' ' : character
+    )
+    .join('')
+    .replace(/\s+/g, ' ')
+    .trim();
 
   if (normalized.length <= MAX_PROVIDER_STATUS_TEXT_CHARACTERS) {
     return normalized;
@@ -40,7 +47,8 @@ export const parseRetryAfterHeaderMs = (value: string | null | undefined): numbe
   const seconds = Number(normalized);
 
   if (Number.isFinite(seconds) && seconds >= 0) {
-    return Math.round(seconds * 1000);
+    const milliseconds = Math.round(seconds * 1000);
+    return Number.isFinite(milliseconds) ? milliseconds : undefined;
   }
 
   const date = Date.parse(normalized);
@@ -109,6 +117,18 @@ export const classifyAIProviderHttpFailure = (
     };
   }
 
+  if (status === 404) {
+    return {
+      kind: 'bad-request',
+      retryable: false,
+      safeSummary,
+      why: `${safeSummary} The endpoint or requested model was not found.`,
+      fix: providerName.startsWith('Ollama')
+        ? 'Check OLLAMA_HOST and --model. Run `ollama list`, then `ollama pull <model>` if the chosen model is not installed.'
+        : 'Check the configured base URL and choose an available model with --model or the provider model environment variable.',
+    };
+  }
+
   if (status >= 400) {
     return {
       kind: 'bad-request',
@@ -128,74 +148,117 @@ export const classifyAIProviderHttpFailure = (
   };
 };
 
-const withProviderTimeout = async <T>(
+export const cancelledAIRequest = (): ZaoWuError =>
+  new ZaoWuError({
+    code: 'AI_REQUEST_CANCELLED',
+    message: 'AI request cancelled.',
+    why: 'The caller stopped the request. Any partial output is incomplete.',
+    fix: 'Run the command again when ready. No automatic retry was made after cancellation.',
+    exitCode: 130,
+  });
+
+export const assertAIRequestActive = (signal?: AbortSignal): void => {
+  if (signal?.aborted) throw cancelledAIRequest();
+};
+
+const bounded = async <T>(
   operation: Promise<T>,
   controller: AbortController,
   timeoutMs: number,
   providerName: string
 ): Promise<T> => {
   let timeout: ReturnType<typeof setTimeout> | undefined;
+  let onAbort: (() => void) | undefined;
   try {
     return await Promise.race([
       operation,
       new Promise<never>((_resolve, reject) => {
+        onAbort = () => reject(controller.signal.reason);
+        if (controller.signal.aborted) {
+          onAbort();
+          return;
+        }
+        controller.signal.addEventListener('abort', onAbort, { once: true });
         timeout = setTimeout(
-          () => {
-            controller.abort();
-            reject(
+          () =>
+            controller.abort(
               new ZaoWuError({
                 code: 'AI_PROVIDER_REQUEST_FAILED',
                 message: 'AI provider request failed.',
                 why: `${providerName} did not complete the response within the request timeout.`,
                 fix: 'Check provider status or increase the request timeout before retrying.',
               })
-            );
-          },
+            ),
           Math.max(0, timeoutMs)
         );
       }),
     ]);
   } finally {
     if (timeout !== undefined) clearTimeout(timeout);
+    if (onAbort) controller.signal.removeEventListener('abort', onAbort);
+  }
+};
+
+const waitForRetry = async (ms: number, signal?: AbortSignal): Promise<void> => {
+  assertAIRequestActive(signal);
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  let cancel: (() => void) | undefined;
+  try {
+    await new Promise<void>((resolve, reject) => {
+      cancel = () => reject(cancelledAIRequest());
+      signal?.addEventListener('abort', cancel, { once: true });
+      timeout = setTimeout(resolve, ms);
+    });
+  } finally {
+    if (timeout !== undefined) clearTimeout(timeout);
+    if (cancel) signal?.removeEventListener('abort', cancel);
   }
 };
 
 export async function fetchWithRetry(
   fetcher: AIFetcher,
   url: string,
-  init: {
-    method: string;
-    headers: Record<string, string>;
-    body: string;
-    signal?: AbortSignal;
-  },
+  init: { method: string; headers: Record<string, string>; body: string; signal?: AbortSignal },
   providerName: string,
   timeoutMs: number,
   maxRetries = 3
 ): Promise<AIFetchResponse> {
-  let attempt = 0;
+  if (
+    !Number.isFinite(timeoutMs) ||
+    timeoutMs <= 0 ||
+    !Number.isInteger(maxRetries) ||
+    maxRetries < 1
+  ) {
+    throw new ZaoWuError({
+      code: 'AI_PROVIDER_REQUEST_FAILED',
+      message: 'AI request limits are invalid.',
+      why: 'Timeout must be a positive finite number and attempts must be a positive integer.',
+      fix: 'Provide valid timeout and retry limits.',
+    });
+  }
   let delay = 1000;
-
-  while (true) {
-    attempt++;
+  for (let attempt = 1; ; attempt++) {
+    assertAIRequestActive(init.signal);
     const controller = new AbortController();
+    const cancel = () => controller.abort(cancelledAIRequest());
+    init.signal?.addEventListener('abort', cancel, { once: true });
+    const dispose = () => {
+      init.signal?.removeEventListener('abort', cancel);
+      controller.abort();
+    };
     const deadline = Date.now() + timeoutMs;
     let response: AIFetchResponse;
-
     try {
-      response = await withProviderTimeout(
-        fetcher(url, {
-          ...init,
-          signal: controller.signal,
-          redirect: 'error',
-        }),
+      response = await bounded(
+        fetcher(url, { ...init, signal: controller.signal, redirect: 'error' }),
         controller,
         timeoutMs,
         providerName
       );
     } catch {
       const timedOut = controller.signal.aborted;
-      controller.abort();
+      dispose();
+      assertAIRequestActive(init.signal);
       if (attempt >= maxRetries) {
         throw new ZaoWuError({
           code: 'AI_PROVIDER_REQUEST_FAILED',
@@ -206,36 +269,30 @@ export async function fetchWithRetry(
           fix: 'Check network access, provider status, and timeout settings, then try again.',
         });
       }
-      await new Promise((resolve) => setTimeout(resolve, delay));
+      await waitForRetry(Math.min(delay, MAX_RETRY_WAIT_MS), init.signal);
       delay *= 2;
       continue;
     }
-
     if (response.ok) {
+      const consumeBody = async <T>(operation: () => Promise<T>): Promise<T> => {
+        try {
+          return await bounded(operation(), controller, deadline - Date.now(), providerName);
+        } finally {
+          dispose();
+        }
+      };
       return {
         ok: response.ok,
         status: response.status,
         statusText: response.statusText,
         headers: response.headers,
         body: response.body,
-        async json() {
-          try {
-            return await withProviderTimeout(
-              response.json(),
-              controller,
-              deadline - Date.now(),
-              providerName
-            );
-          } finally {
-            controller.abort();
-          }
-        },
+        json: () => consumeBody(() => response.json()),
+        consumeBody,
+        dispose,
       };
     }
-
-    // Discard failed response bodies before retrying or returning an error.
-    controller.abort();
-
+    dispose();
     const retryAfterMs = parseRetryAfterHeaderMs(response.headers?.get('retry-after'));
     const failure = classifyAIProviderHttpFailure(
       providerName,
@@ -243,14 +300,11 @@ export async function fetchWithRetry(
       response.statusText,
       retryAfterMs
     );
-
     if (failure.retryable && attempt < maxRetries) {
-      const waitMs = Math.min(retryAfterMs ?? delay, MAX_RETRY_WAIT_MS);
-      await new Promise((resolve) => setTimeout(resolve, waitMs));
+      await waitForRetry(Math.min(retryAfterMs ?? delay, MAX_RETRY_WAIT_MS), init.signal);
       delay *= 2;
       continue;
     }
-
     throw new ZaoWuError({
       code: 'AI_PROVIDER_REQUEST_FAILED',
       message: 'AI provider request failed.',
