@@ -10,6 +10,7 @@ export interface WebResponseLike {
     getReader(): {
       read(): Promise<{ done: boolean; value?: Uint8Array }>;
       cancel?(): Promise<void> | void;
+      releaseLock?(): void;
     };
   } | null;
   text(): Promise<string>;
@@ -50,6 +51,7 @@ export interface WebFetchResult {
 
 interface WebRequestContext {
   response: WebResponseLike;
+  deadline: number;
   abort(): void;
 }
 
@@ -135,7 +137,7 @@ const webUrlInvalidError = (): ZaoWuError =>
   new ZaoWuError({
     code: 'WEB_URL_INVALID',
     message: 'Web URL is invalid.',
-    why: '`zw web` only accepts explicit http or https URLs.',
+    why: '`zw web` accepts http or https URLs without embedded usernames/passwords.',
     fix: 'Run a command like `zw web inspect https://example.com --yes`.',
   });
 
@@ -155,7 +157,7 @@ const assertWebUrl = (url: string): string => {
     throw webUrlInvalidError();
   }
 
-  if (!['http:', 'https:'].includes(parsed.protocol)) {
+  if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) {
     throw webUrlInvalidError();
   }
 
@@ -186,6 +188,7 @@ const requestWebTarget = async (
   timeoutMs: number
 ): Promise<WebRequestContext> => {
   const controller = new AbortController();
+  const deadline = Date.now() + timeoutMs;
 
   try {
     const response = await withTimeout(
@@ -195,11 +198,13 @@ const requestWebTarget = async (
 
     return {
       response,
+      deadline,
       abort() {
         controller.abort();
       },
     };
   } catch (error) {
+    controller.abort();
     if (error instanceof ZaoWuError) {
       throw error;
     }
@@ -234,21 +239,24 @@ export const inspectWebTarget = async (
     };
   }
 
-  const { response } = await requestWebTarget(normalizedUrl, 'HEAD', options.fetcher, timeoutMs);
-  const headers: Record<string, string> = {};
-
-  response.headers?.forEach((value, key) => {
-    headers[key] = value;
-  });
-
-  return {
-    schemaVersion: 1,
-    status: 'ok',
-    url: normalizedUrl,
-    statusCode: response.status,
-    statusText: response.statusText,
-    headers,
-  };
+  const request = await requestWebTarget(normalizedUrl, 'HEAD', options.fetcher, timeoutMs);
+  try {
+    const { response } = request;
+    const headers: Record<string, string> = {};
+    response.headers?.forEach((value, key) => {
+      Object.defineProperty(headers, key, { value, enumerable: true, configurable: true });
+    });
+    return {
+      schemaVersion: 1,
+      status: 'ok',
+      url: normalizedUrl,
+      statusCode: response.status,
+      statusText: response.statusText,
+      headers,
+    };
+  } finally {
+    request.abort();
+  }
 };
 
 /**
@@ -306,12 +314,13 @@ export const fetchWebTarget = async (
   let bodyLength: number;
   let bodyLengthExact = true;
   let responseBytesRead: number;
+  let reader: ReturnType<NonNullable<WebResponseLike['body']>['getReader']> | undefined;
 
   try {
     if (response.body) {
-      const reader = response.body.getReader();
+      reader = response.body.getReader();
       const decoder = createResponseTextDecoder(response);
-      const bodyDeadline = Date.now() + timeoutMs;
+      const bodyDeadline = request.deadline;
       let preview = '';
       let observedCharacters = 0;
       let observedBytes = 0;
@@ -340,7 +349,7 @@ export const fetchWebTarget = async (
         observedCharacters += text.length;
         preview += text.slice(0, Math.max(0, maxBodyLength - preview.length));
 
-        if (accepted.byteLength < value.byteLength) {
+        if (accepted.byteLength < value.byteLength || observedBytes >= maxResponseBytes) {
           bodyLengthExact = false;
           // Flush the streaming decoder so a trailing partial multibyte
           // character it is still holding is not silently dropped, matching
@@ -348,8 +357,6 @@ export const fetchWebTarget = async (
           const flushed = decoder.decode();
           observedCharacters += flushed.length;
           preview += flushed.slice(0, Math.max(0, maxBodyLength - preview.length));
-          await reader.cancel?.();
-          request.abort();
           break;
         }
       }
@@ -358,7 +365,9 @@ export const fetchWebTarget = async (
       bodyLength = observedCharacters;
       responseBytesRead = observedBytes;
     } else {
-      const fullBody = await withTimeout(response.text(), timeoutMs);
+      const remainingMs = request.deadline - Date.now();
+      if (remainingMs <= 0) throw new WebRequestTimeoutError(timeoutMs);
+      const fullBody = await withTimeout(response.text(), remainingMs);
       body = fullBody.slice(0, maxBodyLength);
       bodyLength = fullBody.length;
       responseBytesRead = Buffer.byteLength(fullBody, 'utf8');
@@ -380,6 +389,18 @@ export const fetchWebTarget = async (
       `ZaoWu received a response from \`${normalizedUrl}\`, but could not read the response body.`,
       bodyFix
     );
+  } finally {
+    request.abort();
+    try {
+      void Promise.resolve(reader?.cancel?.()).catch(() => {});
+    } catch {
+      /* Cleanup must not mask the result. */
+    }
+    try {
+      reader?.releaseLock?.();
+    } catch {
+      /* A pending custom reader may reject release. */
+    }
   }
 
   const bodyTruncated = !bodyLengthExact || bodyLength > maxBodyLength;

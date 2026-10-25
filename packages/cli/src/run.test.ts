@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, stat, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
@@ -1826,7 +1826,7 @@ describe('executeCli', () => {
     }
   });
 
-  it('reports unreadable plugin target state in operation plans', async () => {
+  it('rejects plugin targets that are directories before planning writes', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
     const pluginPath = path.join(root, '.zaowu', 'plugins', 'readme-gen.json');
 
@@ -1835,11 +1835,9 @@ describe('executeCli', () => {
       const preview = await executeCli(['plugin', 'install', 'readme-gen', '--json'], {
         cwd: root,
       });
-      const previewPayload = JSON.parse(preview.stdout);
-
-      expect(previewPayload.operationPlan.subjects).toEqual(
-        expect.arrayContaining(['target-state:unreadable'])
-      );
+      expect(preview.exitCode).toBe(1);
+      expect(JSON.parse(preview.stderr).error.code).toBe('PLUGIN_PATH_UNSAFE');
+      expect((await stat(pluginPath)).isDirectory()).toBe(true);
     } finally {
       await rm(root, { recursive: true, force: true });
     }

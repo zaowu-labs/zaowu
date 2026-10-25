@@ -12,6 +12,7 @@ import type {
 } from './contracts.js';
 
 import { readAIJson, readAIStream, invalidAIStream } from './stream.js';
+import { assertCompletedAIResponse } from './completion.js';
 import { assertAIRequestActive, fetchWithRetry } from './transport.js';
 
 export {
@@ -437,14 +438,18 @@ const extractOpenAIOutputText = (payload: unknown): string => {
 };
 
 const asUsageNumber = (value: unknown): number | undefined =>
-  typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
 
 const extractProviderUsage = (payload: unknown): AIUsage | null => {
   if (!payload || typeof payload !== 'object') {
     return null;
   }
 
-  const rawUsage = (payload as { usage?: unknown }).usage;
+  const response = payload as Record<string, unknown>;
+  const rawUsage = response.usage ?? {
+    input_tokens: response.prompt_eval_count,
+    output_tokens: response.eval_count,
+  };
   if (!rawUsage || typeof rawUsage !== 'object') {
     return null;
   }
@@ -461,7 +466,7 @@ const extractProviderUsage = (payload: unknown): AIUsage | null => {
     result.inputTokens !== undefined &&
     result.outputTokens !== undefined
   ) {
-    result.totalTokens = result.inputTokens + result.outputTokens;
+    result.totalTokens = asUsageNumber(result.inputTokens + result.outputTokens);
   }
 
   return Object.values(result).some((value) => value !== undefined) ? result : null;
@@ -601,6 +606,7 @@ const createNetworkProvider = (config: NetworkProviderConfig): AIProvider => ({
       });
     }
 
+    assertCompletedAIResponse(config.descriptor.id, payload);
     const output = config.extractOutput(payload);
     if (output.length > 2_000_000)
       throw invalidAIStream('Generated text exceeds two million characters.');

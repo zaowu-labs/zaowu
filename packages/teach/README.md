@@ -10,3 +10,7 @@ Safety:
 - It does not call external AI services.
 - Future AI-backed teaching behavior should go through `@zaowu-labs/ai`.
 - User-facing commands should keep output readable before adding complexity.
+- File inputs resolve against the supplied working directory, strip a UTF-8 BOM,
+  and are limited to one MiB. Unreadable/oversized files fail with recovery guidance.
+  Nonexistent paths retain literal-topic behavior; literal input is limited to one
+  million characters.

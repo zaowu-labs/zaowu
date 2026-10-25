@@ -1,3 +1,4 @@
+import path from 'node:path';
 /**
  * Shared utilities used across all domain handler modules.
  *
@@ -89,6 +90,11 @@ export const resolveAiProvider = async (
     networkTarget: provider.network ? resolveAIProviderNetworkTarget(provider.id) : undefined,
   };
 };
+
+export const resolveFileTarget = (
+  context: Pick<DomainHandlerContext, 'cwd'>,
+  target: string
+): string => path.resolve(context.cwd, target);
 
 export const requireTarget = (args: readonly string[], command: string): string => {
   const target = args[0];

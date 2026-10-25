@@ -100,7 +100,14 @@ changed plans before any sensitive work is performed.
 For commands that generate content for a file write, CLI operation-plan
 `subjects` include `content-sha256:<hash>` and `content-length:<characters>`.
 This binds the preview fingerprint to the actual content ZaoWu plans to write,
-not only to the target path.
+not only to the target path. Plugin installation instead binds its id and resolved
+source; its timestamp is generated at confirmation and disclosed in plan notes.
+
+CLI file input/output paths resolve against its working directory and are absolute
+in file results and operation plans. A confirmation from a different directory or
+an older relative-path plan requires a new preview. Configuration plans also bind
+the exact original input digest, including comments, so migrations cannot silently
+discard edits after preview. JSON keys and schema version remain unchanged.
 
 ### `zw doctor --json`
 
@@ -436,11 +443,15 @@ Schema files: `schemas/zaowu.command.plugin-*.schema.json`.
 List and validate are read-only. Install and remove expose local manifest
 changes and use the shared `operationPlan` in CLI output. Preview results never
 claim a file was written or removed.
-Install previews bind the generated manifest preview content and current target
-file state. Remove previews bind the current target manifest content when it
+Install previews bind the id, resolved source, and current target file state;
+the installation timestamp is generated on confirmation. Remove previews bind
+and recheck the current target manifest content when it
 exists. This makes stale plugin confirmations fail if the local manifest state
 changes between preview and confirmation.
 No plugin command-execution contract exists in the foundation version.
+Installed manifests are bounded regular files with validated id/source/timestamp
+types. Unknown keys are omitted; malformed or linked entries use the existing
+unreadable-manifest shape. A directory read failure is `PLUGIN_READ_FAILED`.
 
 ### Teaching Commands
 
@@ -463,6 +474,8 @@ requirement. Redirects are not followed automatically.
 Confirmed fetch results bound the displayed body preview and report
 `responseBytesRead`, `maxResponseBytes`, and `bodyLengthExact`. Native streaming
 responses stop at the byte limit instead of buffering an unbounded body.
+At exactly the cap, `bodyLengthExact` is conservatively false without another
+blocking read. Headers and body share one deadline; responses are closed after use.
 
 ## Verification
 

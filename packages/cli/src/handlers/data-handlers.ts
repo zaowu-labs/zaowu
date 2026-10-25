@@ -16,13 +16,14 @@ import {
   getValue,
   parsePositiveInteger,
   requireTarget,
+  resolveFileTarget,
   result,
   withOperationPlan,
   type DomainActionHandler,
 } from '../handler-utils.js';
 
 export const handleDataInspect: DomainActionHandler = async (args, context) => {
-  const target = requireTarget(args, 'zw data inspect');
+  const target = resolveFileTarget(context, requireTarget(args, 'zw data inspect'));
   const inspected = await inspectData(target, {
     sheet: getValue(context.parsed, '--sheet'),
   });
@@ -40,7 +41,7 @@ export const handleDataInspect: DomainActionHandler = async (args, context) => {
 };
 
 export const handleDataAnalyze: DomainActionHandler = async (args, context) => {
-  const target = requireTarget(args, 'zw data analyze');
+  const target = resolveFileTarget(context, requireTarget(args, 'zw data analyze'));
   const analysis = await analyzeData(target, {
     sheet: getValue(context.parsed, '--sheet'),
   });
@@ -60,8 +61,11 @@ export const handleDataAnalyze: DomainActionHandler = async (args, context) => {
 };
 
 export const handleDataClean: DomainActionHandler = async (args, context) => {
-  const target = requireTarget(args, 'zw data clean');
-  const outputPath = getValue(context.parsed, '--output');
+  const target = resolveFileTarget(context, requireTarget(args, 'zw data clean'));
+  const requestedOutputPath = getValue(context.parsed, '--output');
+  const outputPath = requestedOutputPath
+    ? resolveFileTarget(context, requestedOutputPath)
+    : undefined;
   const sheet = getValue(context.parsed, '--sheet');
   // One options object for both the preview and the confirmed call: the
   // fingerprint the user confirms is computed from the preview, so the two
@@ -122,7 +126,7 @@ export const handleDataClean: DomainActionHandler = async (args, context) => {
 };
 
 export const handleDataSchema: DomainActionHandler = async (args, context) => {
-  const target = requireTarget(args, 'zw data schema');
+  const target = resolveFileTarget(context, requireTarget(args, 'zw data schema'));
   const schema = await inferDataSchema(target, {
     sheet: getValue(context.parsed, '--sheet'),
   });
@@ -140,7 +144,7 @@ export const handleDataSchema: DomainActionHandler = async (args, context) => {
 };
 
 export const handleDataSample: DomainActionHandler = async (args, context) => {
-  const target = requireTarget(args, 'zw data sample');
+  const target = resolveFileTarget(context, requireTarget(args, 'zw data sample'));
   const sampled = await sampleData(target, {
     rows: parsePositiveInteger(getValue(context.parsed, '--rows'), 5),
     sheet: getValue(context.parsed, '--sheet'),
@@ -158,7 +162,7 @@ export const handleDataSample: DomainActionHandler = async (args, context) => {
 };
 
 export const handleDataSheets: DomainActionHandler = async (args, context) => {
-  const target = requireTarget(args, 'zw data sheets');
+  const target = resolveFileTarget(context, requireTarget(args, 'zw data sheets'));
   const sheetsResult = await listSheets(target);
   const human = [
     'ZaoWu Data Sheets',

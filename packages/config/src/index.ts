@@ -1,10 +1,17 @@
+import {
+  assertExpectedConfigContent,
+  MAX_CONFIG_BYTES,
+  replaceConfigFile,
+  type ConfigWriteOptions,
+} from './write.js';
 import { constants } from 'node:fs';
-import { access, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { access, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import YAML from 'yaml';
 import {
   createCapabilityLedger,
+  readBoundedFile,
   stripUtf8Bom,
   ZaoWuError,
   type DomainDefinition,
@@ -368,7 +375,22 @@ export const findConfigFile = async (
 
 export const loadConfig = async (filePath: string): Promise<LoadedConfig> => {
   const resolvedPath = path.resolve(filePath);
-  const content = await readFile(resolvedPath, 'utf8');
+  const content = (
+    await readBoundedFile(resolvedPath, MAX_CONFIG_BYTES, {
+      failed: {
+        code: 'CONFIG_PARSE_FAILED',
+        message: 'Could not read ZaoWu config.',
+        why: `The configuration at \`${resolvedPath}\` is not a readable regular file.`,
+        fix: 'Check the path and file permissions.',
+      },
+      tooLarge: {
+        code: 'CONFIG_PARSE_FAILED',
+        message: 'ZaoWu config is too large.',
+        why: 'Configuration files are limited to one MiB.',
+        fix: 'Reduce the config file to project preferences and move large data to separate files.',
+      },
+    })
+  ).toString('utf8');
 
   return {
     filePath: resolvedPath,
@@ -768,7 +790,7 @@ export const getResolvedConfigValue = async (
 export const setResolvedConfigValue = async (
   key: string,
   value: string,
-  options: { cwd?: string; yes?: boolean; global?: boolean } = {}
+  options: ConfigWriteOptions & { global?: boolean } = {}
 ): Promise<ConfigSetResult> => {
   const configKey = assertConfigKey(key);
   const normalizedValue = normalizeConfigValue(configKey, value);
@@ -779,13 +801,17 @@ export const setResolvedConfigValue = async (
     : await findConfigPathOrThrow(options.cwd);
 
   let loadedContent = '';
+  let originalContent: string | null = null;
   let currentConfig = createDefaultConfig();
 
   if (await isReadableFile(filePath)) {
     const loaded = await loadConfig(filePath);
     loadedContent = loaded.content;
-    currentConfig = parseConfig(loadedContent, filePath);
+    originalContent = loaded.content;
   }
+  options.onInput?.(originalContent);
+  if (options.yes) assertExpectedConfigContent(originalContent, options.expectedInputContent);
+  if (originalContent !== null) currentConfig = parseConfig(loadedContent, filePath);
 
   const nextConfig = withConfigValue(currentConfig, configKey, normalizedValue);
 
@@ -808,8 +834,8 @@ export const setResolvedConfigValue = async (
   }
 
   if (options.yes) {
-    await mkdir(path.dirname(filePath), { recursive: true });
-    await writeFile(filePath, content, 'utf8');
+    assertExpectedConfigContent(content, options.expectedContent);
+    await replaceConfigFile(filePath, content, originalContent);
   }
 
   return {
@@ -825,16 +851,19 @@ export const setResolvedConfigValue = async (
 };
 
 export const migrateResolvedConfig = async (
-  options: { cwd?: string; yes?: boolean } = {}
+  options: ConfigWriteOptions = {}
 ): Promise<ConfigMigrationResult> => {
   const filePath = await findConfigPathOrThrow(options.cwd);
   const loaded = await loadConfig(filePath);
+  options.onInput?.(loaded.content);
+  if (options.yes) assertExpectedConfigContent(loaded.content, options.expectedInputContent);
   const fromVersion = getRawConfigVersion(loaded.content, loaded.filePath);
   const config = parseConfig(loaded.content, loaded.filePath);
   assertNoUnknownConfigKeysOnRewrite(loaded.content, filePath);
   const content = serializeConfig(config, filePath);
   const changed = fromVersion !== 1 || stripUtf8Bom(loaded.content) !== content;
 
+  if (options.yes) assertExpectedConfigContent(content, options.expectedContent);
   if (!changed) {
     return {
       schemaVersion: 1,
@@ -849,7 +878,7 @@ export const migrateResolvedConfig = async (
   }
 
   if (options.yes) {
-    await writeFile(filePath, content, 'utf8');
+    await replaceConfigFile(filePath, content, loaded.content);
   }
 
   return {

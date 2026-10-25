@@ -113,3 +113,11 @@ registry.
 | `DOCUMENT_TEXT_UNAVAILABLE` | The PDF has no extractable text layer; OCR is required.            |
 | `DATA_INPUT_TOO_LARGE`      | The dataset exceeds the supported input or table size.             |
 | `AI_REQUEST_CANCELLED`      | The caller cancelled the AI request; partial output is incomplete. |
+
+## Metadata and teaching reads
+
+| Code                      | Meaning                                                        |
+| ------------------------- | -------------------------------------------------------------- |
+| `PLUGIN_READ_FAILED`      | The plugin directory or a manifest could not be read.          |
+| `TEACH_INPUT_READ_FAILED` | The selected teaching file could not be read.                  |
+| `TEACH_INPUT_TOO_LARGE`   | The teaching file or literal topic exceeds the supported size. |

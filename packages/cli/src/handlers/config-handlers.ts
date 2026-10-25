@@ -14,12 +14,21 @@ import {
   formatConfirmCommand,
   formatOperationPlan,
   hasFlag,
+  hashOperationContent,
   requireSecondTarget,
   requireTarget,
   result,
   withOperationPlan,
   type DomainActionHandler,
 } from '../handler-utils.js';
+
+const sourceSubjects = (content: string | null): string[] =>
+  content === null
+    ? ['source-state:missing']
+    : [
+        `source-content-sha256:${hashOperationContent(content)}`,
+        `source-content-length:${content.length}`,
+      ];
 
 export const handleConfigPath: DomainActionHandler = async (_args, context) => {
   const filePath = await findConfigPathOrThrow(context.cwd);
@@ -89,7 +98,13 @@ export const handleConfigSet: DomainActionHandler = async (args, context) => {
   // fingerprint the user confirms is computed from the preview, so the two
   // calls must be structurally unable to drift apart.
   const setOptions = { cwd: context.cwd, global: isGlobal };
-  const preview = await setResolvedConfigValue(key, value, setOptions);
+  let inputContent: string | null = null;
+  const preview = await setResolvedConfigValue(key, value, {
+    ...setOptions,
+    onInput: (content) => {
+      inputContent = content;
+    },
+  });
   const operationPlan = createOperationPlan({
     risk: 'medium',
     confirmationRequired: !context.yes,
@@ -98,6 +113,7 @@ export const handleConfigSet: DomainActionHandler = async (args, context) => {
       `old-value:${JSON.stringify(preview.oldValue)}`,
       `new-value:${JSON.stringify(preview.newValue)}`,
       ...createContentOperationSubjects(preview.content),
+      ...sourceSubjects(inputContent),
     ],
     reads: [preview.filePath],
     writes: [preview.filePath],
@@ -106,7 +122,12 @@ export const handleConfigSet: DomainActionHandler = async (args, context) => {
   assertOperationPlanFingerprint(context, operationPlan);
 
   const updated = context.yes
-    ? await setResolvedConfigValue(key, value, { ...setOptions, yes: true })
+    ? await setResolvedConfigValue(key, value, {
+        ...setOptions,
+        yes: true,
+        expectedContent: preview.content,
+        expectedInputContent: inputContent,
+      })
     : preview;
   const human = [
     'ZaoWu Config Set',
@@ -146,12 +167,19 @@ export const handleConfigSet: DomainActionHandler = async (args, context) => {
 
 export const handleConfigMigrate: DomainActionHandler = async (_args, context) => {
   const migrateOptions = { cwd: context.cwd };
-  const preview = await migrateResolvedConfig(migrateOptions);
+  let inputContent: string | null = null;
+  const preview = await migrateResolvedConfig({
+    ...migrateOptions,
+    onInput: (content) => {
+      inputContent = content;
+    },
+  });
   const operationPlan = createOperationPlan({
     risk: 'medium',
     confirmationRequired: preview.changed && !context.yes,
     subjects: [
       `config:${preview.filePath}`,
+      ...sourceSubjects(inputContent),
       ...(preview.changed ? createContentOperationSubjects(preview.content) : []),
     ],
     reads: [preview.filePath],
@@ -162,7 +190,12 @@ export const handleConfigMigrate: DomainActionHandler = async (_args, context) =
 
   const migrated =
     context.yes && preview.changed
-      ? await migrateResolvedConfig({ ...migrateOptions, yes: true })
+      ? await migrateResolvedConfig({
+          ...migrateOptions,
+          yes: true,
+          expectedContent: preview.content,
+          expectedInputContent: inputContent,
+        })
       : preview;
   const human = [
     'ZaoWu Config Migrate',

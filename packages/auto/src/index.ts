@@ -5,7 +5,7 @@ import {
   hashOperationContent,
   createOperationPlan,
   isPathEscapingDirectory,
-  readTextFileOrThrow,
+  readBoundedFile,
   stripUtf8Bom,
   ZaoWuError,
   type OperationPlan,
@@ -206,6 +206,11 @@ const parseWorkflowJson = (content: string): ParsedAutomationWorkflow => {
     );
   }
 
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+    throw workflowParseError(
+      'Workflow content must be a JSON object.',
+      'Use an object with name, version, and steps, then validate again.'
+    );
   const version = parseWorkflowVersion(parsed.version);
   const { policy, permissionWarnings } = parseExecutionPolicy(parsed.permissions);
   const variables =
@@ -293,7 +298,12 @@ const parseWorkflowYaml = (content: string): ParsedAutomationWorkflow => {
   const rawVars = parsed.vars ?? parsed.variables;
   if (rawVars && typeof rawVars === 'object' && !Array.isArray(rawVars)) {
     for (const [k, v] of Object.entries(rawVars)) {
-      variables[k] = v === null || v === undefined ? '' : String(v).trim();
+      Object.defineProperty(variables, k, {
+        value: v === null || v === undefined ? '' : String(v).trim(),
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      });
     }
   }
 
@@ -388,10 +398,12 @@ const getMissingVariables = (step: AutomationStep, variables: Record<string, str
       ...getReferencedVariables(step.writeFile?.path),
       ...getReferencedVariables(step.writeFile?.content),
     ]),
-  ].filter((name) => !(name in variables));
+  ].filter((name) => !Object.hasOwn(variables, name));
 
 const substituteVariables = (value: string, variables: Record<string, string>): string =>
-  value.replace(VARIABLE_PATTERN, (_match, name: string) => variables[name] ?? `{{${name}}}`);
+  value.replace(VARIABLE_PATTERN, (_match, name: string) =>
+    Object.hasOwn(variables, name) ? variables[name] : `{{${name}}}`
+  );
 
 const getStepActionCount = (step: AutomationStep): number =>
   [step.message, step.run, step.writeFile].filter((value) => value !== undefined).length;
@@ -592,6 +604,8 @@ export const validateWorkflowContent = (
   }
 
   const policy = createExecutionPolicy(workflow.permissions);
+  if (parsedWorkflow.versionWarning || workflow.version !== SUPPORTED_WORKFLOW_VERSION)
+    policy.fileWrites = 'blocked';
 
   return {
     schemaVersion: AUTO_RESULT_SCHEMA_VERSION,
@@ -604,13 +618,23 @@ export const validateWorkflowContent = (
   };
 };
 
-const readWorkflowFile = (filePath: string): Promise<string> =>
-  readTextFileOrThrow(filePath, {
-    code: 'WORKFLOW_READ_FAILED',
-    message: 'Could not read workflow file.',
-    why: `ZaoWu tried to read \`${filePath}\`, but the file was not readable.`,
-    fix: 'Check the path and file permissions, then run the command again.',
-  });
+const readWorkflowFile = async (filePath: string): Promise<string> =>
+  (
+    await readBoundedFile(filePath, 4 * 1024 * 1024, {
+      failed: {
+        code: 'WORKFLOW_READ_FAILED',
+        message: 'Could not read workflow file.',
+        why: `ZaoWu could not read \`${filePath}\` as a regular file.`,
+        fix: 'Check the path and file permissions, then try again.',
+      },
+      tooLarge: {
+        code: 'WORKFLOW_PARSE_FAILED',
+        message: 'Workflow file is too large.',
+        why: 'Workflow input exceeds four MiB before parsing; text remains limited to one million characters.',
+        fix: 'Split the workflow into smaller files.',
+      },
+    })
+  ).toString('utf8');
 
 export const validateWorkflowFile = async (filePath: string): Promise<AutomationValidationResult> =>
   validateWorkflowContent(await readWorkflowFile(filePath), filePath);
@@ -653,6 +677,13 @@ export const planWorkflowContent = (
 ): AutomationPlanResult => {
   const validation = validateWorkflowContent(content, filePath);
   const steps = validation.workflow.steps.map((step, index): AutomationPlanStep => {
+    if (validation.workflow.version !== SUPPORTED_WORKFLOW_VERSION)
+      return createPlanStep(index, step.name, {
+        action: 'unsupported',
+        preview: '',
+        blocked: true,
+        reason: 'Unsupported workflow version; use version: 1.',
+      });
     const missingVariables = getMissingVariables(step, validation.workflow.variables);
     const actionCount = getStepActionCount(step);
 
@@ -737,7 +768,11 @@ export const planWorkflowContent = (
           (contentTooLarge
             ? `writeFile.content exceeds the ${MAX_WRITE_FILE_CHARACTERS}-character limit.`
             : undefined) ??
-          (isBlocked ? 'File writes require permissions.fileWrites: prompt.' : undefined),
+          (isBlocked
+            ? validation.workflow.permissions.fileWrites === 'prompt'
+              ? 'File writes are blocked for an invalid workflow version.'
+              : 'File writes require permissions.fileWrites: prompt.'
+            : undefined),
         requiredPermission: 'fileWrites',
       });
     }

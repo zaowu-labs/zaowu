@@ -1032,7 +1032,10 @@ describe('AI provider registry', () => {
           status: 200,
           statusText: 'OK',
           async json() {
-            return await readAIFixture('anthropic-no-text-output');
+            return {
+              ...((await readAIFixture('anthropic-no-text-output')) as object),
+              stop_reason: 'end_turn',
+            };
           },
         }),
       })

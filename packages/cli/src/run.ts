@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { findDomainCommand, isZaoWuError, ZaoWuError } from '@zaowu-labs/core';
 import { getValue, hasFlag, parseArgs } from './args.js';
 import { getDomainActionHandler } from './domain-handlers.js';
@@ -85,10 +86,10 @@ export const executeCli = async (
   const commandArgs = helpQuery ? parsed.positionals.slice(1) : parsed.positionals;
   const command = commandArgs[0];
   const domain = command ? findDomain(command) : undefined;
-  const cwd = options.cwd ?? process.cwd();
   const commandRunner = options.commandRunner ?? runSystemCommand;
 
   try {
+    const cwd = path.resolve(options.cwd ?? process.cwd());
     assertBooleanFlags(parsed);
     if (wantsVersion || command === 'version') {
       return createResult(
