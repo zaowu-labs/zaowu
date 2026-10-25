@@ -11,7 +11,7 @@ This guide starts with the published CLI. Repository development instructions ar
 ## Install
 
 ```bash
-npm install -g @zaowu-labs/cli@1.1.1
+npm install -g @zaowu-labs/cli@1.2.0
 zw --version
 zw doctor
 ```
@@ -19,7 +19,7 @@ zw doctor
 To try the CLI without installing globally:
 
 ```bash
-npx --package @zaowu-labs/cli@1.1.1 zw --help
+npx --package @zaowu-labs/cli@1.2.0 zw --help
 ```
 
 ### npm 12: `EALLOWREMOTE`
@@ -31,7 +31,7 @@ SheetJS 0.20.3, pinned to its official distribution:
 If installation reports `EALLOWREMOTE`, allow URL dependencies for that command:
 
 ```bash
-npm install -g --allow-remote=all @zaowu-labs/cli@1.1.1
+npm install -g --allow-remote=all @zaowu-labs/cli@1.2.0
 zw --version
 zw doctor --json
 ```
@@ -39,7 +39,7 @@ zw doctor --json
 For a single invocation:
 
 ```bash
-npx --allow-remote=all --package @zaowu-labs/cli@1.1.1 zw --help
+npx --allow-remote=all --package @zaowu-labs/cli@1.2.0 zw --help
 ```
 
 `--allow-remote=all` permits URL dependencies for that command, without changing
@@ -243,6 +243,21 @@ this foundation version.
 
 Use `--json` for machine-readable output and `--help` on any command for
 command-specific usage.
+
+### Save a complete model answer
+
+```bash
+zw ai ask "List decisions and next actions" --file report.md --provider ollama --output actions.md
+```
+
+Inspect the disclosed input, endpoint, and output, then copy its full confirmation
+command. The output directory must already exist and be writable. Only a complete
+answer creates the private UTF-8 file; existing files/links are preserved. `--dry-run`
+also previews local Echo saving. JSON adds `outputPath` and `wroteFile` only when
+saving was requested. A failed save after generation does not retry the provider.
+
+For an offline demonstration, use `--provider echo`. Human terminal output shows
+control characters visibly; JSON and saved answers keep the original text.
 
 ## Repository development
 

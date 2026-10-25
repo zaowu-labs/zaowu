@@ -37,7 +37,10 @@ A scaled compensated mean avoids overflow on finite extreme values.
 Extra unnamed columns receive stable `column_N` headers instead of losing data.
 JSON accepts an object or arrays of objects, preserves nested values as JSON
 cell text, and rejects primitive/mixed arrays. Unclosed CSV quotes fail with a
-repair hint. XLSX formulas are not executed: results use stored cell values,
+repair hint. Misplaced quotes and invalid UTF-8 also fail instead of changing
+cell values. Doubled literal quotes, multiline CSV fields, and whitespace around
+quoted fields are supported. Sheet listing verifies CSV/TSV/JSON files are readable;
+`--sheet` is only valid for XLSX. XLSX formulas are not executed: results use stored cell values,
 which may need recalculation in a spreadsheet editor before export.
 
 Confirmation execution also checks the freshly prepared content against the

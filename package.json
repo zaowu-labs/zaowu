@@ -1,6 +1,6 @@
 {
   "name": "zaowu",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "private": true,
   "packageManager": "pnpm@10.34.1",
   "description": "Open-source AI toolkit for development, automation, documents, data, teaching, plugins, and workflows.",

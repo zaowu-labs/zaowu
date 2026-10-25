@@ -1,5 +1,5 @@
 import { ZaoWuError } from '@zaowu-labs/core';
-import { getValue, parseArgs, type ParsedArgs } from './args.js';
+import { getValue, hasFlag, parseArgs, type ParsedArgs } from './args.js';
 import { COMMAND_OPTIONS, COMMON_OPTIONS } from './option-registry.js';
 
 export const assertSupportedOptions = (
@@ -62,7 +62,8 @@ const assertOptionValue = (
   });
 };
 
-const isPositiveIntegerText = (value: string): boolean => /^[1-9]\d*$/.test(value);
+const isPositiveIntegerText = (value: string): boolean =>
+  /^[1-9]\d*$/.test(value) && Number.isSafeInteger(Number(value));
 
 export const assertValidOptionValues = (
   parsed: ReturnType<typeof parseArgs>,
@@ -77,6 +78,18 @@ export const assertValidOptionValues = (
 
   const format = getValue(parsed, '--format');
   const [domain, action] = commandArgs;
+  if (
+    domain === 'dev' &&
+    action === 'review' &&
+    hasFlag(parsed, '--staged') &&
+    hasFlag(parsed, '--worktree')
+  )
+    throw new ZaoWuError({
+      code: 'OPTION_VALUE_INVALID',
+      message: 'Review scopes conflict.',
+      why: '--staged and --worktree select different Git changes and cannot be combined.',
+      fix: 'Choose one scope, or omit both to use automatic selection.',
+    });
 
   if (domain === 'data' && action === 'sample') {
     assertOptionValue(

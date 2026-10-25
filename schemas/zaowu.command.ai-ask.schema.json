@@ -56,6 +56,14 @@
     },
     "operationPlan": {
       "$ref": "https://schemas.zaowu.dev/zaowu.command.shared.schema.json#/$defs/operationPlan"
+    },
+    "outputPath": {
+      "type": "string",
+      "description": "Absolute destination, present only when --output was requested."
+    },
+    "wroteFile": {
+      "type": "boolean",
+      "description": "True only after publishing the completed answer file."
     }
   }
 }

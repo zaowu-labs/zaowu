@@ -4,6 +4,8 @@ import {
   previewAIRequest,
   resolveAIRequestContentSubjects,
   validateAIProviderConfig,
+  prepareAIOutputPath,
+  saveAIAnswer,
 } from '@zaowu-labs/ai';
 import {
   assertOperationPlanFingerprint,
@@ -23,6 +25,10 @@ export const handleAiAsk: DomainActionHandler = async (args, context) => {
   const prompt = args.join(' ').trim();
   const requestedFilePath = getValue(context.parsed, '--file');
   const filePath = requestedFilePath ? resolveFileTarget(context, requestedFilePath) : undefined;
+  const requestedOutputPath = getValue(context.parsed, '--output');
+  const outputPath = requestedOutputPath
+    ? await prepareAIOutputPath(resolveFileTarget(context, requestedOutputPath))
+    : undefined;
   // Shared resolution: --provider first, then `ai.provider` from zw.yml, then
   // the default — the same order `zw dev --ai` and `zw doctor` use.
   const ai = await resolveAiProvider(context);
@@ -43,20 +49,27 @@ export const handleAiAsk: DomainActionHandler = async (args, context) => {
     expectedContentSubjects: contentSubjects,
   };
   const operationPlan = createOperationPlan({
-    risk: provider.network ? 'medium' : 'low',
-    confirmationRequired: provider.network && !context.yes,
+    risk: provider.network || outputPath ? 'medium' : 'low',
+    confirmationRequired: Boolean((provider.network || outputPath) && !context.yes),
     subjects: [`ai:${provider.id}`, `model:${resolvedModel}`, ...contentSubjects],
     reads: filePath ? [filePath] : [],
     network: networkTarget ? [networkTarget] : [],
+    writes: outputPath ? [outputPath] : [],
     secrets: provider.requiredEnv,
     notes: [
       provider.network
         ? 'Network AI providers preview by default and require --yes to send a request.'
         : 'The local echo provider does not call external services.',
+      ...(outputPath
+        ? [
+            'Only a complete successful answer creates the new output file. Existing targets are preserved.',
+            'Generated answer text is unknown at preview; this plan authorizes one generation and saving its completed result to the disclosed path.',
+          ]
+        : []),
     ],
   });
 
-  if (provider.network && !context.yes) {
+  if ((provider.network || outputPath) && !context.yes) {
     const preview = await previewAIRequest(guardedRequest);
     const payload = {
       schemaVersion: preview.schemaVersion,
@@ -68,6 +81,7 @@ export const handleAiAsk: DomainActionHandler = async (args, context) => {
       output: null,
       usage: null,
       validation: preview.validation,
+      ...(outputPath ? { outputPath, wroteFile: false } : {}),
     };
     // Pin the RESOLVED provider id, so a confirm command copied from a preview
     // whose provider came from `zw.yml` keeps working even if the config
@@ -77,6 +91,7 @@ export const handleAiAsk: DomainActionHandler = async (args, context) => {
       'ai',
       'ask',
       ...(filePath ? ['--file', filePath] : []),
+      ...(outputPath ? ['--output', outputPath] : []),
       '--provider',
       ai.providerId,
       ...(ai.requestedModel ? ['--model', ai.requestedModel] : []),
@@ -98,7 +113,9 @@ export const handleAiAsk: DomainActionHandler = async (args, context) => {
       '',
       'No provider request was sent.',
       '',
-      'To send exactly this AI request, run:',
+      outputPath
+        ? 'To generate and save this answer, run:'
+        : 'To send exactly this AI request, run:',
       `  ${confirmCommand}`,
     ].join('\n');
 
@@ -106,6 +123,10 @@ export const handleAiAsk: DomainActionHandler = async (args, context) => {
   }
 
   assertOperationPlanFingerprint(context, operationPlan);
+
+  const save = async (output: string): Promise<void> => {
+    if (outputPath) await saveAIAnswer(outputPath, output, context.signal);
+  };
 
   if (context.onChunk && !context.json) {
     const onChunk = context.onChunk;
@@ -140,8 +161,16 @@ export const handleAiAsk: DomainActionHandler = async (args, context) => {
       if (!streamedAnyChunk) {
         onChunk(response.output);
       }
-
-      return result(context, withOperationPlan(response, operationPlan), '');
+      await save(response.output);
+      if (outputPath) onChunk(`\nSaved answer: ${outputPath}`);
+      return result(
+        context,
+        withOperationPlan(
+          { ...response, ...(outputPath ? { outputPath, wroteFile: true } : {}) },
+          operationPlan
+        ),
+        ''
+      );
     } finally {
       onChunk('\n');
     }
@@ -152,7 +181,8 @@ export const handleAiAsk: DomainActionHandler = async (args, context) => {
     ...guardedRequest,
     allowNetwork: context.yes,
   });
-  const payload = response;
+  await save(response.output);
+  const payload = { ...response, ...(outputPath ? { outputPath, wroteFile: true } : {}) };
   const human = [
     'ZaoWu AI Ask',
     '',
@@ -164,6 +194,7 @@ export const handleAiAsk: DomainActionHandler = async (args, context) => {
     '',
     'Output:',
     response.output,
+    ...(outputPath ? ['', `Saved answer: ${outputPath}`] : []),
   ].join('\n');
 
   return result(context, withOperationPlan(payload, operationPlan), human);

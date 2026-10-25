@@ -65,3 +65,21 @@ and [Ollama](https://docs.ollama.com/api/streaming).
 Confirmation execution also checks the freshly prepared content against the
 already verified plan immediately before the write/request. Changes between
 reads fail with `OPERATION_PLAN_MISMATCH` and produce no write or network call.
+
+## Saved answers
+
+`zw ai ask --output actions.md` previews answer creation even with Echo. Confirm
+the input/provider/destination plan to generate and save the complete raw UTF-8
+answer. Output parents must exist and be writable; their physical path is
+disclosed. Existing files, directories, and links are conflicts before generation.
+
+`prepareAIOutputPath` and `saveAIAnswer` provide explicit artifact handling for
+composing callers; `askAI` itself still performs no file write. Saving stages a
+private complete sibling, flushes it, and exclusively creates the final target.
+Cancellation, provider errors, and incomplete answers create no final output.
+A target created during generation is preserved. A failed save may follow a paid
+generation; there is no automatic retry. CLI JSON adds `outputPath`/`wroteFile`
+only when saving was requested. Terminal output escapes controls; files keep the
+original answer, with no CLI headings or appended newline.
+
+Private file mode is 0600 on POSIX; Windows uses the destination directory ACLs.

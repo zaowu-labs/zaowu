@@ -4,6 +4,30 @@
 
 No changes yet.
 
+## 1.2.0 - 2026-10-25
+
+- Added `zw ai ask --output <path>` for clean reusable UTF-8 answers. Local and
+  network writes preview the input, provider, and physical output destination;
+  copyable confirmation binds all three. JSON adds optional `outputPath` and
+  `wroteFile` fields only when saving was requested.
+- Preflight output conflicts, parent existence, and permissions before generation.
+  Save only completed answers via a private temporary sibling and exclusive final
+  creation. Preserve concurrent targets, clean temporary files, and leave no final
+  file after cancellation or incomplete provider output. No automatic model retry
+  follows a generation/write failure; human answers retain streaming.
+- Escaped terminal controls and directional overrides in human output/errors and
+  streaming chunks. JSON and saved answer content preserve the original text.
+  SIGINT handling also works when global flags precede AI commands.
+- Rejected misplaced CSV quotes and invalid UTF-8 instead of silently changing
+  cell content. Kept escaped quotes, multiline fields, and supported whitespace.
+  Sheet listing verifies non-workbook input exists; named sheet selection on a
+  single-table format fails with guidance instead of being ignored.
+- Rejected conflicting Git review scopes and row counts beyond safe integer range
+  before reading Git/data. Existing command names and schema version 1 are retained.
+- Recorded a nine-domain product assessment, prioritized real task completion,
+  and refreshed usage, capability, JSON/error contracts, maintenance, and roadmap.
+  No dependency or shell/plugin execution capability was added.
+
 ## 1.1.1 - 2026-10-25
 
 - Resolved CLI file targets against the command's working directory and disclosed

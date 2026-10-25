@@ -42,7 +42,14 @@ const CONFIRMATION_OPTIONS = ['--dry-run', '--plan-fingerprint', '--yes'] as con
 export const COMMAND_OPTIONS: Readonly<Record<string, readonly string[]>> = {
   init: [...COMMON_OPTIONS, ...CONFIRMATION_OPTIONS],
   doctor: COMMON_OPTIONS,
-  'ai:ask': [...COMMON_OPTIONS, ...CONFIRMATION_OPTIONS, '--file', '--model', '--provider'],
+  'ai:ask': [
+    ...COMMON_OPTIONS,
+    ...CONFIRMATION_OPTIONS,
+    '--file',
+    '--model',
+    '--provider',
+    '--output',
+  ],
   'ai:providers': [...COMMON_OPTIONS, '--provider'],
   'auto:plan': COMMON_OPTIONS,
   'auto:run': [...COMMON_OPTIONS, ...CONFIRMATION_OPTIONS],

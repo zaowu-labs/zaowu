@@ -20,7 +20,7 @@ It creates `report.md` only if that path does not already exist. Open the result
 and remove private material before sending it to a provider.
 
 ```bash
-zw ai ask "Find decisions, unresolved questions, and next actions. Cite source headings." --file report.md --provider openai
+zw ai ask "Find decisions, unresolved questions, and next actions. Cite source headings." --file report.md --provider openai --output actions.md
 ```
 
 This displays the input size and endpoint without sending a request. Copy its
@@ -28,6 +28,11 @@ complete confirmation command after reviewing the plan. Changes to the file,
 prompt, provider, or model invalidate the old fingerprint. Execution also rejects
 content that changes after the plan is checked but before writing/sending. Human answers stream;
 Ctrl+C stops the request with exit code 130. `--json` produces one complete result.
+The new `actions.md` contains only the completed model answer. Its directory must
+exist; output conflicts are rejected before contacting the provider. Files created
+by another program during generation are preserved. Failed/cancelled generation
+creates no answer file. If saving fails after generation, the error explains that
+the request may already have been billed and was not retried.
 
 Use `--provider ollama --model <installed-model>` for an explicitly chosen local
 Ollama endpoint. HTTP requests to localhost still need confirmation.

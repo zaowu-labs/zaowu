@@ -13,6 +13,7 @@ import type {
 
 import { readAIJson, readAIStream, invalidAIStream } from './stream.js';
 import { assertCompletedAIResponse } from './completion.js';
+export { prepareAIOutputPath, saveAIAnswer } from './output.js';
 import { assertAIRequestActive, fetchWithRetry } from './transport.js';
 
 export {

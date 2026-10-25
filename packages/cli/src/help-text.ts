@@ -12,13 +12,22 @@ Description:
 
 Options:
   --file <path>      Include a readable text file as input
+  --output <path>    Save only a complete answer to a new UTF-8 file; previews first
   --provider <id>    Override project/global preferences; defaults to Echo demo
   --model <name>     Provider model hint
   --dry-run          Force preview mode
-  --yes              Confirm a network provider request
+  --yes              Confirm network access and/or answer file creation
   --plan-fingerprint <hash>
                      Require the current plan to match a prior preview
-  --json             Output machine-readable JSON`,
+  --json             Output machine-readable JSON
+
+Examples:
+  zw ai ask "List next actions" --file report.md --provider ollama --output actions.md
+  zw ai ask "Try saved output" --provider echo --output demo.md --dry-run
+
+Recovery:
+  Output parents must exist and be writable. Existing files/links are preserved.
+  Failed or cancelled generation creates no answer file. Choose a new output path.`,
     providers: `ZaoWu AI Providers
 
 Usage:

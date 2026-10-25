@@ -35,6 +35,12 @@ and [composed jobs](experience/ZW_COMPOSED_JOBS.md).
 
 ## Next maintenance priorities
 
+The [1.2.0 product assessment](reviews/2026-10-25-product-assessment.md) prioritizes
+completed user tasks. [Saved answers](experience/ZW_SAVED_ANSWERS.md) close the
+reviewed-file → model → reusable-file workflow. This release also rejects corrupt
+table text, misleading sheet selection, conflicting review scopes, unsafe row
+counts, and terminal control effects. The safety and release gates remain intact.
+
 The [2026-10-25 execution-integrity review](reviews/2026-10-25-integrity.md) follows
 the 1.1.0 baseline with the 1.1.1 patch: directory-bound confirmation, complete
 configuration replacement and original-input checks, complete JSON/stream model

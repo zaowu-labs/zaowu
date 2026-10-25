@@ -5,6 +5,7 @@ export const AI_DOMAIN: DomainDefinition = {
   summary: 'AI-assisted question answering and provider-backed workflows',
   capabilities: createCapabilityLedger({
     readsFiles: true,
+    writesFiles: true,
     usesNetwork: true,
     accessesSecrets: true,
   }),

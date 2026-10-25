@@ -165,11 +165,40 @@ export const formatLabeledList = (label: string, items: readonly string[] | unde
     ? [`${label}:`, ...items.map((item) => `- ${item}`)].join('\n')
     : `${label}: none`;
 
-const quoteCliValue = (value: string): string =>
-  value.length > 0 &&
-  (process.platform === 'win32' ? /^[A-Za-z0-9._@:/\\=-]+$/ : /^[A-Za-z0-9._@:/=-]+$/).test(value)
+const quoteCliValue = (value: string): string => {
+  const controls = /[\p{Cc}\u202a-\u202e\u2066-\u2069]/u;
+  if (controls.test(value)) {
+    if (process.platform === 'win32') {
+      // PowerShell expressions avoid embedding terminal-active characters.
+      const pieces: string[] = [];
+      let plain = '';
+      for (const character of value) {
+        if (controls.test(character)) {
+          pieces.push(`'${plain.replaceAll("'", "''")}'`, `[char]${character.codePointAt(0)}`);
+          plain = '';
+        } else plain += character;
+      }
+      pieces.push(`'${plain.replaceAll("'", "''")}'`);
+      return `(${pieces.join(' + ')})`;
+    }
+    // POSIX sh has no ANSI-C quotes. Encode active controls with printf while
+    // keeping literal quoted newlines, including trailing ones, intact.
+    let quoted = "'";
+    for (const character of value) {
+      if (controls.test(character) && character !== '\n' && character !== '\t') {
+        const bytes = [...Buffer.from(character)]
+          .map((byte) => `\\${byte.toString(8).padStart(3, '0')}`)
+          .join('');
+        quoted += `'"$(command printf '${bytes}')"'`;
+      } else quoted += character === "'" ? "'\\''" : character;
+    }
+    return `${quoted}'`;
+  }
+  return value.length > 0 &&
+    (process.platform === 'win32' ? /^[A-Za-z0-9._@:/\\=-]+$/ : /^[A-Za-z0-9._@:/=-]+$/).test(value)
     ? value
     : `'${value.replaceAll("'", process.platform === 'win32' ? "''" : "'\\''")}'`;
+};
 
 export const formatConfirmCommand = (parts: readonly string[]): string => {
   const tokens: string[] = [];
