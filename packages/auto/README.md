@@ -19,3 +19,7 @@ Safety:
   boundary.
 - Plan steps include per-step operation plans so callers can audit risk and
   planned execution before running.
+- Only version 1 can authorize file writes; malformed/future versions cannot
+  execute them. Variables must be explicitly defined, including prototype names.
+- Workflow input is limited to four MiB before decoding and one million text
+  characters before parsing. JSON roots must be objects.

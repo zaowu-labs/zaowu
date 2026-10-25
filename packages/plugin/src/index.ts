@@ -1,7 +1,9 @@
-import { lstat, mkdir, readFile, readdir, realpath, rm, stat } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { lstat, mkdir, readdir, realpath, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import {
   createCapabilityLedger,
+  readBoundedFile,
   stripUtf8Bom,
   writeTextFileExclusive,
   ZaoWuError,
@@ -89,7 +91,7 @@ export const PLUGIN_DOMAIN: DomainDefinition = {
 const PLUGIN_ID_PATTERN = /^[a-z0-9][a-z0-9._-]*$/;
 const SUPPORTED_PLUGIN_SCHEMA_VERSION = 1;
 
-const getPluginDir = (cwd: string): string => path.join(cwd, '.zaowu', 'plugins');
+const getPluginDir = (cwd: string): string => path.resolve(cwd, '.zaowu', 'plugins');
 
 const normalizeComparisonPath = (value: string): string => {
   const resolved = path.resolve(value);
@@ -157,19 +159,57 @@ const assertPluginId = (id: string): void => {
 
 const getPluginPath = (pluginDir: string, id: string): string => path.join(pluginDir, `${id}.json`);
 
-const fileExists = async (filePath: string): Promise<boolean> => {
-  try {
-    return (await stat(filePath)).isFile();
-  } catch {
-    return false;
-  }
-};
-
 const isPathLike = (target: string): boolean =>
   target.includes('/') || target.includes('\\') || target.endsWith('.json') || target === '.';
 
+const MAX_PLUGIN_BYTES = 1024 * 1024;
+const readPluginFile = (filePath: string): Promise<Buffer> =>
+  readBoundedFile(filePath, MAX_PLUGIN_BYTES, {
+    failed: {
+      code: 'PLUGIN_READ_FAILED',
+      message: 'Could not read plugin manifest.',
+      why: `The manifest at \`${filePath}\` is not a readable regular file.`,
+      fix: 'Check the path and file permissions.',
+    },
+    tooLarge: {
+      code: 'PLUGIN_SOURCE_INVALID',
+      message: 'Plugin manifest is too large.',
+      why: 'Plugin manifests are limited to one MiB.',
+      fix: 'Reduce the manifest to metadata and command descriptions.',
+    },
+  });
 const readJson = async (filePath: string): Promise<unknown> =>
-  JSON.parse(stripUtf8Bom(await readFile(filePath, 'utf8'))) as unknown;
+  JSON.parse(stripUtf8Bom((await readPluginFile(filePath)).toString('utf8')));
+
+export const getPluginTargetSubjects = async (
+  id: string,
+  options: { cwd?: string } = {}
+): Promise<string[]> => {
+  assertPluginId(id);
+  const cwd = options.cwd ?? process.cwd();
+  const pluginDir = getPluginDir(cwd);
+  const filePath = getPluginPath(pluginDir, id);
+  await assertSafePluginDir(cwd, pluginDir);
+  try {
+    const info = await lstat(filePath);
+    if (!info.isFile() || info.isSymbolicLink())
+      throw new ZaoWuError({
+        code: 'PLUGIN_PATH_UNSAFE',
+        message: 'Plugin manifest path is unsafe.',
+        why: 'Installed plugin manifests must be regular files, not links or directories.',
+        fix: 'Inspect the plugin path and replace it with a regular local manifest.',
+      });
+    const buffer = await readPluginFile(filePath);
+    return [
+      'target-state:exists',
+      `target-content-sha256:${createHash('sha256').update(buffer).digest('hex')}`,
+      `target-content-length:${buffer.toString('utf8').length}`,
+    ];
+  } catch (error) {
+    if ((error as { code?: string }).code === 'ENOENT') return ['target-state:missing'];
+    throw error;
+  }
+};
 
 const getManifestPath = async (target: string): Promise<string | null> => {
   try {
@@ -256,8 +296,11 @@ const validateSourceManifest = (value: unknown): PluginValidationResult['errors'
   return errors;
 };
 
-export const validatePluginSource = async (target: string): Promise<PluginValidationResult> => {
-  const manifestPath = await getManifestPath(target);
+export const validatePluginSource = async (
+  target: string,
+  options: { cwd?: string } = {}
+): Promise<PluginValidationResult> => {
+  const manifestPath = await getManifestPath(path.resolve(options.cwd ?? process.cwd(), target));
 
   if (!manifestPath) {
     if (!isPathLike(target)) {
@@ -294,14 +337,18 @@ export const validatePluginSource = async (target: string): Promise<PluginValida
       warnings: [],
       errors,
     };
-  } catch {
+  } catch (error) {
     return {
       schemaVersion: 1,
       status: 'warning',
       target,
       manifestPath,
       warnings: [],
-      errors: ['Manifest JSON could not be parsed.'],
+      errors: [
+        error instanceof ZaoWuError
+          ? `${error.message} ${error.why ?? ''} ${error.fix ?? ''}`
+          : 'Manifest JSON could not be parsed.',
+      ],
     };
   }
 };
@@ -315,7 +362,14 @@ export const listPlugins = async (options: { cwd?: string } = {}): Promise<Plugi
 
   try {
     entries = await readdir(pluginDir);
-  } catch {
+  } catch (error) {
+    if ((error as { code?: string }).code !== 'ENOENT')
+      throw new ZaoWuError({
+        code: 'PLUGIN_READ_FAILED',
+        message: 'Could not list plugin manifests.',
+        why: 'The plugin directory could not be read.',
+        fix: 'Check the plugin directory permissions, then try again.',
+      });
     return {
       schemaVersion: 1,
       status: 'ok',
@@ -329,7 +383,23 @@ export const listPlugins = async (options: { cwd?: string } = {}): Promise<Plugi
   for (const entry of entries.filter((name) => name.endsWith('.json'))) {
     try {
       // readJson strips a UTF-8 BOM, matching how validate reads manifests.
-      plugins.push((await readJson(path.join(pluginDir, entry))) as PluginManifest);
+      const id = path.basename(entry, '.json');
+      const info = await lstat(path.join(pluginDir, entry));
+      if (!info.isFile() || info.isSymbolicLink()) throw new Error('Unsafe installed manifest');
+      const manifest = (await readJson(
+        path.join(pluginDir, entry)
+      )) as Partial<PluginManifest> | null;
+      if (
+        !manifest ||
+        Array.isArray(manifest) ||
+        !PLUGIN_ID_PATTERN.test(id) ||
+        manifest.id !== id ||
+        typeof manifest.source !== 'string' ||
+        !manifest.source.trim() ||
+        !(manifest.installedAt === null || typeof manifest.installedAt === 'string')
+      )
+        throw new Error('Invalid installed manifest');
+      plugins.push({ id, source: manifest.source, installedAt: manifest.installedAt });
     } catch {
       plugins.push({
         id: path.basename(entry, '.json'),
@@ -355,7 +425,8 @@ export const installPlugin = async (
 
   const cwd = options.cwd ?? process.cwd();
   const pluginDir = getPluginDir(cwd);
-  const source = options.source ?? id;
+  const requestedSource = options.source ?? id;
+  const source = isPathLike(requestedSource) ? path.resolve(cwd, requestedSource) : requestedSource;
   const pluginPath = getPluginPath(pluginDir, id);
   const sourceValidation = isPathLike(source) ? await validatePluginSource(source) : null;
 
@@ -418,7 +489,7 @@ export const installPlugin = async (
 
 export const removePlugin = async (
   id: string,
-  options: { cwd?: string; yes?: boolean } = {}
+  options: { cwd?: string; yes?: boolean; expectedTargetSubjects?: readonly string[] } = {}
 ): Promise<PluginChangeResult> => {
   assertPluginId(id);
 
@@ -434,7 +505,19 @@ export const removePlugin = async (
   await assertSafePluginDir(cwd, pluginDir);
 
   if (options.yes) {
-    if (!(await fileExists(pluginPath))) {
+    const subjects = await getPluginTargetSubjects(id, { cwd });
+    if (
+      options.expectedTargetSubjects &&
+      (options.expectedTargetSubjects.length !== subjects.length ||
+        options.expectedTargetSubjects.some((value, index) => subjects[index] !== value))
+    )
+      throw new ZaoWuError({
+        code: 'OPERATION_PLAN_MISMATCH',
+        message: 'Plugin manifest changed after plan verification.',
+        why: 'The manifest selected for removal no longer matches the confirmed content. No file was removed.',
+        fix: 'Inspect the current manifest, preview again, and confirm the new fingerprint.',
+      });
+    if (subjects.includes('target-state:missing')) {
       throw new ZaoWuError({
         code: 'PLUGIN_NOT_INSTALLED',
         message: 'Plugin is not installed.',
@@ -443,7 +526,16 @@ export const removePlugin = async (
       });
     }
 
-    await rm(pluginPath);
+    try {
+      await rm(pluginPath);
+    } catch {
+      throw new ZaoWuError({
+        code: 'PLUGIN_WRITE_FAILED',
+        message: 'Could not remove plugin manifest.',
+        why: 'The file system rejected removal of the confirmed plugin manifest.',
+        fix: 'Check plugin directory permissions and whether another program is using the file, then preview again.',
+      });
+    }
   }
 
   return {

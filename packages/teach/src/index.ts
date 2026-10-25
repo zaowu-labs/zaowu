@@ -1,5 +1,12 @@
-import { readFile } from 'node:fs/promises';
-import { createCapabilityLedger, ZaoWuError, type DomainDefinition } from '@zaowu-labs/core';
+import { stat } from 'node:fs/promises';
+import path from 'node:path';
+import {
+  createCapabilityLedger,
+  readBoundedFile,
+  stripUtf8Bom,
+  ZaoWuError,
+  type DomainDefinition,
+} from '@zaowu-labs/core';
 
 export interface TeachPlanResult {
   schemaVersion: 1;
@@ -41,7 +48,7 @@ export const TEACH_DOMAIN: DomainDefinition = {
   ],
 };
 
-const readTopicOrFile = async (input: string): Promise<string> => {
+const readTopicOrFile = async (input: string, cwd = process.cwd()): Promise<string> => {
   if (!input.trim()) {
     throw new ZaoWuError({
       code: 'TEACH_INPUT_REQUIRED',
@@ -51,12 +58,40 @@ const readTopicOrFile = async (input: string): Promise<string> => {
     });
   }
 
+  const tooLarge = new ZaoWuError({
+    code: 'TEACH_INPUT_TOO_LARGE',
+    message: 'Teaching input is too large.',
+    why: 'Teaching files are limited to one MiB and literal topics to one million characters.',
+    fix: 'Choose a smaller text extract or a shorter topic.',
+  });
+  if (input.length > 1_000_000) throw tooLarge;
+  const filePath = path.resolve(cwd, input);
   try {
-    return await readFile(input, 'utf8');
-  } catch {
-    // Not a readable file path — treat the input as a literal topic string.
-    return input;
+    if (!(await stat(filePath)).isFile()) return input;
+  } catch (error) {
+    const code = (error as { code?: string }).code;
+    if (code === 'ENOENT' || code === 'ENOTDIR' || code === 'ENAMETOOLONG' || code === 'EINVAL')
+      return input;
+    throw new ZaoWuError({
+      code: 'TEACH_INPUT_READ_FAILED',
+      message: 'Could not read teaching input.',
+      why: 'The input path exists but could not be inspected.',
+      fix: 'Check the path and file permissions, or supply a literal topic.',
+    });
   }
+  return stripUtf8Bom(
+    (
+      await readBoundedFile(filePath, 1024 * 1024, {
+        failed: {
+          code: 'TEACH_INPUT_READ_FAILED',
+          message: 'Could not read teaching input.',
+          why: 'The selected file is not readable as a regular text file.',
+          fix: 'Check the path and file permissions, or supply a literal topic.',
+        },
+        tooLarge,
+      })
+    ).toString('utf8')
+  );
 };
 
 const HEADING_LINE_PATTERN = /^#{1,6}\s/;
@@ -98,8 +133,11 @@ const getHeadings = (content: string): string[] =>
     .map(stripHeadingMarker)
     .filter(Boolean);
 
-export const createTeachingPlan = async (input: string): Promise<TeachPlanResult> => {
-  const content = await readTopicOrFile(input);
+export const createTeachingPlan = async (
+  input: string,
+  options: { cwd?: string } = {}
+): Promise<TeachPlanResult> => {
+  const content = await readTopicOrFile(input, options.cwd);
   const { topic, fromHeading } = getTopic(content);
   const headings = getHeadings(content);
   const sectionHeadings = fromHeading ? headings.slice(1) : headings;
@@ -132,7 +170,7 @@ export const createTeachingPlan = async (input: string): Promise<TeachPlanResult
 
 export const createTeachingQuiz = async (
   input: string,
-  options: { format?: string; count?: number } = {}
+  options: { format?: string; count?: number; cwd?: string } = {}
 ): Promise<TeachQuizResult> => {
   const rawCount = options.count ?? DEFAULT_QUIZ_COUNT;
 
@@ -146,7 +184,7 @@ export const createTeachingQuiz = async (
   }
 
   const count = rawCount;
-  const content = await readTopicOrFile(input);
+  const content = await readTopicOrFile(input, options.cwd);
   const { topic } = getTopic(content);
   const sentences = getSentences(content).slice(0, count);
   const questions =

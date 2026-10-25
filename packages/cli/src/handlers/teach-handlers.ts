@@ -7,7 +7,7 @@ import {
 } from '../handler-utils.js';
 
 export const handleTeachPlan: DomainActionHandler = async (args, context) => {
-  const plan = await createTeachingPlan(args.join(' '));
+  const plan = await createTeachingPlan(args.join(' '), { cwd: context.cwd });
   const human = [
     'ZaoWu Teach Plan',
     '',
@@ -22,7 +22,7 @@ export const handleTeachPlan: DomainActionHandler = async (args, context) => {
 export const handleTeachQuiz: DomainActionHandler = async (args, context) => {
   const format = getValue(context.parsed, '--format');
   const count = parsePositiveInteger(getValue(context.parsed, '--count'), 3);
-  const quiz = await createTeachingQuiz(args.join(' '), { format, count });
+  const quiz = await createTeachingQuiz(args.join(' '), { format, count, cwd: context.cwd });
   const human =
     quiz.format === 'canvas-csv'
       ? (quiz.content ?? '')

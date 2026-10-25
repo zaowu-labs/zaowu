@@ -39,10 +39,16 @@ The transport makes at most three attempts before body consumption; 429/408/5xx
 responses honor a capped Retry-After delay. It never retries incomplete output.
 
 UTF-8 is decoded across byte boundaries. Ollama NDJSON requires `done: true`;
-OpenAI SSE requires `response.completed`; Anthropic SSE requires `message_stop`.
+OpenAI SSE requires a successful `response.completed`; Anthropic SSE requires a
+final `end_turn`/`stop_sequence` reason followed by `message_stop`.
 Malformed JSON, incomplete stop reasons, empty answers, invalid UTF-8, and EOF
 without completion are errors. Metadata, thinking, and tool blocks are not text.
 JSON-compatible proxies may return a complete JSON body instead of a stream.
+JSON responses also reject explicit errors, unfinished statuses, output limits,
+tool-use/continuation stops, and unfinished Ollama generation. Compatible JSON
+proxies may omit completion metadata; explicit failure is never ignored.
+Usage counts must be nonnegative safe integers; Ollama JSON counts are normalized
+to the same input/output/total fields as other providers.
 
 Limits: 200,000 input characters, 30 seconds per attempt including body reads,
 8 MiB response bytes, one MiB per stream event, two million output characters.

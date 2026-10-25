@@ -4,6 +4,32 @@
 
 No changes yet.
 
+## 1.1.1 - 2026-10-25
+
+- Resolved CLI file targets against the command's working directory and disclosed
+  absolute paths. Document/data confirmations cannot be reused in another project
+  with identical relative filenames. Library CLI callers' `cwd` is honored across
+  documents, data, AI file input, workflows, teaching, and plugin sources.
+- Bound configuration confirmations to both source and generated content, including
+  comment-only edits. Complete-file replacement preserves permissions, refuses
+  linked targets and stale input, uses exclusive creation for new configs, and
+  preserves existing files on write failure. Plugin removal rechecks target content.
+- Rejected explicit provider errors, truncation, unfinished generation, and
+  unsupported continuation in JSON and streaming answers. Anthropic streams require
+  a final text stop reason; no incomplete answer is retried. Ollama JSON usage is
+  reported, and invalid/unsafe token counts are omitted.
+- Blocked workflow writes for unsupported or malformed versions. Required object
+  JSON roots and own-property variables; prototype names cannot supply values.
+  Bounded workflow input before parsing and capped config/plugin/teaching files.
+- Validated and sanitized installed plugin metadata, refused linked manifests,
+  resolved local sources consistently, and made directory/removal errors actionable.
+  Install plans bind id/source and disclose the generated confirmation timestamp.
+- Closed web responses after inspection, success, failure, or reaching the byte
+  cap. Cleanup cannot extend the request deadline or wait indefinitely. Rejected
+  credentials embedded in URLs without exposing them in errors.
+- Kept command names and JSON keys/schema version stable, with three registered
+  read/size errors. No new dependency or workflow execution capability was added.
+
 ## 1.1.0 - 2026-10-21
 
 - Added real streaming for OpenAI Responses, Anthropic, and Ollama human output;

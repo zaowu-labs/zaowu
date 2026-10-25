@@ -14,6 +14,7 @@ import {
   formatOperationPlan,
   getValue,
   requireTarget,
+  resolveFileTarget,
   result,
   withOperationPlan,
   ZaoWuError,
@@ -21,7 +22,7 @@ import {
 } from '../handler-utils.js';
 
 export const handleDocSummary: DomainActionHandler = async (args, context) => {
-  const target = requireTarget(args, 'zw doc summary');
+  const target = resolveFileTarget(context, requireTarget(args, 'zw doc summary'));
   const summary = await summarizeDocument(target);
   const human = [
     'ZaoWu Doc Summary',
@@ -39,7 +40,7 @@ export const handleDocSummary: DomainActionHandler = async (args, context) => {
 };
 
 export const handleDocExtract: DomainActionHandler = async (args, context) => {
-  const target = requireTarget(args, 'zw doc extract');
+  const target = resolveFileTarget(context, requireTarget(args, 'zw doc extract'));
   const extracted = await extractDocument(target);
   const human = [
     'ZaoWu Doc Extract',
@@ -59,7 +60,7 @@ export const handleDocExtract: DomainActionHandler = async (args, context) => {
 };
 
 export const handleDocOutline: DomainActionHandler = async (args, context) => {
-  const target = requireTarget(args, 'zw doc outline');
+  const target = resolveFileTarget(context, requireTarget(args, 'zw doc outline'));
   const outline = await outlineDocument(target);
   const human = [
     'ZaoWu Doc Outline',
@@ -77,7 +78,7 @@ export const handleDocOutline: DomainActionHandler = async (args, context) => {
 };
 
 export const handleDocSearch: DomainActionHandler = async (args, context) => {
-  const target = requireTarget(args, 'zw doc search');
+  const target = resolveFileTarget(context, requireTarget(args, 'zw doc search'));
   const rawKeyword = args[1];
   const keyword = (rawKeyword || '').trim();
 
@@ -105,8 +106,11 @@ export const handleDocSearch: DomainActionHandler = async (args, context) => {
 };
 
 export const handleDocConvert: DomainActionHandler = async (args, context) => {
-  const target = requireTarget(args, 'zw doc convert');
-  const outputPath = getValue(context.parsed, '--output');
+  const target = resolveFileTarget(context, requireTarget(args, 'zw doc convert'));
+  const requestedOutputPath = getValue(context.parsed, '--output');
+  const outputPath = requestedOutputPath
+    ? resolveFileTarget(context, requestedOutputPath)
+    : undefined;
   const format = getValue(context.parsed, '--format');
   // One options object for both the preview and the confirmed call: the
   // fingerprint the user confirms is computed from the preview, so the two

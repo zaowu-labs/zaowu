@@ -7,13 +7,14 @@ import {
   formatPolicy,
   formatSandbox,
   requireTarget,
+  resolveFileTarget,
   result,
   withOperationPlan,
   type DomainActionHandler,
 } from '../handler-utils.js';
 
 export const handleAutoValidate: DomainActionHandler = async (args, context) => {
-  const target = requireTarget(args, 'zw auto validate');
+  const target = resolveFileTarget(context, requireTarget(args, 'zw auto validate'));
   const validation = await validateWorkflowFile(target);
   const human = [
     'ZaoWu Auto Validate',
@@ -36,7 +37,7 @@ export const handleAutoValidate: DomainActionHandler = async (args, context) => 
 };
 
 export const handleAutoRun: DomainActionHandler = async (args, context) => {
-  const target = requireTarget(args, 'zw auto run');
+  const target = resolveFileTarget(context, requireTarget(args, 'zw auto run'));
   const plan = await planWorkflowFile(target);
   const readySteps = plan.steps
     .filter(
@@ -130,7 +131,7 @@ const formatAutoPlanStep = (
 };
 
 export const handleAutoPlan: DomainActionHandler = async (args, context) => {
-  const target = requireTarget(args, 'zw auto plan');
+  const target = resolveFileTarget(context, requireTarget(args, 'zw auto plan'));
   const plan = await planWorkflowFile(target);
   const human = [
     'ZaoWu Auto Plan',

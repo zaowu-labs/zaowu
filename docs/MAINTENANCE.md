@@ -35,6 +35,13 @@ and [composed jobs](experience/ZW_COMPOSED_JOBS.md).
 
 ## Next maintenance priorities
 
+The [2026-10-25 execution-integrity review](reviews/2026-10-25-integrity.md) follows
+the 1.1.0 baseline with the 1.1.1 patch: directory-bound confirmation, complete
+configuration replacement and original-input checks, complete JSON/stream model
+answers, bounded metadata reads, strict workflow versions/variables, validated
+installed manifests, and nonblocking HTTP cleanup. The governing contract is
+[execution integrity](experience/ZW_EXECUTION_INTEGRITY.md).
+
 1. Track provider lifecycle and protocol changes against the documented local HTTP
    fixtures; live account/model access remains the user's explicit choice.
 2. Expand representative real-world DOCX/PDF/table fixtures before promising layout,

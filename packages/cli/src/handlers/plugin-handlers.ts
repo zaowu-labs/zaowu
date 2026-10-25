@@ -1,36 +1,23 @@
-import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { installPlugin, listPlugins, removePlugin, validatePluginSource } from '@zaowu-labs/plugin';
+import {
+  getPluginTargetSubjects,
+  installPlugin,
+  listPlugins,
+  removePlugin,
+  validatePluginSource,
+} from '@zaowu-labs/plugin';
 import {
   assertOperationPlanFingerprint,
-  createContentOperationSubjects,
   createOperationPlan,
   formatConfirmCommand,
   formatLabeledList,
   formatOperationPlan,
   getValue,
-  hashOperationContent,
   requireTarget,
   result,
   withOperationPlan,
   type DomainActionHandler,
 } from '../handler-utils.js';
-
-const getTargetFileSubjects = async (filePath: string): Promise<string[]> => {
-  try {
-    const content = await readFile(filePath, 'utf8');
-
-    return [
-      'target-state:exists',
-      `target-content-sha256:${hashOperationContent(content)}`,
-      `target-content-length:${content.length}`,
-    ];
-  } catch (error) {
-    return (error as { code?: string }).code === 'ENOENT'
-      ? ['target-state:missing']
-      : ['target-state:unreadable'];
-  }
-};
 
 export const handlePluginList: DomainActionHandler = async (_args, context) => {
   const listed = await listPlugins({ cwd: context.cwd });
@@ -56,20 +43,21 @@ export const handlePluginInstall: DomainActionHandler = async (args, context) =>
   const installOptions = { cwd: context.cwd, source };
   const preview = await installPlugin(id, installOptions);
   const pluginPath = path.join(preview.pluginDir, `${preview.plugin.id}.json`);
-  const previewManifestContent = `${JSON.stringify(preview.plugin, null, 2)}\n`;
-  const targetFileSubjects = await getTargetFileSubjects(pluginPath);
+  const targetFileSubjects = await getPluginTargetSubjects(id, { cwd: context.cwd });
   const operationPlan = createOperationPlan({
     risk: 'medium',
     confirmationRequired: !context.yes,
     subjects: [
       `plugin:${preview.plugin.id}`,
       `source:${preview.plugin.source}`,
-      ...createContentOperationSubjects(previewManifestContent),
       ...targetFileSubjects,
     ],
     reads: preview.plugin.source === preview.plugin.id ? [] : [preview.plugin.source],
     writes: [pluginPath],
-    notes: ['Plugin installation writes a local manifest only when --yes is provided.'],
+    notes: [
+      'Plugin installation writes a local manifest only when --yes is provided.',
+      'The installation timestamp is generated at confirmation; the plugin id and source are fixed by this plan.',
+    ],
   });
   assertOperationPlanFingerprint(context, operationPlan);
 
@@ -108,7 +96,7 @@ export const handlePluginRemove: DomainActionHandler = async (args, context) => 
   const removeOptions = { cwd: context.cwd };
   const preview = await removePlugin(id, removeOptions);
   const pluginPath = path.join(preview.pluginDir, `${preview.plugin.id}.json`);
-  const targetFileSubjects = await getTargetFileSubjects(pluginPath);
+  const targetFileSubjects = await getPluginTargetSubjects(id, { cwd: context.cwd });
   const operationPlan = createOperationPlan({
     risk: 'medium',
     confirmationRequired: !context.yes,
@@ -119,7 +107,13 @@ export const handlePluginRemove: DomainActionHandler = async (args, context) => 
   });
   assertOperationPlanFingerprint(context, operationPlan);
 
-  const removed = context.yes ? await removePlugin(id, { ...removeOptions, yes: true }) : preview;
+  const removed = context.yes
+    ? await removePlugin(id, {
+        ...removeOptions,
+        yes: true,
+        expectedTargetSubjects: targetFileSubjects,
+      })
+    : preview;
   const human = [
     'ZaoWu Plugin Remove',
     '',
@@ -150,7 +144,7 @@ export const handlePluginRemove: DomainActionHandler = async (args, context) => 
 
 export const handlePluginValidate: DomainActionHandler = async (args, context) => {
   const target = requireTarget(args, 'zw plugin validate');
-  const validation = await validatePluginSource(target);
+  const validation = await validatePluginSource(target, { cwd: context.cwd });
   const human = [
     'ZaoWu Plugin Validate',
     '',

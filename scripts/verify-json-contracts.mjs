@@ -949,10 +949,35 @@ try {
     'CLI plugin install preview should bind the plugin target state.'
   );
   assert(
-    cliPluginInstall.operationPlan?.subjects?.some((subject) =>
-      /^content-sha256:[a-f0-9]{64}$/.test(subject)
-    ),
-    'CLI plugin install preview should bind the generated manifest preview content.'
+    cliPluginInstall.operationPlan?.subjects?.includes(`plugin:${cliPluginInstall.plugin.id}`) &&
+      cliPluginInstall.operationPlan?.subjects?.includes(
+        `source:${cliPluginInstall.plugin.source}`
+      ),
+    'CLI plugin install preview should bind the actual installed id and source.'
+  );
+  assert(
+    cliPluginInstall.plugin.installedAt === null &&
+      cliPluginInstall.operationPlan?.notes?.some((note) =>
+        note.includes('timestamp is generated at confirmation')
+      ),
+    'CLI plugin install preview should disclose its generated confirmation timestamp.'
+  );
+  const cliPluginInstalled = runCliJson(
+    [
+      'plugin',
+      'install',
+      'contract-plugin',
+      '--yes',
+      '--plan-fingerprint',
+      cliPluginInstall.operationPlan.fingerprint,
+    ],
+    { cwd: cliInitFixture }
+  );
+  assertValid('pluginInstall', cliPluginInstalled);
+  assert(
+    cliPluginInstalled.plugin.installedAt !== null &&
+      cliPluginInstalled.operationPlan.fingerprint === cliPluginInstall.operationPlan.fingerprint,
+    'Confirmed plugin install should bind the same id/source/state plan while generating its timestamp.'
   );
   assert(
     cliPluginRemove.operationPlan?.confirmationRequired === true,

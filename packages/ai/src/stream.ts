@@ -1,6 +1,7 @@
 import type { ReadableStream } from 'node:stream/web';
 import { ZaoWuError } from '@zaowu-labs/core';
 import type { AIFetchResponse, AIUsage } from './contracts.js';
+import { assertCompletedAIResponse } from './completion.js';
 
 const MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
 const MAX_EVENT_CHARACTERS = 1024 * 1024;
@@ -76,7 +77,7 @@ const record = (value: unknown): Record<string, unknown> => {
   return value as Record<string, unknown>;
 };
 const tokenCount = (value: unknown): number | undefined =>
-  typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : undefined;
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
 
 export const readAIStream = async (
   response: AIFetchResponse,
@@ -87,6 +88,7 @@ export const readAIStream = async (
     const ndjson = provider === 'ollama';
     let output = '';
     let completed = false;
+    let anthropicStopConfirmed = false;
     let buffer = '';
     let dataLines: string[] = [];
     let eventName = '';
@@ -105,13 +107,14 @@ export const readAIStream = async (
       const values = raw as Record<string, unknown>;
       const inputTokens = tokenCount(values.input_tokens);
       const outputTokens = tokenCount(values.output_tokens);
+      if (inputTokens === undefined && outputTokens === undefined) return;
       usage = {
         ...usage,
         ...(inputTokens !== undefined ? { inputTokens } : {}),
         ...(outputTokens !== undefined ? { outputTokens } : {}),
       };
       if (usage.inputTokens !== undefined && usage.outputTokens !== undefined)
-        usage.totalTokens = usage.inputTokens + usage.outputTokens;
+        usage.totalTokens = tokenCount(usage.inputTokens + usage.outputTokens);
     };
     const accept = (data: string, name = ''): void => {
       let parsed: unknown;
@@ -122,7 +125,7 @@ export const readAIStream = async (
       }
       const event = record(parsed);
       if (ndjson) {
-        if (event.error !== undefined)
+        if (event.error !== undefined && event.error !== null)
           throw invalidAIStream('Ollama reported an error inside the stream.');
         if (typeof event.done !== 'boolean' || typeof event.response !== 'string')
           throw invalidAIStream(
@@ -130,10 +133,7 @@ export const readAIStream = async (
           );
         emit(event.response);
         if (event.done) {
-          if (event.done_reason === 'length')
-            throw invalidAIStream(
-              'The model reached its output limit before completing the answer.'
-            );
+          assertCompletedAIResponse('ollama', event);
           completed = true;
           updateUsage({ input_tokens: event.prompt_eval_count, output_tokens: event.eval_count });
         }
@@ -151,6 +151,7 @@ export const readAIStream = async (
           const final = record(event.response);
           if (final.status !== 'completed')
             throw invalidAIStream('The final response was not completed.');
+          assertCompletedAIResponse('openai', final);
           updateUsage(final.usage);
           completed = true;
         }
@@ -166,14 +167,17 @@ export const readAIStream = async (
         if (event.type === 'message_start') updateUsage(record(event.message).usage);
         if (event.type === 'message_delta') {
           const delta = record(event.delta);
-          if (
-            delta.stop_reason &&
-            !['end_turn', 'stop_sequence'].includes(String(delta.stop_reason))
-          )
-            throw invalidAIStream('The model stopped before completing a text answer.');
+          if (delta.stop_reason !== undefined && delta.stop_reason !== null) {
+            assertCompletedAIResponse('anthropic', delta);
+            anthropicStopConfirmed = true;
+          }
           updateUsage(event.usage);
         }
-        if (event.type === 'message_stop') completed = true;
+        if (event.type === 'message_stop') {
+          if (!anthropicStopConfirmed)
+            throw invalidAIStream('The stream ended without a completed text stop reason.');
+          completed = true;
+        }
       }
       // Unknown event types, pings, tool/thinking blocks are not generated text.
     };

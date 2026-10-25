@@ -11,7 +11,7 @@ This guide starts with the published CLI. Repository development instructions ar
 ## Install
 
 ```bash
-npm install -g @zaowu-labs/cli@1.1.0
+npm install -g @zaowu-labs/cli@1.1.1
 zw --version
 zw doctor
 ```
@@ -19,7 +19,7 @@ zw doctor
 To try the CLI without installing globally:
 
 ```bash
-npx --package @zaowu-labs/cli@1.1.0 zw --help
+npx --package @zaowu-labs/cli@1.1.1 zw --help
 ```
 
 ### npm 12: `EALLOWREMOTE`
@@ -31,7 +31,7 @@ SheetJS 0.20.3, pinned to its official distribution:
 If installation reports `EALLOWREMOTE`, allow URL dependencies for that command:
 
 ```bash
-npm install -g --allow-remote=all @zaowu-labs/cli@1.1.0
+npm install -g --allow-remote=all @zaowu-labs/cli@1.1.1
 zw --version
 zw doctor --json
 ```
@@ -39,7 +39,7 @@ zw doctor --json
 For a single invocation:
 
 ```bash
-npx --allow-remote=all --package @zaowu-labs/cli@1.1.0 zw --help
+npx --allow-remote=all --package @zaowu-labs/cli@1.1.1 zw --help
 ```
 
 `--allow-remote=all` permits URL dependencies for that command, without changing
@@ -228,6 +228,16 @@ this foundation version.
 - For stricter automation, preview first and confirm with
   `--yes --plan-fingerprint <operationPlan.fingerprint>` so changed plans fail
   before writing files or sending network requests.
+- File input/output paths resolve against the command's working directory and
+  appear as absolute paths. Confirm in the same project; preview again after a
+  directory change or upgrade from an older relative-path plan. Config confirmation
+  also binds the original text, including comments, before complete-file replacement.
+- Config, plugin, and teaching files are limited to one MiB. Workflows have a
+  four-MiB byte cap and one-million-character text cap. Only workflow version 1
+  can authorize file writes; shell/network steps remain blocked.
+- Explicit provider errors and unfinished answers fail even when HTTP status is
+  200 and text exists. Partial output is incomplete; review the error and retry
+  deliberately. ZaoWu does not automatically continue or resend that answer.
 - Versioned JSON contracts are documented in `docs/JSON_CONTRACTS.md`; public
   machine output should evolve additively unless the schema version changes.
 

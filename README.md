@@ -6,7 +6,7 @@
 
 One CLI for development, documents, data, teaching, and controlled automation.
 
-[![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)](package.json)
+[![Version](https://img.shields.io/badge/version-1.1.1-blue.svg)](package.json)
 [![CI](https://github.com/zaowu-labs/zaowu/actions/workflows/ci.yml/badge.svg)](https://github.com/zaowu-labs/zaowu/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-20.19%2B-orange.svg)](package.json)
@@ -28,7 +28,7 @@ Requires **Node.js 20.19+**. Git is needed for developer commands. pnpm is only
 needed for repository development.
 
 ```bash
-npm install -g @zaowu-labs/cli@1.1.0
+npm install -g @zaowu-labs/cli@1.1.1
 zw --version
 zw --help
 ```
@@ -38,7 +38,7 @@ zw --help
 If npm reports `EALLOWREMOTE`, allow URL dependencies for this installation:
 
 ```bash
-npm install -g --allow-remote=all @zaowu-labs/cli@1.1.0
+npm install -g --allow-remote=all @zaowu-labs/cli@1.1.1
 ```
 
 The flag applies to that command only. See the
@@ -47,9 +47,9 @@ The flag applies to that command only. See the
 To try help without a global install:
 
 ```bash
-npx --package @zaowu-labs/cli@1.1.0 zw --help
+npx --package @zaowu-labs/cli@1.1.1 zw --help
 # With npm 12:
-npx --allow-remote=all --package @zaowu-labs/cli@1.1.0 zw --help
+npx --allow-remote=all --package @zaowu-labs/cli@1.1.1 zw --help
 ```
 
 ### Set up a project
@@ -147,10 +147,15 @@ See the [command catalog](docs/experience/COMMAND_CATALOG.md) for complete usage
   Boolean flags take no value: `--yes=false` is rejected.
 - Preview fingerprints bind confirmation to the planned targets and content.
   Document/data outputs and automation file creation refuse existing targets.
+  File paths are absolute; preview again after changing directories or upgrading
+  from an older relative-path plan. Config updates also bind their original content.
 - Network AI and web commands require confirmation. API keys belong in provider
   environment variables; ordinary config files reject secret-like keys.
 - Document summaries and teaching drafts use local rules/templates. They are
   useful starting points; inspect their output before using it as finished work.
+- A provider's explicit failure or incomplete-generation status is an error,
+  including HTTP 200 replies containing partial text. No automatic continuation
+  or retry resends an incomplete answer.
 - Workflows currently support messages and structured new-file creation. Plugin
   management handles metadata. Broader workflow execution and distribution remain
   future work, tracked in the [roadmap](docs/ROADMAP.md).

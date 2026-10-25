@@ -13,6 +13,7 @@ import {
   formatOperationPlan,
   getValue,
   resolveAiProvider,
+  resolveFileTarget,
   result,
   withOperationPlan,
   type DomainActionHandler,
@@ -20,7 +21,8 @@ import {
 
 export const handleAiAsk: DomainActionHandler = async (args, context) => {
   const prompt = args.join(' ').trim();
-  const filePath = getValue(context.parsed, '--file');
+  const requestedFilePath = getValue(context.parsed, '--file');
+  const filePath = requestedFilePath ? resolveFileTarget(context, requestedFilePath) : undefined;
   // Shared resolution: --provider first, then `ai.provider` from zw.yml, then
   // the default — the same order `zw dev --ai` and `zw doctor` use.
   const ai = await resolveAiProvider(context);
