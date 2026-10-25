@@ -74,7 +74,7 @@ AI JSON/error schemas, capability matrix, help/catalog, recipes, guides, and
   schemas/compiled JSON contracts, rich fixtures, capabilities, CLI smoke,
   functional/script tests, lint/format, release metadata, all eleven tarballs,
   and fresh packed CLI installation. No gate or threshold is lowered.
-- Coverage passes unchanged thresholds: 93.48% lines/statements, 86.41% branches,
+- Coverage passes unchanged thresholds: 93.48% lines/statements, 86.45% branches,
   95.78% functions.
 - `corepack pnpm audit:prod` passes with no exceptions and no dependency changes.
 - Actual executable acceptance passes for saved raw Unicode/control text,
@@ -125,3 +125,8 @@ parsed values. Saved answer bytes remain the original UTF-8 text.
 
 Answer files use POSIX mode 0600; Windows permissions follow the destination
 directory ACLs. Existing output parents are not created or reconfigured.
+
+Cross-platform CI caught an ANSI-C quoting assumption that failed on Ubuntu
+POSIX sh. Confirmation quoting now uses portable encoding for active controls
+and retains literal quoted newlines. Existing shell regression expectations were
+preserved; control round-trips execute through POSIX sh or PowerShell.

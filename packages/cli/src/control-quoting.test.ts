@@ -7,7 +7,7 @@ import { formatConfirmCommand } from './handler-utils';
 
 describe('copyable safe control arguments', () => {
   it.each(["Text '\\ \u001b[2J\u009d52;data\u0007", 'Names \u202evalue\nNew line\tTab'])(
-    'round-trips %s without embedding terminal controls',
+    'round-trips encoded argument %# without active escapes',
     (value) => {
       const directory = mkdtempSync(path.join(os.tmpdir(), 'zaowu-control-quote-'));
       const target = path.join(directory, 'argument.txt');
@@ -24,7 +24,7 @@ describe('copyable safe control arguments', () => {
       const windows = process.platform === 'win32';
       try {
         execFileSync(
-          windows ? 'pwsh' : '/bin/bash',
+          windows ? 'pwsh' : '/bin/sh',
           windows ? ['-NoProfile', '-Command', command] : ['-c', command],
           { encoding: 'utf8', timeout: 10000, windowsHide: true }
         );

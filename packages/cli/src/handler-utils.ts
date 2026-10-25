@@ -181,19 +181,18 @@ const quoteCliValue = (value: string): string => {
       pieces.push(`'${plain.replaceAll("'", "''")}'`);
       return `(${pieces.join(' + ')})`;
     }
-    // UTF-8 octal bytes work in Bash and zsh, including macOS Bash 3.2.
-    const escaped = [...value]
-      .map((character) =>
-        controls.test(character)
-          ? [...Buffer.from(character)]
-              .map((byte) => `\\${byte.toString(8).padStart(3, '0')}`)
-              .join('')
-          : character === '\\' || character === "'"
-            ? `\\${character}`
-            : character
-      )
-      .join('');
-    return `$'${escaped}'`;
+    // POSIX sh has no ANSI-C quotes. Encode active controls with printf while
+    // keeping literal quoted newlines, including trailing ones, intact.
+    let quoted = "'";
+    for (const character of value) {
+      if (controls.test(character) && character !== '\n' && character !== '\t') {
+        const bytes = [...Buffer.from(character)]
+          .map((byte) => `\\${byte.toString(8).padStart(3, '0')}`)
+          .join('');
+        quoted += `'"$(command printf '${bytes}')"'`;
+      } else quoted += character === "'" ? "'\\''" : character;
+    }
+    return `${quoted}'`;
   }
   return value.length > 0 &&
     (process.platform === 'win32' ? /^[A-Za-z0-9._@:/\\=-]+$/ : /^[A-Za-z0-9._@:/=-]+$/).test(value)
