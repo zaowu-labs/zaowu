@@ -505,7 +505,22 @@ Human plan formatting groups empty sections; operation-plan JSON and fingerprint
 calculation are unchanged.
 
 AI `--json` requests are non-streaming and emit one complete result/error.
+With `--output`, AI CLI results additionally contain `outputPath` (resolved
+physical absolute destination) and `wroteFile`. Previews have null `output` and
+`wroteFile: false`; completion reports true only after exclusive file creation.
+Without the option these keys are absent. Output text is unknown at preview;
+the plan binds the input/provider/model/endpoint and destination, and explicitly
+authorizes saving that generation's completed answer. A late write failure is an
+error, never a false successful receipt or automatic retry.
+
+Human terminal rendering escapes control bytes and directional overrides; JSON
+and saved answers preserve original content. Table input rejects invalid UTF-8,
+misplaced quotes, and named sheets on single-table formats. Conflicting Git
+review scopes and unsafe integer row options use OPTION_VALUE_INVALID.
 `AI_REQUEST_CANCELLED` uses exit code 130. Truncated, malformed, empty, or
 unterminated streaming responses never return a successful partial envelope.
 Document and data size limits use stable `DOCUMENT_INPUT_TOO_LARGE` and
 `DATA_INPUT_TOO_LARGE` errors; PDFs without text use `DOCUMENT_TEXT_UNAVAILABLE`.
+
+JSON serialization uses Unicode escapes for display controls while preserving
+parsed values. Saved answer bytes remain the original UTF-8 text.

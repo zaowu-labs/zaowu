@@ -29,6 +29,20 @@ export const readDataFile = (filePath: string): Promise<Buffer> =>
     tooLarge: dataTooLarge(),
   });
 
+export const readDataText = async (filePath: string): Promise<string> => {
+  const bytes = await readDataFile(filePath);
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    throw new ZaoWuError({
+      code: 'DATA_READ_FAILED',
+      message: 'Table text is not valid UTF-8.',
+      why: 'Replacing undecodable bytes would silently change cell content.',
+      fix: 'Export CSV/TSV/JSON as UTF-8, or use an XLSX workbook.',
+    });
+  }
+};
+
 /** Inflate sequentially under an actual-byte budget before handing ZIP to SheetJS. */
 export const assertWorkbookSize = async (buffer: Buffer): Promise<void> => {
   const zip = await JSZip.loadAsync(buffer);

@@ -22,6 +22,7 @@ import { DEFAULT_CONFIG_FILE_NAME, handleInit } from './root-init.js';
 import { runSystemCommand } from './system-command.js';
 import type { CliExecutionOptions, CliResult } from './types.js';
 import { getCliVersion } from './version.js';
+import { escapeJSONControls, escapeTerminalText } from './terminal.js';
 
 const ZAOWU_CLI_VERSION = getCliVersion();
 export { DEFAULT_CONFIG_FILE_NAME, DOMAIN_DEFINITIONS };
@@ -74,7 +75,7 @@ const createHelpResult = (help: string, json: boolean, details = {}): CliResult 
     json ? JSON.stringify({ schemaVersion: 1, status: 'ok', ...details, help }) : help
   );
 
-export const executeCli = async (
+const executeCliInternal = async (
   args: readonly string[],
   options: CliExecutionOptions = {}
 ): Promise<CliResult> => {
@@ -223,10 +224,35 @@ export const executeCli = async (
   }
 };
 
+export const executeCli = async (
+  args: readonly string[],
+  options: CliExecutionOptions = {}
+): Promise<CliResult> => {
+  const json = hasFlag(parseArgs(args), '--json');
+  const onChunk = options.onChunk;
+  const result = await executeCliInternal(args, {
+    ...options,
+    onChunk: !json && onChunk ? (chunk) => onChunk(escapeTerminalText(chunk)) : undefined,
+  });
+  return json
+    ? {
+        ...result,
+        stdout: escapeJSONControls(result.stdout),
+        stderr: escapeJSONControls(result.stderr),
+      }
+    : {
+        ...result,
+        stdout: escapeTerminalText(result.stdout),
+        stderr: escapeTerminalText(result.stderr),
+      };
+};
+
 export const runCli = async (args: readonly string[]): Promise<number> => {
   const controller = new AbortController();
   const cancel = () => controller.abort();
-  const cancellable = args[0] === 'ai' || (args[0] === 'dev' && args.includes('--ai'));
+  const parsed = parseArgs(args);
+  const cancellable =
+    parsed.positionals[0] === 'ai' || (parsed.positionals[0] === 'dev' && hasFlag(parsed, '--ai'));
   if (cancellable) process.on('SIGINT', cancel);
   let result: CliResult;
   try {

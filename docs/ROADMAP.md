@@ -3,6 +3,15 @@
 This roadmap keeps ZaoWu focused while the foundation is still young. It is not a
 release promise. It is the preferred order of work.
 
+## Current delivery status (1.2.0)
+
+The numbered phases below describe product areas, not unfinished work in a strict
+sequence. Configuration, real model adapters with streaming/cancellation, developer
+previews, rich-document/table handling, bounded workflow writes, and local plugin
+metadata already exist. Saved AI answers complete the first file-to-model output
+loop. The [product assessment](reviews/2026-10-25-product-assessment.md) distinguishes
+verified behavior from remaining depth, quality, and execution limitations.
+
 See [Maintenance Priorities](MAINTENANCE.md) for the current baseline,
 near-term order, and the evidence required to complete each improvement.
 
@@ -108,7 +117,7 @@ Scope:
 - model request and response types
 - provider config resolution
 - provider error mapping
-- non-streaming text generation first
+- streaming and non-streaming text generation, cancellation, complete-answer checks
 - transparent prompt and file input reporting
 - OpenAI adapter through the Responses API
 
@@ -118,7 +127,7 @@ Out of scope:
 - provider marketplaces
 - complex memory systems
 - long-running autonomous tasks
-- tool-calling and streaming until the non-streaming surface is stable
+- tool-calling and automatic model continuations until explicit action contracts exist
 
 ## Phase 4: Developer Workflows
 

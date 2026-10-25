@@ -6,7 +6,7 @@
 
 One CLI for development, documents, data, teaching, and controlled automation.
 
-[![Version](https://img.shields.io/badge/version-1.1.1-blue.svg)](package.json)
+[![Version](https://img.shields.io/badge/version-1.2.0-blue.svg)](package.json)
 [![CI](https://github.com/zaowu-labs/zaowu/actions/workflows/ci.yml/badge.svg)](https://github.com/zaowu-labs/zaowu/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-20.19%2B-orange.svg)](package.json)
@@ -28,7 +28,7 @@ Requires **Node.js 20.19+**. Git is needed for developer commands. pnpm is only
 needed for repository development.
 
 ```bash
-npm install -g @zaowu-labs/cli@1.1.1
+npm install -g @zaowu-labs/cli@1.2.0
 zw --version
 zw --help
 ```
@@ -38,7 +38,7 @@ zw --help
 If npm reports `EALLOWREMOTE`, allow URL dependencies for this installation:
 
 ```bash
-npm install -g --allow-remote=all @zaowu-labs/cli@1.1.1
+npm install -g --allow-remote=all @zaowu-labs/cli@1.2.0
 ```
 
 The flag applies to that command only. See the
@@ -47,9 +47,9 @@ The flag applies to that command only. See the
 To try help without a global install:
 
 ```bash
-npx --package @zaowu-labs/cli@1.1.1 zw --help
+npx --package @zaowu-labs/cli@1.2.0 zw --help
 # With npm 12:
-npx --allow-remote=all --package @zaowu-labs/cli@1.1.1 zw --help
+npx --allow-remote=all --package @zaowu-labs/cli@1.2.0 zw --help
 ```
 
 ### Set up a project
@@ -120,6 +120,16 @@ This also previews first and prints the exact command to apply the change.
 Provider precedence is explicit `--provider`, project preferences, global
 preferences, then Echo. Invalid configuration produces a recovery error.
 Human model answers stream; Ctrl+C cancels. `--json` stays one complete result.
+To save a reusable answer without CLI headings:
+
+```bash
+zw ai ask "List decisions and next actions" --file report.md --provider ollama --output actions.md
+```
+
+Review the input, endpoint, and output path, then copy the full confirmation
+command. The destination directory must exist; existing files are preserved.
+Only a completed answer creates the UTF-8 file. Cancellation or generation
+failure leaves no answer file; local Echo output also previews before writing.
 See [provider setup](docs/GETTING_STARTED.md#common-workflows) and the
 [report, spreadsheet, and Git recipes](docs/WORKFLOWS.md).
 
@@ -127,7 +137,7 @@ See [provider setup](docs/GETTING_STARTED.md#common-workflows) and the
 
 | Domain   | Useful commands                                             | Current behavior                                                               |
 | -------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `ai`     | `providers`, `ask`                                          | Echo demo, Ollama, OpenAI, Anthropic; explicit input and network preview       |
+| `ai`     | `providers`, `ask`                                          | Echo, Ollama, OpenAI, Anthropic; previewed requests and complete-answer saving |
 | `dev`    | `status`, `review`, `commit`, `sync`                        | Git inspection, heuristic or AI review, commit suggestions, guarded sync       |
 | `doc`    | `extract`, `convert`, `summary`, `outline`, `search`        | Text/HTML/PDF/DOCX extraction, Markdown conversion, local summaries and search |
 | `data`   | `inspect`, `analyze`, `schema`, `sample`, `sheets`, `clean` | CSV/TSV/JSON/XLSX inspection; previewed cleaning for supported table formats   |
@@ -156,6 +166,9 @@ See the [command catalog](docs/experience/COMMAND_CATALOG.md) for complete usage
 - A provider's explicit failure or incomplete-generation status is an error,
   including HTTP 200 replies containing partial text. No automatic continuation
   or retry resends an incomplete answer.
+- Human terminal output displays control bytes and directional overrides visibly;
+  JSON and saved answers preserve their original text. Table text must be UTF-8;
+  malformed CSV quoting fails instead of silently changing cell values.
 - Workflows currently support messages and structured new-file creation. Plugin
   management handles metadata. Broader workflow execution and distribution remain
   future work, tracked in the [roadmap](docs/ROADMAP.md).

@@ -987,6 +987,42 @@ try {
     cliPluginRemove.operationPlan?.subjects?.includes('target-state:missing'),
     'CLI plugin remove preview should bind the missing plugin target state.'
   );
+  const savedArgs = [
+    'ai',
+    'ask',
+    'Fixture saved answer',
+    '--provider',
+    'echo',
+    '--output',
+    'answer.md',
+  ];
+  const savedPreview = runCliJson(savedArgs, { cwd: cliInitFixture });
+  assertValid('aiAsk', savedPreview);
+  assert(
+    savedPreview.status === 'preview' &&
+      savedPreview.output === null &&
+      savedPreview.wroteFile === false,
+    'CLI saved answer must preview before even a local write.'
+  );
+  assert(
+    path.isAbsolute(savedPreview.outputPath) &&
+      savedPreview.operationPlan.writes.includes(savedPreview.outputPath),
+    'CLI saved answer must disclose its absolute destination.'
+  );
+  const savedAnswer = runCliJson(
+    [...savedArgs, '--yes', '--plan-fingerprint', savedPreview.operationPlan.fingerprint],
+    { cwd: cliInitFixture }
+  );
+  assertValid('aiAsk', savedAnswer);
+  assert(
+    savedAnswer.wroteFile === true &&
+      savedAnswer.operationPlan.fingerprint === savedPreview.operationPlan.fingerprint,
+    'CLI saved answer must retain confirmation scope and report a completed write.'
+  );
+  assert(
+    (await readFile(savedAnswer.outputPath, 'utf8')) === savedAnswer.output,
+    'The saved file must contain the complete raw answer without CLI headings.'
+  );
 } finally {
   await rm(cliInitFixture, { force: true, recursive: true });
 }

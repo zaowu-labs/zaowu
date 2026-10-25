@@ -121,3 +121,10 @@ registry.
 | `PLUGIN_READ_FAILED`      | The plugin directory or a manifest could not be read.          |
 | `TEACH_INPUT_READ_FAILED` | The selected teaching file could not be read.                  |
 | `TEACH_INPUT_TOO_LARGE`   | The teaching file or literal topic exceeds the supported size. |
+
+## Saved AI answers
+
+| Code                     | Meaning                                                                       |
+| ------------------------ | ----------------------------------------------------------------------------- |
+| `AI_OUTPUT_CONFLICT`     | The answer target already exists; existing content is preserved.              |
+| `AI_OUTPUT_WRITE_FAILED` | The answer directory or complete-file write failed; no automatic model retry. |

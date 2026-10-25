@@ -1,11 +1,11 @@
+import { parseCsvRecords, parseTsvRecords, serializeDelimitedLine } from './delimited.js';
 import path from 'node:path';
 import {
   assertTableSize,
   assertWorkbookSize,
-  dataTooLarge,
-  MAX_DATA_COLUMNS,
   MAX_DATA_ROWS,
   readDataFile,
+  readDataText,
 } from './input-limits.js';
 import {
   assertSafeOutputPath,
@@ -181,171 +181,6 @@ const assertSupportedDataFile = (
   });
 };
 
-interface ParsedDelimitedLine {
-  values: string[];
-  trimmedCells: number;
-}
-
-interface CellCollector {
-  values: string[];
-  trimmedCells: number;
-  push(value: string): void;
-}
-
-const createCellCollector = (): CellCollector => ({
-  values: [],
-  trimmedCells: 0,
-  push(value: string): void {
-    if (this.values.length >= MAX_DATA_COLUMNS) throw dataTooLarge();
-    const trimmed = value.trim();
-
-    if (value !== trimmed) {
-      this.trimmedCells += 1;
-    }
-
-    this.values.push(trimmed);
-  },
-});
-
-const parseTsvLine = (line: string): ParsedDelimitedLine => {
-  const cells = createCellCollector();
-
-  for (const value of line.split('\t', MAX_DATA_COLUMNS + 1)) {
-    cells.push(value);
-  }
-
-  return { values: cells.values, trimmedCells: cells.trimmedCells };
-};
-
-interface ParsedDelimitedRecords {
-  records: ParsedDelimitedLine[];
-  emptyLineCount: number;
-}
-
-/**
- * Record-aware CSV parser (RFC 4180). Unlike a naive line split, this tracks
- * quote state across newlines, so a quoted field containing a newline —
- * `"line one\nline two"` — stays a single field instead of being torn across
- * two records. Blank records (whose raw text trims to empty) are excluded and
- * counted as empty lines, matching the previous line-filtering behavior.
- */
-const parseCsvRecords = (content: string): ParsedDelimitedRecords => {
-  const records: ParsedDelimitedLine[] = [];
-  let emptyLineCount = 0;
-  let widestRecord = 0;
-  let cells = createCellCollector();
-  let current = '';
-  let raw = '';
-  let quoted = false;
-  let started = false;
-
-  const pushValue = (value: string): void => {
-    cells.push(value);
-  };
-
-  const finishRecord = (): void => {
-    pushValue(current);
-
-    if (raw.trim() === '') {
-      emptyLineCount += 1;
-    } else {
-      widestRecord = Math.max(widestRecord, cells.values.length);
-      assertTableSize(records.length, widestRecord);
-      records.push({ values: cells.values, trimmedCells: cells.trimmedCells });
-    }
-
-    cells = createCellCollector();
-    current = '';
-    raw = '';
-    started = false;
-  };
-
-  for (let index = 0; index < content.length; index += 1) {
-    const char = content[index];
-    const next = content[index + 1];
-
-    if (!quoted && (char === '\n' || char === '\r')) {
-      if (char === '\r' && next === '\n') {
-        index += 1;
-      }
-
-      finishRecord();
-      continue;
-    }
-
-    started = true;
-    raw += char;
-
-    if (char === '"' && quoted && next === '"') {
-      current += '"';
-      raw += next;
-      index += 1;
-      continue;
-    }
-
-    if (char === '"') {
-      quoted = !quoted;
-      continue;
-    }
-
-    if (char === ',' && !quoted) {
-      pushValue(current);
-      current = '';
-      continue;
-    }
-
-    current += char;
-  }
-
-  if (quoted)
-    throw new ZaoWuError({
-      code: 'DATA_READ_FAILED',
-      message: 'CSV contains an unclosed quoted field.',
-      why: 'The file ended before a quoted field was closed; continuing would merge records and lose row boundaries.',
-      fix: 'Close the quoted field or re-export the file as valid CSV.',
-    });
-  if (started || current !== '' || cells.values.length > 0) {
-    finishRecord();
-  }
-
-  return { records, emptyLineCount };
-};
-
-const parseTsvRecords = (content: string): ParsedDelimitedRecords => {
-  const rawLines = content.split(/\r?\n/);
-  const contentLines = rawLines.at(-1) === '' ? rawLines.slice(0, -1) : rawLines;
-  const records: ParsedDelimitedLine[] = [];
-  let emptyLineCount = 0;
-  let widestRecord = 0;
-
-  for (const line of contentLines) {
-    if (line.trim() === '') {
-      emptyLineCount += 1;
-      continue;
-    }
-
-    const record = parseTsvLine(line);
-    widestRecord = Math.max(widestRecord, record.values.length);
-    assertTableSize(records.length, widestRecord);
-    records.push(record);
-  }
-
-  return { records, emptyLineCount };
-};
-
-const serializeDelimitedLine = (values: readonly string[], delimiter: ',' | '\t'): string =>
-  values
-    .map((value) => {
-      const trimmed = value.trim();
-
-      if (delimiter === ',' && /[",\n\r]/.test(trimmed)) {
-        return `"${trimmed.replaceAll('"', '""')}"`;
-      }
-
-      return trimmed;
-    })
-    .join(delimiter);
-
 const normalizeHeaders = (headers: readonly string[]): string[] => {
   const used = new Set<string>();
 
@@ -414,11 +249,18 @@ export const loadDataTable = async (
   options: DataReadOptions = {}
 ): Promise<DataTable> => {
   const source = assertSupportedDataFile(filePath);
+  if (options.sheet !== undefined && source.format !== 'xlsx')
+    throw new ZaoWuError({
+      code: 'DATA_SHEET_NOT_FOUND',
+      message: 'Sheet selection requires an XLSX workbook.',
+      why: 'CSV, TSV, and JSON inputs have a single table; a named sheet selector would be ignored.',
+      fix: 'Remove --sheet for this input, or select a worksheet in an XLSX workbook.',
+    });
   let content: string;
 
   if (source.format === 'json') {
     try {
-      const jsonContent = (await readDataFile(filePath)).toString('utf8');
+      const jsonContent = await readDataText(filePath);
       const parsed = JSON.parse(stripUtf8Bom(jsonContent));
       if (
         !parsed ||
@@ -579,7 +421,7 @@ export const loadDataTable = async (
     }
   }
 
-  content = stripUtf8Bom((await readDataFile(filePath)).toString('utf8'));
+  content = stripUtf8Bom(await readDataText(filePath));
 
   const { records, emptyLineCount } =
     source.delimiter === ',' ? parseCsvRecords(content) : parseTsvRecords(content);
@@ -928,6 +770,8 @@ export const listSheets = async (filePath: string): Promise<DataSheetsResult> =>
       sheets: workbook.SheetNames,
     };
   }
+
+  await readDataFile(filePath);
 
   return {
     schemaVersion: 1,

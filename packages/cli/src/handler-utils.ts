@@ -165,11 +165,41 @@ export const formatLabeledList = (label: string, items: readonly string[] | unde
     ? [`${label}:`, ...items.map((item) => `- ${item}`)].join('\n')
     : `${label}: none`;
 
-const quoteCliValue = (value: string): string =>
-  value.length > 0 &&
-  (process.platform === 'win32' ? /^[A-Za-z0-9._@:/\\=-]+$/ : /^[A-Za-z0-9._@:/=-]+$/).test(value)
+const quoteCliValue = (value: string): string => {
+  const controls = /[\p{Cc}\u202a-\u202e\u2066-\u2069]/u;
+  if (controls.test(value)) {
+    if (process.platform === 'win32') {
+      // PowerShell expressions avoid embedding terminal-active characters.
+      const pieces: string[] = [];
+      let plain = '';
+      for (const character of value) {
+        if (controls.test(character)) {
+          pieces.push(`'${plain.replaceAll("'", "''")}'`, `[char]${character.codePointAt(0)}`);
+          plain = '';
+        } else plain += character;
+      }
+      pieces.push(`'${plain.replaceAll("'", "''")}'`);
+      return `(${pieces.join(' + ')})`;
+    }
+    // UTF-8 octal bytes work in Bash and zsh, including macOS Bash 3.2.
+    const escaped = [...value]
+      .map((character) =>
+        controls.test(character)
+          ? [...Buffer.from(character)]
+              .map((byte) => `\\${byte.toString(8).padStart(3, '0')}`)
+              .join('')
+          : character === '\\' || character === "'"
+            ? `\\${character}`
+            : character
+      )
+      .join('');
+    return `$'${escaped}'`;
+  }
+  return value.length > 0 &&
+    (process.platform === 'win32' ? /^[A-Za-z0-9._@:/\\=-]+$/ : /^[A-Za-z0-9._@:/=-]+$/).test(value)
     ? value
     : `'${value.replaceAll("'", process.platform === 'win32' ? "''" : "'\\''")}'`;
+};
 
 export const formatConfirmCommand = (parts: readonly string[]): string => {
   const tokens: string[] = [];

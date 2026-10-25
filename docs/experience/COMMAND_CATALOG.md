@@ -81,6 +81,11 @@ First-version behavior:
 
 - Uses the local `echo` provider by default.
 - `zw ai ask --file README.md` includes a readable file as explicit input.
+- `zw ai ask "List next actions" --file report.md --provider ollama --output actions.md`
+  previews input, provider, and complete-answer creation. The directory must exist;
+  confirm the displayed command to create a new private file. Existing targets
+  are preserved; failed/cancelled generation creates no answer file. `--json`
+  adds `outputPath` and `wroteFile` only when output was requested.
 - The OpenAI provider uses the Responses API when `OPENAI_API_KEY` is set.
 - Ollama uses its local HTTP API and therefore follows the same preview and
   `--yes` confirmation rule as other network providers.
