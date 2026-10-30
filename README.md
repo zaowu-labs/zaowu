@@ -6,7 +6,7 @@
 
 One CLI for development, documents, data, teaching, and controlled automation.
 
-[![Version](https://img.shields.io/badge/version-1.2.0-blue.svg)](package.json)
+[![Version](https://img.shields.io/badge/version-1.2.1-blue.svg)](package.json)
 [![CI](https://github.com/zaowu-labs/zaowu/actions/workflows/ci.yml/badge.svg)](https://github.com/zaowu-labs/zaowu/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-20.19%2B-orange.svg)](package.json)
@@ -28,7 +28,7 @@ Requires **Node.js 20.19+**. Git is needed for developer commands. pnpm is only
 needed for repository development.
 
 ```bash
-npm install -g @zaowu-labs/cli@1.2.0
+npm install -g @zaowu-labs/cli@1.2.1
 zw --version
 zw --help
 ```
@@ -38,7 +38,7 @@ zw --help
 If npm reports `EALLOWREMOTE`, allow URL dependencies for this installation:
 
 ```bash
-npm install -g --allow-remote=all @zaowu-labs/cli@1.2.0
+npm install -g --allow-remote=all @zaowu-labs/cli@1.2.1
 ```
 
 The flag applies to that command only. See the
@@ -47,9 +47,9 @@ The flag applies to that command only. See the
 To try help without a global install:
 
 ```bash
-npx --package @zaowu-labs/cli@1.2.0 zw --help
+npx --package @zaowu-labs/cli@1.2.1 zw --help
 # With npm 12:
-npx --allow-remote=all --package @zaowu-labs/cli@1.2.0 zw --help
+npx --allow-remote=all --package @zaowu-labs/cli@1.2.1 zw --help
 ```
 
 ### Set up a project

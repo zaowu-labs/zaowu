@@ -876,11 +876,11 @@ describe('dev domain', () => {
     expect(() => parseDevAiReviewFindings('[{"severity":"fatal","line":-2}]')).toThrow(
       'AI review findings are invalid.'
     );
-    expect(
+    expect(() =>
       parseDevAiReviewFindings(
         '[{"severity":"fatal","title":"Check","detail":"Inspect this.","line":-2}]'
-      )[0]
-    ).toMatchObject({ severity: 'info', line: undefined });
+      )
+    ).toThrow('AI review findings are invalid.');
 
     // Non-JSON output becomes a single plain-text summary finding.
     expect(parseDevAiReviewFindings('The change looks fine overall.')).toEqual([

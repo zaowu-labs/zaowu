@@ -524,3 +524,10 @@ Document and data size limits use stable `DOCUMENT_INPUT_TOO_LARGE` and
 
 JSON serialization uses Unicode escapes for display controls while preserving
 parsed values. Saved answer bytes remain the original UTF-8 text.
+
+AI review findings validate file/line/header as one consistent location. Invalid
+locations are omitted with an explanation; deletion-only anchors cannot justify
+new-file lines. Invalid structured review shapes, unsupported explicit
+classifications, and empty model text use AI_PROVIDER_RESPONSE_INVALID. Missing
+classifications retain defaults, [] remains valid, and nonempty ordinary prose
+remains an informational summary. These checks do not validate a model's reasoning.

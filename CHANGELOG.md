@@ -4,6 +4,19 @@
 
 No changes yet.
 
+## 1.2.1 - 2026-10-30
+
+- Required AI review file, line, and hunk header to agree within one real new-file
+  range. Deletion-only anchors are not new-file lines; unverifiable locations are
+  omitted with an explanation, including header-only claims.
+- Rejected invalid structured/fenced reviews, empty output, and explicitly unknown
+  classifications instead of silently treating them as informational summaries.
+  Missing classifications keep defaults; ordinary prose and empty findings remain supported.
+- Focused review prompts on concrete introduced defects and marked diff content
+  as untrusted evidence. This is guidance, not a semantic correctness guarantee.
+- Added targeted regressions and real staged two-hunk/index-preservation evidence.
+  Public commands, JSON keys/schema version, dependencies, and safety gates are unchanged.
+
 ## 1.2.0 - 2026-10-25
 
 - Added `zw ai ask --output <path>` for clean reusable UTF-8 answers. Local and
