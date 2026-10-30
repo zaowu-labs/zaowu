@@ -141,3 +141,47 @@ describe('real Git review and commit previews', () => {
     expect(applyDevAiCommitSuggestion(preview, 'fix: repair CLI').suggestion.scope).toBe('');
   });
 });
+
+it('validates AI locations against two real staged hunks without changing the index', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-review-locations-'));
+  const git = (...args: string[]) => runner('git', args, { cwd: root });
+  try {
+    git('init', '-b', 'main');
+    git('config', 'user.name', 'Fixture');
+    git('config', 'user.email', 'fixture@example.invalid');
+    const file = path.join(root, 'example.ts');
+    const lines = Array.from({ length: 70 }, (_, i) => `export const value${i} = ${i};`);
+    await writeFile(file, lines.join('\n') + '\n');
+    git('add', '.');
+    git('commit', '-m', 'fixture');
+    lines[9] = 'export const value9 = -1;';
+    lines[59] = 'export const value59 = -1;';
+    await writeFile(file, lines.join('\n') + '\n');
+    git('add', '.');
+    const index = await readFile(path.join(root, '.git', 'index'));
+    const review = reviewDevChanges(runner, { cwd: root, mode: 'staged' });
+    expect(review.diffHunks).toHaveLength(2);
+    const base = {
+      title: 'Fixture finding',
+      detail: 'Fixture explanation',
+      filePath: 'example.ts',
+      line: review.diffHunks[0].startLine,
+    };
+    const context = { files: review.summary.files, hunks: review.diffHunks };
+    expect(
+      parseDevAiReviewFindings(
+        JSON.stringify([{ ...base, hunkHeader: review.diffHunks[1].header }]),
+        context
+      )[0].line
+    ).toBeUndefined();
+    expect(
+      parseDevAiReviewFindings(
+        JSON.stringify([{ ...base, hunkHeader: review.diffHunks[0].header }]),
+        context
+      )[0].line
+    ).toBe(base.line);
+    expect(await readFile(path.join(root, '.git', 'index'))).toEqual(index);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

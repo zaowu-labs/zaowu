@@ -46,3 +46,10 @@ Local rules are risk signals, not a complete review. Untracked files remain
 name-only until staged. AI previews disclose included/total diff characters;
 only the first 100,000 characters are sent, so stage smaller changes for full
 context. Neither local nor AI suggestions commit, stage, or push changes.
+
+AI review locations must agree on file, new-file line, and hunk. Deletion-only
+anchors cannot validate new-file lines. Invalid locations are omitted with a
+visible explanation; this checks diff coordinates, not the truth of a model claim.
+Structured reviews require supported classifications when supplied; invalid JSON
+shapes/fences and empty output fail. Omitted classifications keep defaults; plain
+prose remains an informational summary and [] is a valid no-findings result.

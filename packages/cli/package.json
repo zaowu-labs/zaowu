@@ -1,6 +1,6 @@
 {
   "name": "@zaowu-labs/cli",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "ZaoWu command-line interface",
   "type": "module",
   "license": "Apache-2.0",

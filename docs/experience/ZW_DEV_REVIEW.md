@@ -130,3 +130,15 @@ suggestions; names of untracked files do not imply their contents were reviewed.
 NUL-framed path lists/status preserve special filenames. Diffs disable external
 drivers/textconv/color, and optional index locking is disabled. Real repository
 fixtures verify unchanged index bytes, HEAD, worktree content, and Git status.
+
+## Review evidence integrity (1.2.1)
+
+Structured model reviews must be arrays with nonempty title/detail and supported
+classification values when provided. Omitted classifications retain defaults;
+invalid JSON-shaped/fenced output fails rather than masquerading as prose.
+Ordinary nonempty prose remains a labeled informational summary, and [] is a
+valid no-findings result. A file/line/header location must agree within the same
+hunk. Zero-length new-file ranges are deletion anchors, not new-file lines.
+Unverifiable locations are omitted with a visible explanation. Prompts request
+concrete introduced defects and treat diff content as untrusted evidence.
+No guarantee of model review quality or correctness follows from location checks.
