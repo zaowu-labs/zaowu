@@ -58,12 +58,18 @@ pipe. If the clipboard text changed, preview the request again. An existing
 `actions.md` requires a fresh output name. After a successful save, `pbcopy < actions.md`
 copies the answer into the clipboard.
 
-For a direct local demonstration without an answer file, capture a nonempty
-`--raw` result before changing the clipboard.
+To copy a local Echo result with all its trailing line breaks, capture the
+bytes in a temporary file. The clipboard changes after the entire pipeline
+succeeds and produces a nonempty answer.
 
 ```zsh
-answer=$(pbpaste | zw ai ask "Show received text" --stdin --provider echo --raw) &&
-  [[ -n "$answer" ]] && printf '%s' "$answer" | pbcopy
+(
+  set -o pipefail
+  answer=$(mktemp) || exit 1
+  trap 'rm -f "$answer"' EXIT
+  pbpaste | zw ai ask "Show received text" --stdin --provider echo --raw > "$answer" &&
+    [[ -s "$answer" ]] && pbcopy < "$answer"
+)
 ```
 
 ## Develop from a checkout

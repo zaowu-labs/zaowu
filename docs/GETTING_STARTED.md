@@ -14,7 +14,7 @@ Terminal PATH, Apple Git, and clipboard examples.
 ## Install
 
 ```bash
-npm install -g @zaowu-labs/cli@1.2.1
+npm install -g @zaowu-labs/cli@1.3.0
 zw --version
 zw doctor
 ```
@@ -22,7 +22,7 @@ zw doctor
 To try the CLI without installing globally:
 
 ```bash
-npx --package @zaowu-labs/cli@1.2.1 zw --help
+npx --package @zaowu-labs/cli@1.3.0 zw --help
 ```
 
 ### npm 12: `EALLOWREMOTE`
@@ -34,7 +34,7 @@ SheetJS 0.20.3, pinned to its official distribution:
 If installation reports `EALLOWREMOTE`, allow URL dependencies for that command:
 
 ```bash
-npm install -g --allow-remote=all @zaowu-labs/cli@1.2.1
+npm install -g --allow-remote=all @zaowu-labs/cli@1.3.0
 zw --version
 zw doctor --json
 ```
@@ -42,7 +42,7 @@ zw doctor --json
 For a single invocation:
 
 ```bash
-npx --allow-remote=all --package @zaowu-labs/cli@1.2.1 zw --help
+npx --allow-remote=all --package @zaowu-labs/cli@1.3.0 zw --help
 ```
 
 `--allow-remote=all` permits URL dependencies for that command, without changing

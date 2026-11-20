@@ -9,6 +9,9 @@ answer alone. `--stdin` works with the same output mode.
 - The command buffers the answer through completion and any requested save.
   Successful nonterminal stdout contains the answer exactly, including its line
   breaks. An interactive terminal escapes control characters as usual.
+- If a downstream reader closes its pipe early, the CLI finishes confirmed
+  work and returns the command's exit status. This includes saving a complete
+  answer to a requested output file.
 - Provider and file-write previews remain in effect. In raw mode the preview
   and its confirmation command go to stderr, leaving stdout empty. This also
   applies when `--dry-run` overrides `--yes`. Preview retains its normal success

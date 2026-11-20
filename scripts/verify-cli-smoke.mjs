@@ -1,6 +1,7 @@
 /* global console */
-import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync, spawn } from 'node:child_process';
+import { once } from 'node:events';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -30,6 +31,22 @@ const assert = (condition, message) => {
   if (!condition) {
     throw new Error(message);
   }
+};
+
+const runWithClosedReader = async (args, stream = 'stdout') => {
+  const child = spawn(process.execPath, [cliEntry, ...args], {
+    cwd: scratch,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const finished = once(child, 'close');
+  let stderr = '';
+  child.stderr.setEncoding('utf8').on('data', (chunk) => {
+    stderr += chunk;
+  });
+  child.stdout.resume();
+  child[stream].destroy();
+  const [code] = await finished;
+  return { code, stderr };
 };
 
 try {
@@ -164,6 +181,27 @@ try {
     'raw stdout contains the answer'
   );
   assert(rawAnswer.endsWith(rawInput), 'raw stdout preserves trailing line breaks exactly');
+
+  const rawPipe = await runWithClosedReader(['ai', 'ask', 'sample', '--provider', 'echo', '--raw']);
+  assert(rawPipe.code === 0 && rawPipe.stderr === '', 'closing a raw output pipe should be quiet');
+  const saveArgs = ['ai', 'ask', 'sample', '--provider', 'echo', '--output', 'answer.txt', '--yes'];
+  const saved = await runWithClosedReader(saveArgs);
+  assert(saved.code === 0 && saved.stderr === '', 'closing a human output pipe should be quiet');
+  assert(
+    readFileSync(path.join(scratch, 'answer.txt'), 'utf8') ===
+      run(['ai', 'ask', 'sample', '--provider', 'echo', '--raw']),
+    'a confirmed answer file must be complete even if the reader closes'
+  );
+  const conflict = await runWithClosedReader(saveArgs);
+  assert(
+    conflict.code !== 0 && conflict.stderr.includes('already exists'),
+    'save failures must remain visible'
+  );
+  const previewPipe = await runWithClosedReader(
+    ['ai', 'ask', 'sample', '--provider', 'ollama', '--raw'],
+    'stderr'
+  );
+  assert(previewPipe.code === 0, 'closing a preview diagnostic pipe must preserve its exit status');
 
   const workflowPath = path.join(examples, 'workflows', 'message.yml');
   const autoPlan = run(['auto', 'plan', workflowPath, '--json'], { json: true });

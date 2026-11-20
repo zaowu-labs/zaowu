@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.3.0 - 2026-11-21
+
+- Preserve the command exit status and complete confirmed file saves when a
+  downstream reader closes its output pipe early.
 - Add `zw ai ask --raw` for scripts that consume complete model answers. Send
   previews to stderr and keep the existing confirmation rules.
 - Exercise npm global installation with a temporary prefix on both Mac runners
