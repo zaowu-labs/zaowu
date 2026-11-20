@@ -7,9 +7,13 @@ contracts consistent across its nine domains.
 ## Current baseline
 
 - All 11 public packages release together from the canonical repository.
-- Six CI jobs cover Ubuntu, Windows, and macOS on Node 20.19 and Node 24.
+- Eight CI jobs cover Ubuntu, Windows, Apple Silicon macOS, and Intel macOS on
+  Node 20.19 and Node 24.
 - Release checks build and inspect the actual compiled tarballs and install the
   packed CLI. Public packages use protected npm Trusted Publishing and provenance.
+- macOS CI also uses npm with a temporary global prefix and an empty cache. It
+  runs the packaged version, doctor, and a document-to-AI pipeline outside the
+  workspace.
 - Local document/data processing, model requests, Git previews, workflow planning,
   template teaching drafts, HTTP previews, and local manifest management exist.
 - Workflow shell execution and plugin-code execution remain outside this release.
@@ -69,7 +73,7 @@ Prioritize reproduced user failures over adding domains. Keep the broader
 4. Update action help, README/guide examples, schemas, and changelog as needed.
 5. Run `corepack pnpm verify`, `corepack pnpm audit:prod`, and manual first-use
    examples. Inspect the diff and the exact artifacts that will be published.
-6. Use a pull request; wait for all six CI jobs before merging. Release from a
+6. Use a pull request and wait for the full CI matrix before merging. Release from a
    green `main`, keep tags immutable, and verify registry versions, signatures,
    source/integrity bindings, and installed commands after publishing.
 

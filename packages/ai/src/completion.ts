@@ -26,7 +26,8 @@ export const assertCompletedAIResponse = (provider: string, payload: unknown): v
   } else if (provider === 'anthropic') {
     if (
       response.stop_reason !== undefined &&
-      !['end_turn', 'stop_sequence'].includes(String(response.stop_reason))
+      response.stop_reason !== 'end_turn' &&
+      response.stop_reason !== 'stop_sequence'
     )
       invalidCompletion();
   } else if (provider === 'ollama') {

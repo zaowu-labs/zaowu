@@ -184,7 +184,7 @@ describe('configuration discovery and recovery', () => {
     await writeGlobal('version: 1\nai:\n  provider: openai\n');
     const result = await executeCli(['doctor', '--json'], {
       cwd,
-      commandRunner: (command) => (command === 'git' ? 'git version 2.44.0' : '10.34.1'),
+      commandRunner: (command) => (command === 'git' ? 'git version 2.44.0' : '10.34.9'),
     });
     const provider = JSON.parse(result.stdout).checks.find(
       (check: { name: string }) => check.name === 'AI provider'
@@ -196,6 +196,7 @@ describe('configuration discovery and recovery', () => {
     await executeCli(['init', '--yes'], { cwd });
     const result = await executeCli(['doctor', '--json'], {
       cwd,
+      platform: 'linux',
       nodeVersion: '20.19.0',
       commandRunner: (command) => {
         if (command === 'git') return 'git version 2.44.0';
@@ -216,22 +217,28 @@ describe('configuration discovery and recovery', () => {
       if (command === 'git') return 'git version 2.44.0';
       throw new Error('tool not available');
     });
-    await executeCli(['doctor'], { cwd, commandRunner: runner });
-    expect(runner).toHaveBeenCalledWith('git', ['--version'], { timeout: 5000 });
+    await executeCli(['doctor'], { cwd, platform: 'linux', commandRunner: runner });
+    expect(runner).toHaveBeenCalledWith('git', ['--version'], { cwd, timeout: 5000 });
     expect(runner).toHaveBeenCalledWith('pnpm', ['--version'], {
+      cwd,
       timeout: 5000,
       env: {
         COREPACK_ENABLE_NETWORK: '0',
         COREPACK_ENABLE_DOWNLOAD_PROMPT: '0',
         COREPACK_ENABLE_AUTO_PIN: '0',
+        npm_config_manage_package_manager_versions: 'false',
+        pnpm_config_pm_on_fail: 'ignore',
       },
     });
     expect(runner).toHaveBeenCalledWith('corepack', ['pnpm', '--version'], {
+      cwd,
       timeout: 5000,
       env: {
         COREPACK_ENABLE_NETWORK: '0',
         COREPACK_ENABLE_DOWNLOAD_PROMPT: '0',
         COREPACK_ENABLE_AUTO_PIN: '0',
+        npm_config_manage_package_manager_versions: 'false',
+        pnpm_config_pm_on_fail: 'ignore',
       },
     });
   });

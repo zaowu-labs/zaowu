@@ -8,10 +8,13 @@ This guide starts with the published CLI. Repository development instructions ar
 - Git for developer commands
 - pnpm is only required for repository development; doctor reports it as optional for CLI use.
 
+Mac users can follow [macOS setup and workflows](MACOS.md) for architecture,
+Terminal PATH, Apple Git, and clipboard examples.
+
 ## Install
 
 ```bash
-npm install -g @zaowu-labs/cli@1.2.1
+npm install -g @zaowu-labs/cli@1.3.0
 zw --version
 zw doctor
 ```
@@ -19,7 +22,7 @@ zw doctor
 To try the CLI without installing globally:
 
 ```bash
-npx --package @zaowu-labs/cli@1.2.1 zw --help
+npx --package @zaowu-labs/cli@1.3.0 zw --help
 ```
 
 ### npm 12: `EALLOWREMOTE`
@@ -31,7 +34,7 @@ SheetJS 0.20.3, pinned to its official distribution:
 If installation reports `EALLOWREMOTE`, allow URL dependencies for that command:
 
 ```bash
-npm install -g --allow-remote=all @zaowu-labs/cli@1.2.1
+npm install -g --allow-remote=all @zaowu-labs/cli@1.3.0
 zw --version
 zw doctor --json
 ```
@@ -39,7 +42,7 @@ zw doctor --json
 For a single invocation:
 
 ```bash
-npx --allow-remote=all --package @zaowu-labs/cli@1.2.1 zw --help
+npx --allow-remote=all --package @zaowu-labs/cli@1.3.0 zw --help
 ```
 
 `--allow-remote=all` permits URL dependencies for that command, without changing
@@ -91,6 +94,7 @@ Inspect input through the local Echo demonstration provider (no model inference)
 ```bash
 zw ai ask "Explain this project" --provider echo
 zw ai ask "Show input" --file zaowu-demo.md --provider echo
+zw doc extract zaowu-demo.md --json | zw ai ask "List next actions" --stdin --provider echo --json
 zw ai providers
 ```
 
@@ -107,8 +111,14 @@ zw ai ask "Explain ZaoWu" --provider openai --yes
 Do not put API keys or tokens in `zw.yml`.
 Network providers preview by default, require `--yes`, and are additionally
 guarded inside `packages/ai` so internal callers cannot bypass confirmation.
-The preview reads any `--file` input and reports combined input size before a
-network request can be sent.
+The preview reads the selected file or standard input and reports combined input
+size. Choose `--stdin` for a pipe or file redirection, and supply the same text
+again with the full confirmation command. An empty pipe, invalid UTF-8, or
+combining `--file` with `--stdin` produces an actionable error.
+
+For scripts, `--raw` writes only the completed answer to stdout. Previews and
+errors use stderr. Preview keeps its ordinary exit status, so check for a
+nonempty result before passing an answer to a command that writes or publishes it.
 
 Ollama also uses HTTP, even when it runs on localhost, so it follows the same
 preview-first rule:
@@ -261,10 +271,13 @@ control characters visibly; JSON and saved answers keep the original text.
 
 ## Repository development
 
-Contributors need pnpm `>=10.34.1 <11` through Corepack. From a repository checkout:
+The workspace pins pnpm `10.34.9` through Corepack. Check `corepack --version`
+first. If the command is missing, install it with `npm install -g corepack`.
+[Node.js 25 and later omit Corepack](https://nodejs.org/download/release/v25.8.0/docs/api/corepack.html).
+Then run these commands from the checkout:
 
 ```bash
-corepack enable
+corepack install
 corepack pnpm install --frozen-lockfile
 corepack pnpm build
 corepack pnpm --silent zw --help

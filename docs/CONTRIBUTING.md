@@ -17,17 +17,17 @@ The canonical remote is:
 https://github.com/zaowu-labs/zaowu.git
 ```
 
-Use Node.js 20.19.0 or newer and pnpm `>=10.34.1 <11`.
+Use Node.js 20.19.0 or newer and pnpm `>=10.34.9 <11`.
 
 ## Development Setup
 
 ```bash
-corepack enable
-corepack pnpm install
+corepack install
+corepack pnpm install --frozen-lockfile
 ```
 
-If `corepack enable` cannot write system shims on the machine, use
-`corepack pnpm` directly.
+When the Node.js distribution omits Corepack, follow the
+[source setup instructions](GETTING_STARTED.md#repository-development).
 
 ## Adding a Command
 

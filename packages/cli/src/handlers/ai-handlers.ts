@@ -6,7 +6,9 @@ import {
   validateAIProviderConfig,
   prepareAIOutputPath,
   saveAIAnswer,
+  readAIStdin,
 } from '@zaowu-labs/ai';
+import { createResult } from '../output.js';
 import {
   assertOperationPlanFingerprint,
   createOperationPlan,
@@ -14,6 +16,7 @@ import {
   formatLabeledList,
   formatOperationPlan,
   getValue,
+  hasFlag,
   resolveAiProvider,
   resolveFileTarget,
   result,
@@ -22,6 +25,7 @@ import {
 } from '../handler-utils.js';
 
 export const handleAiAsk: DomainActionHandler = async (args, context) => {
+  const raw = hasFlag(context.parsed, '--raw');
   const prompt = args.join(' ').trim();
   const requestedFilePath = getValue(context.parsed, '--file');
   const filePath = requestedFilePath ? resolveFileTarget(context, requestedFilePath) : undefined;
@@ -33,26 +37,24 @@ export const handleAiAsk: DomainActionHandler = async (args, context) => {
   // the default — the same order `zw dev --ai` and `zw doctor` use.
   const ai = await resolveAiProvider(context);
   const { provider, resolvedModel, networkTarget } = ai;
-  // Bind the exact prompt + file payload into the plan so a preview fingerprint
-  // only matches a confirmed run that sends identical content.
-  const contentSubjects = await resolveAIRequestContentSubjects({
+  const usesStdin = hasFlag(context.parsed, '--stdin');
+  const stdinText = usesStdin ? await readAIStdin(context.stdin, context.signal) : undefined;
+  const request = {
     prompt,
     filePath,
+    stdinText,
     provider: ai.providerId,
     model: ai.requestedModel,
-  });
-  const guardedRequest = {
-    prompt,
-    filePath,
-    provider: ai.providerId,
-    model: ai.requestedModel,
-    expectedContentSubjects: contentSubjects,
+    signal: context.signal,
   };
+  // Bind the exact payload so confirmation can only reuse an identical input.
+  const contentSubjects = await resolveAIRequestContentSubjects(request);
+  const guardedRequest = { ...request, expectedContentSubjects: contentSubjects };
   const operationPlan = createOperationPlan({
     risk: provider.network || outputPath ? 'medium' : 'low',
     confirmationRequired: Boolean((provider.network || outputPath) && !context.yes),
     subjects: [`ai:${provider.id}`, `model:${resolvedModel}`, ...contentSubjects],
-    reads: filePath ? [filePath] : [],
+    reads: usesStdin ? ['standard input (stdin)'] : filePath ? [filePath] : [],
     network: networkTarget ? [networkTarget] : [],
     writes: outputPath ? [outputPath] : [],
     secrets: provider.requiredEnv,
@@ -60,6 +62,9 @@ export const handleAiAsk: DomainActionHandler = async (args, context) => {
       provider.network
         ? 'Network AI providers preview by default and require --yes to send a request.'
         : 'The local echo provider does not call external services.',
+      ...(stdinText !== undefined
+        ? [`Standard input contains ${stdinText.length} characters.`]
+        : []),
       ...(outputPath
         ? [
             'Only a complete successful answer creates the new output file. Existing targets are preserved.',
@@ -90,6 +95,8 @@ export const handleAiAsk: DomainActionHandler = async (args, context) => {
       'zw',
       'ai',
       'ask',
+      ...(raw ? ['--raw'] : []),
+      ...(usesStdin ? ['--stdin'] : []),
       ...(filePath ? ['--file', filePath] : []),
       ...(outputPath ? ['--output', outputPath] : []),
       '--provider',
@@ -113,13 +120,17 @@ export const handleAiAsk: DomainActionHandler = async (args, context) => {
       '',
       'No provider request was sent.',
       '',
-      outputPath
-        ? 'To generate and save this answer, run:'
-        : 'To send exactly this AI request, run:',
+      usesStdin
+        ? 'Supply the same standard input again with the confirmation command below.'
+        : outputPath
+          ? 'To generate and save this answer, run:'
+          : 'To send exactly this AI request, run:',
       `  ${confirmCommand}`,
     ].join('\n');
 
-    return result(context, withOperationPlan(payload, operationPlan), human);
+    return raw
+      ? createResult(0, '', human)
+      : result(context, withOperationPlan(payload, operationPlan), human);
   }
 
   assertOperationPlanFingerprint(context, operationPlan);
@@ -128,7 +139,7 @@ export const handleAiAsk: DomainActionHandler = async (args, context) => {
     if (outputPath) await saveAIAnswer(outputPath, output, context.signal);
   };
 
-  if (context.onChunk && !context.json) {
+  if (context.onChunk && !context.json && !raw) {
     const onChunk = context.onChunk;
     const plannedEndpoint = operationPlan.network[0] ?? null;
     const header = [
@@ -148,7 +159,6 @@ export const handleAiAsk: DomainActionHandler = async (args, context) => {
     let streamedAnyChunk = false;
     try {
       const response = await askAI({
-        signal: context.signal,
         ...guardedRequest,
         allowNetwork: context.yes,
         onChunk: (chunk) => {
@@ -177,11 +187,11 @@ export const handleAiAsk: DomainActionHandler = async (args, context) => {
   }
 
   const response = await askAI({
-    signal: context.signal,
     ...guardedRequest,
     allowNetwork: context.yes,
   });
   await save(response.output);
+  if (raw) return { ...createResult(0, response.output), rawStdout: true };
   const payload = { ...response, ...(outputPath ? { outputPath, wroteFile: true } : {}) };
   const human = [
     'ZaoWu AI Ask',

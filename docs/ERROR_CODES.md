@@ -12,9 +12,11 @@ registry.
 | Code                               | Meaning                                               |
 | ---------------------------------- | ----------------------------------------------------- |
 | `AI_INPUT_FILE_READ_FAILED`        | The file passed to `zw ai ask --file` failed.         |
-| `AI_INPUT_TOO_LARGE`               | The combined prompt and file input is too large.      |
+| `AI_INPUT_STDIN_READ_FAILED`       | The stream failed or was invalid UTF-8 text.          |
+| `AI_INPUT_STDIN_REQUIRED`          | `--stdin` received no nonempty text.                  |
+| `AI_INPUT_TOO_LARGE`               | The AI input exceeds its size limit.                  |
 | `AI_NETWORK_CONFIRMATION_REQUIRED` | A network provider call was not explicitly confirmed. |
-| `AI_PROMPT_REQUIRED`               | No prompt or readable file input was provided.        |
+| `AI_PROMPT_REQUIRED`               | No usable AI prompt or context was provided.          |
 | `AI_PROVIDER_CONFIG_MISSING`       | Required provider environment config is absent.       |
 | `AI_PROVIDER_NOT_FOUND`            | The requested AI provider is not registered.          |
 | `AI_PROVIDER_REQUEST_FAILED`       | A provider network request failed.                    |

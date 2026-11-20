@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { parseDiffHunks, type ParsedDiffHunk } from './diff.js';
+import { parseGitPatch, type ParsedDiffHunk } from './diff.js';
 import { ZaoWuError } from '@zaowu-labs/core';
 
 export { DEV_DOMAIN } from './domain.js';
@@ -180,16 +180,30 @@ const toPublicDiffHunks = (hunks: readonly ParsedDiffHunk[]): DevDiffHunk[] =>
     endLine,
   }));
 
+const readGitPatch = (
+  commandRunner: DevCommandRunner,
+  source: DevReviewResult['source'],
+  cwd?: string,
+  patchOptions: readonly string[] = []
+): string =>
+  runGit(
+    commandRunner,
+    [
+      'diff',
+      ...(source === 'staged' ? ['--cached'] : []),
+      ...patchOptions,
+      '--src-prefix=a/',
+      '--dst-prefix=b/',
+    ],
+    cwd
+  );
+
 const getReviewDiffHunks = (
   commandRunner: DevCommandRunner,
   source: DevReviewResult['source'],
   cwd?: string
-): ParsedDiffHunk[] => {
-  const args =
-    source === 'working-tree' ? ['diff', '--unified=0'] : ['diff', '--cached', '--unified=0'];
-
-  return parseDiffHunks(runGit(commandRunner, args, cwd));
-};
+): ParsedDiffHunk[] =>
+  parseGitPatch(readGitPatch(commandRunner, source, cwd, ['--unified=0'])).hunks;
 
 const inferCommitType = (files: readonly string[]): string => {
   if (files.every((file) => file.startsWith('docs/') || file.endsWith('.md'))) {
@@ -886,5 +900,4 @@ export const syncDevRepo = (
 export const readDevDiff = (
   commandRunner: DevCommandRunner,
   options: { cwd?: string; source: DevReviewResult['source'] }
-): string =>
-  runGit(commandRunner, options.source === 'staged' ? ['diff', '--cached'] : ['diff'], options.cwd);
+): string => readGitPatch(commandRunner, options.source, options.cwd);

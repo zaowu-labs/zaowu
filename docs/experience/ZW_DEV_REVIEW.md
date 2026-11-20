@@ -125,10 +125,12 @@ on this later, but should not replace this transparent baseline.
 Local results include `method: "heuristic"`. Confirmed model results use
 `method: "ai-assisted"`, with `origin: "ai"` on appended findings. Echo diagnostics
 retain local results and use `method: "echo"`. AI plans disclose the exact diff
-character count and any truncation at 100,000 characters. Model findings are
+character count and any truncation at the 100,000-character limit. Review
+prompts end at a complete diff line when truncated. Model findings are
 suggestions; names of untracked files do not imply their contents were reviewed.
-NUL-framed path lists/status preserve special filenames. Diffs disable external
-drivers/textconv/color, and optional index locking is disabled. Real repository
+NUL-framed path lists/status preserve special filenames. Patches use fixed path
+prefixes and disable external drivers, text conversion, and color. Optional
+index locking is disabled. Real repository
 fixtures verify unchanged index bytes, HEAD, worktree content, and Git status.
 
 ## Review evidence integrity (1.2.1)
@@ -138,7 +140,10 @@ classification values when provided. Omitted classifications retain defaults;
 invalid JSON-shaped/fenced output fails rather than masquerading as prose.
 Ordinary nonempty prose remains a labeled informational summary, and [] is a
 valid no-findings result. A file/line/header location must agree within the same
-hunk. Zero-length new-file ranges are deletion anchors, not new-file lines.
+hunk in the patch sent to the provider. Line numbers require a complete new-file
+line in that patch, including displayed context lines. File-only locations can
+use visible file metadata, including renames, mode changes, and binary changes.
+Zero-length new-file ranges can identify a hunk but supply no new-file lines.
 Unverifiable locations are omitted with a visible explanation. Prompts request
 concrete introduced defects and treat diff content as untrusted evidence.
 No guarantee of model review quality or correctness follows from location checks.

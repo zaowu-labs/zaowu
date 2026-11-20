@@ -24,7 +24,7 @@ import {
 import { getValue, hasFlag, type ParsedArgs } from './args.js';
 import { VALUE_OPTIONS } from './option-registry.js';
 import { createResult, stringifyJSON } from './output.js';
-import type { CliResult, CommandRunner } from './types.js';
+import type { CliExecutionOptions, CliResult, CommandRunner } from './types.js';
 
 export {
   createContentOperationSubjects,
@@ -47,6 +47,7 @@ export interface DomainHandlerContext {
   commandRunner: CommandRunner;
   onChunk?: (chunk: string) => void;
   signal?: AbortSignal;
+  stdin?: CliExecutionOptions['stdin'];
 }
 
 export type DomainActionHandler = (

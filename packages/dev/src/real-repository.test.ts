@@ -7,6 +7,7 @@ import {
   applyDevAiCommitSuggestion,
   getDevStatus,
   parseDevAiReviewFindings,
+  prepareDevAiReview,
   previewDevCommit,
   readDevDiff,
   reviewDevChanges,
@@ -79,6 +80,41 @@ describe('real Git review and commit previews', () => {
     }
   });
 
+  it('keeps patch paths and context lines stable despite Git display preferences', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-review-format-'));
+    const git = (...args: string[]) => runner('git', args, { cwd: root });
+    try {
+      git('init', '-b', 'main');
+      git('config', 'user.name', 'Fixture');
+      git('config', 'user.email', 'fixture@example.invalid');
+      git('config', 'diff.noprefix', 'true');
+      git('config', 'diff.context', '3');
+      git('config', 'diff.suppressBlankEmpty', 'true');
+      await mkdir(path.join(root, 'a'));
+      const filePath = 'a/example.ts';
+      await writeFile(path.join(root, filePath), 'first\n\nold\nlast\n');
+      git('add', '--', filePath);
+      git('commit', '-m', 'fixture');
+      await writeFile(path.join(root, filePath), 'first\n\nupdated\nlast\n');
+
+      const review = reviewDevChanges(runner, { cwd: root, mode: 'worktree' });
+      const { prompt, evidence } = prepareDevAiReview(
+        readDevDiff(runner, { cwd: root, source: 'working-tree' })
+      );
+      expect(review.diffHunks[0]).toMatchObject({ filePath, header: '@@ -3 +3 @@' });
+      expect(prompt).toContain('+++ b/a/example.ts');
+      expect(evidence.hunks[0]).toMatchObject({ filePath, startLine: 1, endLine: 4 });
+      const hunkHeader = '@@ -1,4 +1,4 @@';
+      const [finding] = parseDevAiReviewFindings(
+        JSON.stringify([{ title: 'Location', detail: 'Fixture', filePath, line: 4, hunkHeader }]),
+        evidence
+      );
+      expect(finding).toMatchObject({ filePath, line: 4, hunkHeader });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('does not count rename filenames as numstat entries or added diff-like lines as headers', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-review-rename-'));
     const git = (...args: string[]) => runner('git', args, { cwd: root });
@@ -92,6 +128,12 @@ describe('real Git review and commit previews', () => {
       git('mv', '10 20 old.ts', 'new.ts');
       const renamed = previewDevCommit(runner, { cwd: root });
       expect(renamed.summary).toMatchObject({ files: ['new.ts'], additions: 0, deletions: 0 });
+      const { evidence } = prepareDevAiReview(readDevDiff(runner, { cwd: root, source: 'staged' }));
+      const [renameFinding] = parseDevAiReviewFindings(
+        '[{"title":"Renamed","detail":"Fixture","filePath":"new.ts"}]',
+        evidence
+      );
+      expect(renameFinding).toMatchObject({ filePath: 'new.ts' });
       await writeFile(
         path.join(root, 'new.ts'),
         '++ fake-header\none\ntwo\nthree\nfour\nfetch("https://example.invalid");\n'

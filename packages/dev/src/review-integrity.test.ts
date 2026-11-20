@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseDevAiReviewFindings } from './ai-assist';
+import { parseDevAiReviewFindings, prepareDevAiReview } from './ai-assist';
 const hunk = (startLine: number, header: string) => ({
   filePath: 'src/main.ts',
   startLine,
@@ -77,4 +77,22 @@ it('discloses an unverifiable header even when no line was supplied', () => {
   );
   expect(result.hunkHeader).toBeUndefined();
   expect(result.detail).toContain('Location could not be verified');
+});
+
+it('uses visible file metadata for file-only findings without assigning line ranges', () => {
+  const patch = [
+    'diff --git a/test b/file.bin b/test b/file.bin',
+    'Binary files a/test b/file.bin and b/test b/file.bin differ',
+    'diff --git "a/tab\\tname.sh" "b/tab\\tname.sh"',
+    'old mode 100644',
+    'new mode 100755',
+  ].join('\n');
+  const { evidence } = prepareDevAiReview(patch);
+  expect(evidence).toEqual({ files: ['test b/file.bin', 'tab\tname.sh'], hunks: [] });
+  const [result] = parseDevAiReviewFindings(
+    JSON.stringify([{ ...finding, filePath: 'test b/file.bin' }]),
+    evidence
+  );
+  expect(result.filePath).toBe('test b/file.bin');
+  expect(result.line).toBeUndefined();
 });

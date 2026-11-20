@@ -6,7 +6,7 @@
 
 One CLI for development, documents, data, teaching, and controlled automation.
 
-[![Version](https://img.shields.io/badge/version-1.2.1-blue.svg)](package.json)
+[![Version](https://img.shields.io/badge/version-1.3.0-blue.svg)](package.json)
 [![CI](https://github.com/zaowu-labs/zaowu/actions/workflows/ci.yml/badge.svg)](https://github.com/zaowu-labs/zaowu/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-20.19%2B-orange.svg)](package.json)
@@ -27,8 +27,11 @@ confirm. Local document and data commands work without a model account.
 Requires **Node.js 20.19+**. Git is needed for developer commands. pnpm is only
 needed for repository development.
 
+On a Mac, see the [macOS setup and workflows](docs/MACOS.md) for Apple Silicon,
+Intel, Terminal PATH, and clipboard pipelines.
+
 ```bash
-npm install -g @zaowu-labs/cli@1.2.1
+npm install -g @zaowu-labs/cli@1.3.0
 zw --version
 zw --help
 ```
@@ -38,7 +41,7 @@ zw --help
 If npm reports `EALLOWREMOTE`, allow URL dependencies for this installation:
 
 ```bash
-npm install -g --allow-remote=all @zaowu-labs/cli@1.2.1
+npm install -g --allow-remote=all @zaowu-labs/cli@1.3.0
 ```
 
 The flag applies to that command only. See the
@@ -47,9 +50,9 @@ The flag applies to that command only. See the
 To try help without a global install:
 
 ```bash
-npx --package @zaowu-labs/cli@1.2.1 zw --help
+npx --package @zaowu-labs/cli@1.3.0 zw --help
 # With npm 12:
-npx --allow-remote=all --package @zaowu-labs/cli@1.2.1 zw --help
+npx --allow-remote=all --package @zaowu-labs/cli@1.3.0 zw --help
 ```
 
 ### Set up a project
@@ -109,6 +112,16 @@ Echo demonstrates the supplied input locally. OpenAI, Anthropic, and Ollama are
 real model providers. The OpenAI example previews the request; sending it needs
 the provider environment setup and explicit confirmation. Copy the confirmation
 command from the preview to bind it to the exact input and plan.
+
+Use `--stdin` to pass another command's output directly to AI. This example
+uses the demo CSV above.
+
+```bash
+zw data schema zaowu-demo.csv --json | zw ai ask "Describe the table" --stdin --provider echo --json
+```
+
+For network previews, supply the same piped text again with the displayed
+confirmation command.
 
 You can save a project preference after initialization:
 
@@ -177,10 +190,11 @@ See the [command catalog](docs/experience/COMMAND_CATALOG.md) for complete usage
 
 ## Develop and Contribute
 
-The monorepo uses TypeScript and pnpm `>=10.34.1 <11` through Corepack:
+The monorepo uses TypeScript and pnpm `>=10.34.9 <11` through Corepack.
+If `corepack` is missing, see [contributor setup](docs/GETTING_STARTED.md#repository-development).
 
 ```bash
-corepack enable
+corepack install
 corepack pnpm install --frozen-lockfile
 corepack pnpm verify
 corepack pnpm --silent zw --help

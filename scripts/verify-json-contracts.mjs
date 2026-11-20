@@ -321,7 +321,8 @@ const runProcess = (command, args, options = {}) => {
     cwd: options.cwd ?? root,
     env: options.env,
     encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
+    input: options.input,
+    stdio: [options.input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'],
   });
 
   if (result.error) {
@@ -692,7 +693,10 @@ const runner = (_command, args) => {
     return '2\t1\tpackages/dev/src/index.ts';
   }
 
-  if (key === 'diff --cached --unified=0 --no-ext-diff --no-textconv --no-color') {
+  if (
+    key ===
+    'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+  ) {
     return [
       'diff --git a/packages/dev/src/index.ts b/packages/dev/src/index.ts',
       '@@ -1 +1,2 @@',
@@ -802,6 +806,10 @@ const cliInitFixture = await mkdtemp(path.join(tmpdir(), 'zaowu-init-contract-')
 const cliDoctor = runCliJson(['doctor']);
 const cliAIProviders = runCliJson(['ai', 'providers']);
 const cliAIAsk = runCliJson(['ai', 'ask', 'Explain', 'ZaoWu']);
+const cliAIStdinPreview = runCliJson(
+  ['ai', 'ask', 'Summarize', '--stdin', '--provider', 'openai'],
+  { input: 'contract fixture\n' }
+);
 const cliAIPreview = runCliJson([
   'ai',
   'ask',
@@ -1031,6 +1039,10 @@ assertValid('doctor', cliDoctor);
 assertValid('aiProviders', cliAIProviders);
 assertValid('aiAsk', cliAIAsk);
 assertValid('aiAsk', cliAIPreview);
+assertValid('aiAsk', cliAIStdinPreview);
+assert(cliAIStdinPreview.status === 'preview', 'piped network input should preview');
+assert(cliAIStdinPreview.input.source === 'prompt+stdin', 'schema should expose piped context');
+assert(cliAIStdinPreview.input.stdinCharacters === 17, 'piped input should report string length');
 assert(cliDoctor.schemaVersion === 1, 'CLI doctor result schemaVersion must be 1.');
 assert(cliDoctor.operationPlan?.risk === 'low', 'CLI doctor should expose low-risk diagnostics.');
 assert(cliAIProviders.schemaVersion === 1, 'CLI ai providers schemaVersion must be 1.');
@@ -1224,6 +1236,7 @@ runCliErrorJson(['teach', 'quiz', 'TypeScript', '--count', '25'], 'OPTION_VALUE_
 runCliErrorJson(['unknown-command'], 'UNKNOWN_COMMAND');
 runCliErrorJson(['web', 'inspect', 'not-a-url'], 'WEB_URL_INVALID');
 runCliErrorJson(['ai', 'ask'], 'AI_PROMPT_REQUIRED');
+runCliErrorJson(['ai', 'ask', '--stdin', '--provider', 'echo'], 'AI_INPUT_STDIN_REQUIRED');
 runCliErrorJson(['ai', 'providers', '--provider', 'missing'], 'AI_PROVIDER_NOT_FOUND');
 runCliErrorJson(
   ['ai', 'ask', 'Explain', 'ZaoWu', '--provider', 'missing'],

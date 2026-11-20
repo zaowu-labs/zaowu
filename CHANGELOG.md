@@ -2,7 +2,27 @@
 
 ## Unreleased
 
-No changes yet.
+## 1.3.0 - 2026-11-21
+
+- Preserve the command exit status and complete confirmed file saves when a
+  downstream reader closes its output pipe early.
+- Add `zw ai ask --raw` for scripts that consume complete model answers. Send
+  previews to stderr and keep the existing confirmation rules.
+- Exercise npm global installation with a temporary prefix on both Mac runners
+  and stop standalone pnpm version switching in `zw doctor`.
+- Add macOS doctor checks for native and Rosetta runtimes, Homebrew PATH, and
+  competing ZaoWu installations. Diagnose missing Apple developer tools before
+  invoking system Git and test Apple Silicon and Intel in CI.
+- Let `zw ai ask --stdin` read UTF-8 text from a pipe or redirection. Keep
+  network requests and saved answers preview-first, with fingerprints bound
+  to the piped content and input metadata available in JSON.
+- Validate model review locations against the exact patch sent to the provider.
+  Truncate at complete diff lines, disclose the actual character count, and
+  omit citations outside that patch.
+- Enforce stream line limits across response chunk boundaries and reject
+  incorrectly typed Anthropic stop reasons.
+- Pin pnpm 10.34.9 for repository development and document Corepack setup for
+  Node.js distributions that omit it.
 
 ## 1.2.1 - 2026-10-30
 

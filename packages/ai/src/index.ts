@@ -13,7 +13,9 @@ import type {
 
 import { readAIJson, readAIStream, invalidAIStream } from './stream.js';
 import { assertCompletedAIResponse } from './completion.js';
+import { assertAIStdinText, DEFAULT_MAX_INPUT_CHARACTERS } from './stdin.js';
 export { prepareAIOutputPath, saveAIAnswer } from './output.js';
+export { readAIStdin } from './stdin.js';
 import { assertAIRequestActive, fetchWithRetry } from './transport.js';
 
 export {
@@ -36,14 +38,18 @@ const createProviderDescriptor = (
 });
 
 const DEFAULT_PROVIDER_TIMEOUT_MS = 30_000;
-const DEFAULT_MAX_INPUT_CHARACTERS = 200_000;
 const AI_RESULT_SCHEMA_VERSION = 1;
 const createCombinedPrompt = (
   prompt: string,
   filePath: string | undefined,
-  fileContent: string | undefined
+  fileContent: string | undefined,
+  stdinText: string | undefined
 ): string =>
-  [prompt, fileContent?.trim() ? `Input file: ${filePath}\n${fileContent}` : undefined]
+  [
+    prompt,
+    fileContent?.trim() ? `Input file: ${filePath}\n${fileContent}` : undefined,
+    stdinText === undefined ? undefined : `Standard input:\n${stdinText}`,
+  ]
     .filter((part): part is string => Boolean(part?.trim()))
     .join('\n\n');
 
@@ -51,9 +57,19 @@ const createInput = (
   prompt: string,
   filePath: string | undefined,
   fileContent: string | undefined,
+  stdinText: string | undefined,
   combinedPrompt: string,
   maxInputCharacters: number
 ): AIAskResponse['input'] => {
+  if (stdinText !== undefined) {
+    return {
+      source: prompt ? 'prompt+stdin' : 'stdin',
+      promptCharacters: prompt.length,
+      stdinCharacters: stdinText.length,
+      combinedCharacters: combinedPrompt.length,
+      maxInputCharacters,
+    };
+  }
   if (prompt && filePath) {
     return {
       source: 'prompt+file',
@@ -84,33 +100,26 @@ const createInput = (
   };
 };
 
-const assertPromptInput = (prompt: string, filePath: string | undefined): void => {
-  if (!prompt && !filePath) {
+const assertPromptInput = (prompt: string, hasContext: boolean): void => {
+  if (!prompt && !hasContext) {
     throw new ZaoWuError({
       code: 'AI_PROMPT_REQUIRED',
       message: 'AI prompt is required.',
-      why: '`zw ai ask` needs a question, instruction, or readable `--file` input.',
-      fix: 'Run `zw ai ask "Explain this project"` or `zw ai ask --file README.md`.',
+      why: '`zw ai ask` needs a prompt, a readable `--file`, or piped text with `--stdin`.',
+      fix: 'Pass an instruction, use `--file README.md`, or pipe text into `zw ai ask --stdin`.',
     });
   }
 };
 
 const assertInputSize = (combinedPrompt: string, maxInputCharacters: number): void => {
-  if (!combinedPrompt.trim()) {
-    throw new ZaoWuError({
-      code: 'AI_PROMPT_REQUIRED',
-      message: 'AI prompt is required.',
-      why: '`zw ai ask` needs a question, instruction, or readable `--file` input.',
-      fix: 'Run `zw ai ask "Explain this project"` or `zw ai ask --file README.md`.',
-    });
-  }
+  assertPromptInput(combinedPrompt, false);
 
   if (combinedPrompt.length > maxInputCharacters) {
     throw new ZaoWuError({
       code: 'AI_INPUT_TOO_LARGE',
       message: 'AI input is too large.',
       why: `The combined prompt is ${combinedPrompt.length} characters, above the limit of ${maxInputCharacters}.`,
-      fix: 'Use a smaller prompt or a smaller input file.',
+      fix: 'Use a shorter prompt or pass a smaller excerpt as input.',
     });
   }
 };
@@ -124,6 +133,7 @@ const prepareAIInput = async (
 }> => {
   assertAIRequestActive(request.signal);
   const prompt = request.prompt.trim();
+  const { stdinText, filePath } = request;
   const maxInputCharacters = request.maxInputCharacters ?? DEFAULT_MAX_INPUT_CHARACTERS;
 
   if (
@@ -138,12 +148,20 @@ const prepareAIInput = async (
       fix: 'Use the default limit or a smaller positive character limit.',
     });
   }
-  assertPromptInput(prompt, request.filePath);
+  assertPromptInput(prompt, Boolean(filePath) || stdinText !== undefined);
+  if (stdinText !== undefined) {
+    if (filePath)
+      throw new ZaoWuError({
+        code: 'OPTION_VALUE_INVALID',
+        message: 'AI input sources conflict.',
+        why: 'A file and standard input both supply the additional context.',
+        fix: 'Choose either the file or standard input.',
+      });
+    assertAIStdinText(stdinText);
+  }
 
-  const fileContent = request.filePath
-    ? await readPromptFile(request.filePath, maxInputCharacters * 4)
-    : undefined;
-  const combinedPrompt = createCombinedPrompt(prompt, request.filePath, fileContent);
+  const fileContent = filePath ? await readPromptFile(filePath, maxInputCharacters * 4) : undefined;
+  const combinedPrompt = createCombinedPrompt(prompt, filePath, fileContent, stdinText);
 
   assertInputSize(combinedPrompt, maxInputCharacters);
   const actualSubjects = createContentOperationSubjects(combinedPrompt);
@@ -155,20 +173,27 @@ const prepareAIInput = async (
     throw new ZaoWuError({
       code: 'OPERATION_PLAN_MISMATCH',
       message: 'AI input changed after plan verification.',
-      why: 'The prompt/file payload no longer matches the content authorized by the operation plan. No provider request was sent.',
+      why: 'The input no longer matches the content authorized by the operation plan. No provider request was sent.',
       fix: 'Run the preview again and confirm its new fingerprint.',
     });
 
   return {
     prompt,
     combinedPrompt,
-    input: createInput(prompt, request.filePath, fileContent, combinedPrompt, maxInputCharacters),
+    input: createInput(
+      prompt,
+      filePath,
+      fileContent,
+      stdinText,
+      combinedPrompt,
+      maxInputCharacters
+    ),
   };
 };
 
 /**
  * Content subjects (sha256 + length) for the exact combined prompt that would be
- * sent to the provider — prompt text plus any `--file` body. Folding these into
+ * sent to the provider, including any file or standard input. Folding these into
  * an operation plan binds the confirmation fingerprint to the network payload,
  * so a prompt or file changed between preview and confirm invalidates the plan
  * instead of silently sending different content.
@@ -805,7 +830,7 @@ export const previewAIRequest = async (request: AIAskRequest): Promise<AIAskPrev
 export const askAI = async (request: AIAskRequest): Promise<AIAskResponse> => {
   const prompt = request.prompt.trim();
 
-  assertPromptInput(prompt, request.filePath);
+  assertPromptInput(prompt, Boolean(request.filePath) || request.stdinText !== undefined);
 
   return await getAIProvider(request.provider).ask({
     ...request,

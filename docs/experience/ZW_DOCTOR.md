@@ -4,6 +4,9 @@
 
 `zw doctor` checks whether the local environment is ready to run ZaoWu.
 
+On macOS, see the [macOS experience spec](ZW_MACOS.md) for architecture, PATH,
+and Apple Git diagnostics.
+
 ## 2. Target User
 
 Developers, technical creators, small teams, and learners setting up ZaoWu.
@@ -21,6 +24,8 @@ configured project, without sending model requests.
 Each diagnostic subprocess has a five-second timeout. Corepack runs with network
 access, download prompts, and project auto-pinning disabled so checking optional
 tooling cannot initiate an installation or edit package metadata.
+The direct pnpm probe disables the package manager's own automatic version
+switching as well.
 
 ## 4. Golden Path
 
@@ -44,8 +49,7 @@ Checks:
 - Command matrix: ok 38 command surface(s) tracked
 
 Next steps:
-1. Run `corepack enable` or install pnpm.
-2. Run `zw init` to preview config creation, then `zw init --yes` to create it.
+1. Run `zw init` to preview config creation, then `zw init --yes` to create it.
 ```
 
 ## 5. Command Design
@@ -95,15 +99,15 @@ This command does not use AI.
 
 Expected missing prerequisites should be shown as checks, not raw stack traces.
 
-| Error                   | Why it happens                        | User-facing fix                         |
-| ----------------------- | ------------------------------------- | --------------------------------------- |
-| Missing Git             | Git is not on PATH                    | Install Git and make sure it is on PATH |
-| Missing pnpm            | pnpm is not on PATH                   | Run `corepack enable` or install pnpm   |
-| Unsupported pnpm        | pnpm is outside `>=10.34.1 <11`       | Use pnpm 10.34.1 through Corepack       |
-| Missing config          | No config file found                  | Run `zw init`, then `zw init --yes`     |
-| Invalid config          | Config file exists but cannot parse   | Run `zw config validate`                |
-| AI provider not ready   | Provider needs an environment key     | Set the required environment variable   |
-| Command matrix mismatch | Runnable command coverage has drifted | Update `docs/CAPABILITY_MATRIX.md`      |
+| Error                   | Why it happens                        | User-facing fix                          |
+| ----------------------- | ------------------------------------- | ---------------------------------------- |
+| Missing Git             | Git is not on PATH                    | Install Git and make sure it is on PATH  |
+| Missing pnpm            | Neither pnpm nor Corepack found pnpm  | Install Corepack or pnpm for development |
+| Unsupported pnpm        | pnpm is outside `>=10.34.9 <11`       | Run `corepack install` in the checkout   |
+| Missing config          | No config file found                  | Run `zw init`, then `zw init --yes`      |
+| Invalid config          | Config file exists but cannot parse   | Run `zw config validate`                 |
+| AI provider not ready   | Provider needs an environment key     | Set the required environment variable    |
+| Command matrix mismatch | Runnable command coverage has drifted | Update `docs/CAPABILITY_MATRIX.md`       |
 
 ## 11. Help Text
 

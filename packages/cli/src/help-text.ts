@@ -3,15 +3,16 @@ export const ACTION_HELP: Record<string, Record<string, string>> = {
     ask: `ZaoWu AI Ask
 
 Usage:
-  zw ai ask [prompt] [--file <path>] [--provider <id>] [--model <name>] [options]
+  zw ai ask [prompt] [--file <path> | --stdin] [--provider <id>] [--model <name>] [options]
 
 Description:
-  Ask a registered provider with explicit prompt and optional UTF-8 file input.
+  Ask a registered provider with a prompt, a UTF-8 file, or piped UTF-8 text.
   Human answers stream; Ctrl+C cancels. --json returns one complete result.
   Input limit: 200,000 characters. Incomplete streams fail without resending.
 
 Options:
   --file <path>      Include a readable text file as input
+  --stdin            Read nonempty UTF-8 text from a pipe or redirection
   --output <path>    Save only a complete answer to a new UTF-8 file; previews first
   --provider <id>    Override project/global preferences; defaults to Echo demo
   --model <name>     Provider model hint
@@ -20,12 +21,15 @@ Options:
   --plan-fingerprint <hash>
                      Require the current plan to match a prior preview
   --json             Output machine-readable JSON
+  --raw              Print only the completed answer to stdout. Previews use stderr
 
 Examples:
+  zw doc extract report.md --json | zw ai ask "List next actions" --stdin --provider echo --json
   zw ai ask "List next actions" --file report.md --provider ollama --output actions.md
   zw ai ask "Try saved output" --provider echo --output demo.md --dry-run
 
 Recovery:
+  Supply the same piped or redirected text again when confirming a preview.
   Output parents must exist and be writable. Existing files/links are preserved.
   Failed or cancelled generation creates no answer file. Choose a new output path.`,
     providers: `ZaoWu AI Providers
@@ -239,6 +243,7 @@ Usage:
 
 Description:
   Review staged changes by default, falling back to working-tree changes unless a mode is specified. Output includes diff hunk summaries and risk signals.
+  AI review checks cited locations against the patch sent to the provider. Large patches are cut at a complete diff line.
 
 Options:
   --staged           Review only staged changes

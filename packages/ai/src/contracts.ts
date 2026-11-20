@@ -34,6 +34,7 @@ export interface AIAskRequest {
   provider?: string | null;
   model?: string;
   filePath?: string;
+  stdinText?: string;
   env?: NodeJS.ProcessEnv;
   fetcher?: AIFetcher;
   allowNetwork?: boolean;
@@ -57,10 +58,11 @@ export interface AIAskResponse {
   model: string;
   endpoint: string | null;
   input: {
-    source: 'prompt' | 'file' | 'prompt+file';
+    source: 'prompt' | 'file' | 'prompt+file' | 'stdin' | 'prompt+stdin';
     promptCharacters: number;
     filePath?: string;
     fileCharacters?: number;
+    stdinCharacters?: number;
     combinedCharacters: number;
     maxInputCharacters: number;
   };

@@ -208,14 +208,14 @@ export const readAIStream = async (
     const drain = (flush = false): boolean => {
       while (!completed) {
         const match = /[\r\n]/.exec(buffer);
+        if ((match?.index ?? buffer.length) > MAX_EVENT_CHARACTERS)
+          throw invalidAIStream('A streaming line exceeds the one MiB line limit.');
         if (!match || (!flush && match[0] === '\r' && match.index === buffer.length - 1)) break;
         const value = buffer.slice(0, match.index);
         const length = match[0] === '\r' && buffer[match.index + 1] === '\n' ? 2 : 1;
         buffer = buffer.slice(match.index + length);
         line(value);
       }
-      if (buffer.length > MAX_EVENT_CHARACTERS && !completed)
-        throw invalidAIStream('A streaming line exceeds the one MiB event limit.');
       return completed;
     };
     try {

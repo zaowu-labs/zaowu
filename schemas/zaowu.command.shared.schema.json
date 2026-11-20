@@ -123,7 +123,7 @@
       "required": ["source", "promptCharacters", "combinedCharacters", "maxInputCharacters"],
       "properties": {
         "source": {
-          "enum": ["prompt", "file", "prompt+file"]
+          "enum": ["prompt", "file", "prompt+file", "stdin", "prompt+stdin"]
         },
         "promptCharacters": {
           "type": "integer",
@@ -135,6 +135,10 @@
         "fileCharacters": {
           "type": "integer",
           "minimum": 0
+        },
+        "stdinCharacters": {
+          "type": "integer",
+          "minimum": 1
         },
         "combinedCharacters": {
           "type": "integer",
