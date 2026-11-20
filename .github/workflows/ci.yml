@@ -23,6 +23,7 @@ jobs:
           - ubuntu-latest
           - windows-latest
           - macos-latest
+          - macos-15-intel
         node-version:
           - 20.19.0
           - 24.x
@@ -35,6 +36,12 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node-version }}
+
+      - name: Check native Node architecture on macOS
+        if: runner.os == 'macOS'
+        env:
+          EXPECTED_NODE_ARCH: ${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
+        run: node -e 'if (process.arch !== process.env.EXPECTED_NODE_ARCH) throw new Error(`Expected ${process.env.EXPECTED_NODE_ARCH}, got ${process.arch}`)'
 
       - name: Install dependencies
         run: corepack pnpm install --frozen-lockfile
@@ -71,6 +78,10 @@ jobs:
 
       - name: Smoke test packed CLI install
         run: corepack pnpm verify:pack-install
+
+      - name: Smoke test npm installation on macOS
+        if: runner.os == 'macOS'
+        run: corepack pnpm verify:pack-install:npm
 
       - name: Check command capability matrix
         run: corepack pnpm verify:capabilities

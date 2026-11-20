@@ -81,6 +81,11 @@ First-version behavior:
 
 - Uses the local `echo` provider by default.
 - `zw ai ask --file README.md` includes a readable file as explicit input.
+- `--raw` writes the complete answer to stdout and previews to stderr. Choose
+  either `--raw` or `--json` for scripts.
+- `zw doc extract report.md --json | zw ai ask "List decisions" --stdin --provider echo --json`
+  reads piped UTF-8 text. For a network or output preview, supply that same text
+  again when running the confirmation command.
 - `zw ai ask "List next actions" --file report.md --provider ollama --output actions.md`
   previews input, provider, and complete-answer creation. The directory must exist;
   confirm the displayed command to create a new private file. Existing targets
@@ -104,12 +109,13 @@ First-version behavior:
   the timeout including the body; see the AI package guide for exact limits.
 - Provider HTTP errors are classified so authentication, timeout, rate-limit,
   bad-request, and provider-side failures get clearer fixes.
-- Preview mode reads any `--file` input and reports prompt, file, combined, and
-  maximum input character counts without sending a network request.
+- Preview mode reads any selected file or standard input and reports input
+  character counts without sending a network request.
 
 Common failures:
 
-- Missing prompt and file input: pass a prompt or `--file`.
+- Missing input: pass a prompt, use `--file`, or pipe nonempty text with `--stdin`.
+- Conflicting input sources: choose one of `--file` and `--stdin`.
 - Unknown provider: run `zw ai providers`.
 - Missing OpenAI key: set `OPENAI_API_KEY` in the shell environment.
 

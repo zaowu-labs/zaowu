@@ -139,6 +139,7 @@ Usage:
 
 Description:
   Check local environment health.
+  On macOS, inspect Node architecture, Homebrew, and the first zw executable on PATH.
 
 Options:
   --json             Output machine-readable JSON

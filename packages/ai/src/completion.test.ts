@@ -11,6 +11,7 @@ describe('complete JSON model answers', () => {
     ['openai', { choices: [{ message: { content: 'partial' }, finish_reason: 'length' }] }],
     ['anthropic', { content: [{ type: 'text', text: 'partial' }], stop_reason: 'max_tokens' }],
     ['anthropic', { content: [{ type: 'text', text: 'partial' }], stop_reason: 'tool_use' }],
+    ['anthropic', { content: [{ type: 'text', text: 'partial' }], stop_reason: ['end_turn'] }],
     ['ollama', { response: 'partial', done: false }],
     ['ollama', { response: 'partial', done: true, done_reason: 'length' }],
     ['ollama', { response: 'partial', error: 'private provider error' }],
@@ -118,5 +119,47 @@ describe('complete JSON model answers', () => {
         () => {}
       )
     ).rejects.toMatchObject({ code: 'AI_PROVIDER_RESPONSE_INVALID' });
+  });
+});
+
+describe('stream line limits', () => {
+  const limit = 1024 * 1024;
+  const recordWithLength = (length: number) => {
+    const record = { response: 'complete', done: true, padding: '' };
+    return JSON.stringify({
+      ...record,
+      padding: 'x'.repeat(length - JSON.stringify(record).length),
+    });
+  };
+  const responseWithChunks = (chunks: string[]) => ({
+    ok: true,
+    status: 200,
+    statusText: 'OK',
+    body: new ReadableStream<Uint8Array>({
+      start(controller) {
+        const encoder = new TextEncoder();
+        for (const chunk of chunks) controller.enqueue(encoder.encode(chunk));
+        controller.close();
+      },
+    }),
+    json: async () => null,
+  });
+
+  it('rejects an oversized Ollama line before emitting any text even with its newline in the same chunk', async () => {
+    const onChunk = vi.fn();
+    await expect(
+      readAIStream(responseWithChunks([`${recordWithLength(limit + 1)}\n`]), 'ollama', onChunk)
+    ).rejects.toMatchObject({
+      code: 'AI_PROVIDER_RESPONSE_INVALID',
+      why: expect.stringContaining('one MiB'),
+    });
+    expect(onChunk).not.toHaveBeenCalled();
+  });
+
+  it('allows a line at the limit when its CRLF delimiter is split across chunks', async () => {
+    const response = responseWithChunks([`${recordWithLength(limit)}\r`, '\n']);
+    await expect(readAIStream(response, 'ollama', vi.fn())).resolves.toMatchObject({
+      output: 'complete',
+    });
   });
 });

@@ -24,3 +24,20 @@ DOCX tests exercise real ZIP/XML conversion, inherited headings, strict namespac
 lists, tables, safe links, literal Markdown, malformed/DTD XML, excessive nesting,
 and actual inflated-byte limits. Production artifact and installed-CLI checks
 must confirm the replacement is packaged and usable before release completion.
+
+## SheetJS tarball and dependency updates
+
+The data package uses the official SheetJS 0.20.3 tarball. `pnpm-lock.yaml`
+records the publisher URL and SHA-512 under its `packages` resolution. Keep both
+fields when reviewing an update. The committed hash matches the official
+download. The November 14 Dependabot run reported a missing hash after updating
+an unrelated dependency. Running its sequence in a temporary checkout reproduced
+the loss on both pnpm 10.34.1 and 10.34.9. The first update warms the store, and
+the subsequent recursive `--lockfile-only --no-save` update drops the hash.
+
+When an update drops the hash and the SheetJS URL is unchanged, restore the
+reviewed SHA-512 from the previous lockfile entry and verify it against the
+official tarball. Changes to the URL require a fresh review. Run the frozen
+install and production audit before merging. See the
+[failed Dependabot run](https://github.com/zaowu-labs/zaowu/actions/runs/43590460962)
+and [pnpm's related tarball resolution fix](https://github.com/pnpm/pnpm/pull/12096).

@@ -7,6 +7,11 @@ and streaming/non-streaming Ollama, OpenAI Responses, and Anthropic adapters use
 Feature packages should depend on this boundary instead of calling providers
 directly.
 
+`zw ai ask --stdin` consumes one bounded UTF-8 stream. The AI package accepts
+its decoded text as `stdinText`, as an alternative to `filePath`, and includes
+the text in the same combined-request and fingerprint validation as other input.
+Pass an `AbortSignal` to `readAIStdin` to cancel an in-progress read.
+
 Safety:
 
 - Every HTTP-backed provider, including Ollama, previews by default.
@@ -51,7 +56,9 @@ Usage counts must be nonnegative safe integers; Ollama JSON counts are normalize
 to the same input/output/total fields as other providers.
 
 Limits: 200,000 input characters, 30 seconds per attempt including body reads,
-8 MiB response bytes, one MiB per stream event, two million output characters.
+8 MiB response bytes, 1,048,576 characters per stream line or SSE event, and two
+million output characters. These limits apply independently of transport chunk
+boundaries.
 Use a smaller staged diff or file when a limit is reached. No live model keys are
 needed for the local HTTP integration tests.
 

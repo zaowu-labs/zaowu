@@ -4,6 +4,30 @@ ZaoWu connects local files, data, developer work, and explicitly selected models
 through one CLI. These recipes use existing commands. Each write or model request
 has its own visible plan; a prior approval does not authorize a later step.
 
+## Ask about a command's output
+
+Inspect the table schema locally, then pipe it into an Ollama request preview.
+
+```bash
+zw data schema examples/data/sales.csv --json
+zw data schema examples/data/sales.csv --json | zw ai ask "Explain the columns and suggest two validation checks" --stdin --provider ollama
+```
+
+The preview shows the input size, endpoint, and fingerprint. Run the pipeline
+again with the displayed confirmation command after the pipe. If the schema
+output changes, the fingerprint requires a fresh preview. Use `--provider echo`
+for a local demonstration, and add `--output checks.md` to save only the
+completed answer after confirmation.
+
+The same input option works with build logs and document extracts. For a file
+whose exact contents you want to replay, redirect it with `< input.txt`.
+Pass either `--file` or `--stdin`.
+
+Use `--raw` when another command needs the completed answer as plain text.
+It sends previews to stderr and leaves stdout empty during preview. To copy
+a confirmed result, capture the answer first and check it before writing to
+the clipboard. See the [macOS clipboard example](MACOS.md#use-the-clipboard-with-zaowu).
+
 ## Read a DOCX report, then ask a model
 
 Start with local inspection:

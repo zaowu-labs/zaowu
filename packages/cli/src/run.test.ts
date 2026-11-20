@@ -389,7 +389,10 @@ describe('executeCli', () => {
           return '3\t1\tpackages/dev/src/index.ts';
         }
 
-        if (args.join(' ') === 'diff --cached --unified=0 --no-ext-diff --no-textconv --no-color') {
+        if (
+          args.join(' ') ===
+          'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+        ) {
           return '';
         }
 
@@ -1143,7 +1146,10 @@ describe('executeCli', () => {
           return '3\t1\tpackages/dev/src/index.ts';
         }
 
-        if (args.join(' ') === 'diff --cached --unified=0 --no-ext-diff --no-textconv --no-color') {
+        if (
+          args.join(' ') ===
+          'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+        ) {
           return [
             'diff --git a/packages/dev/src/index.ts b/packages/dev/src/index.ts',
             '@@ -10,0 +11 @@',
@@ -1205,11 +1211,15 @@ describe('executeCli', () => {
             return '3\t1\tpackages/dev/src/index.ts';
           }
           if (
-            args.join(' ') === 'diff --cached --unified=0 --no-ext-diff --no-textconv --no-color'
+            args.join(' ') ===
+            'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
           ) {
             return 'diff --git a/packages/dev/src/index.ts b/packages/dev/src/index.ts\n@@ -10,0 +11 @@\n+execFileSync("git", ["status"])';
           }
-          if (args.join(' ') === 'diff --cached --no-ext-diff --no-textconv --no-color') {
+          if (
+            args.join(' ') ===
+            'diff --cached --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+          ) {
             return 'mock diff content';
           }
           throw new Error('unexpected command: ' + args.join(' '));
@@ -1237,10 +1247,16 @@ describe('executeCli', () => {
       if (args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color') {
         return '3\t1\tpackages/dev/src/index.ts';
       }
-      if (args.join(' ') === 'diff --cached --unified=0 --no-ext-diff --no-textconv --no-color') {
+      if (
+        args.join(' ') ===
+        'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+      ) {
         return 'diff --git a/x b/x\n@@ -1,0 +2 @@\n+line';
       }
-      if (args.join(' ') === 'diff --cached --no-ext-diff --no-textconv --no-color') {
+      if (
+        args.join(' ') ===
+        'diff --cached --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+      ) {
         return 'mock diff content';
       }
       throw new Error('unexpected command: ' + args.join(' '));
@@ -1270,10 +1286,16 @@ describe('executeCli', () => {
       if (args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color') {
         return '3\t1\tpackages/dev/src/index.ts';
       }
-      if (args.join(' ') === 'diff --cached --unified=0 --no-ext-diff --no-textconv --no-color') {
+      if (
+        args.join(' ') ===
+        'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+      ) {
         return 'diff --git a/x b/x\n@@ -1,0 +2 @@\n+line';
       }
-      if (args.join(' ') === 'diff --cached --no-ext-diff --no-textconv --no-color') {
+      if (
+        args.join(' ') ===
+        'diff --cached --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+      ) {
         return diff;
       }
       throw new Error('unexpected command: ' + args.join(' '));
@@ -1318,10 +1340,16 @@ describe('executeCli', () => {
         ) {
           return '3\t1\tpackages/dev/src/index.ts';
         }
-        if (args.join(' ') === 'diff --cached --unified=0 --no-ext-diff --no-textconv --no-color') {
+        if (
+          args.join(' ') ===
+          'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+        ) {
           return 'diff --git a/packages/dev/src/index.ts b/packages/dev/src/index.ts\n@@ -10,0 +11 @@\n+execFileSync("git", ["status"])';
         }
-        if (args.join(' ') === 'diff --cached --no-ext-diff --no-textconv --no-color') {
+        if (
+          args.join(' ') ===
+          'diff --cached --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+        ) {
           return 'mock diff content';
         }
         throw new Error('unexpected command: ' + args.join(' '));
@@ -1953,6 +1981,7 @@ describe('executeCli', () => {
 
       const result = await executeCli(['doctor', '--json'], {
         cwd: root,
+        platform: 'linux',
         nodeVersion: '20.19.0',
         commandRunner: (command) => {
           if (command === 'git') {
@@ -1960,7 +1989,7 @@ describe('executeCli', () => {
           }
 
           if (command === 'pnpm') {
-            return '10.34.1';
+            return '10.34.9';
           }
 
           throw new Error('unexpected command');
@@ -1985,7 +2014,7 @@ describe('executeCli', () => {
           {
             name: 'pnpm',
             status: 'ok',
-            version: '10.34.1',
+            version: '10.34.9',
           },
           {
             name: 'Config',
@@ -2039,7 +2068,7 @@ describe('executeCli', () => {
           }
 
           if (command === 'pnpm') {
-            return '10.34.1';
+            return '10.34.9';
           }
 
           throw new Error('unexpected command');
@@ -2085,7 +2114,7 @@ describe('executeCli', () => {
           }
 
           if (command === 'pnpm') {
-            return '10.34.1';
+            return '10.34.9';
           }
 
           throw new Error('unexpected command');
@@ -2161,7 +2190,7 @@ describe('executeCli', () => {
           }
 
           if (command === 'corepack' && args.join(' ') === 'pnpm --version') {
-            return '10.34.1';
+            return '10.34.9';
           }
 
           throw new Error('unexpected command');
@@ -2174,7 +2203,7 @@ describe('executeCli', () => {
       expect(pnpmCheck).toEqual({
         name: 'pnpm',
         status: 'ok',
-        version: '10.34.1',
+        version: '10.34.9',
         details: 'via corepack; optional for CLI use; required for repository development',
         required: false,
       });
@@ -2183,47 +2212,51 @@ describe('executeCli', () => {
     }
   });
 
-  it('reports optional pnpm version issues without blocking CLI readiness', async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
+  it.each(['10.34.1', '11.5.1'])(
+    'reports unsupported pnpm %s without blocking CLI readiness',
+    async (version) => {
+      const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));
 
-    try {
-      await executeCli(['init', '--yes'], { cwd: root });
+      try {
+        await executeCli(['init', '--yes'], { cwd: root });
 
-      const result = await executeCli(['doctor', '--json'], {
-        cwd: root,
-        nodeVersion: '20.19.0',
-        commandRunner: (command) => {
-          if (command === 'git') {
-            return 'git version 2.44.0';
-          }
+        const result = await executeCli(['doctor', '--json'], {
+          cwd: root,
+          platform: 'linux',
+          nodeVersion: '20.19.0',
+          commandRunner: (command) => {
+            if (command === 'git') {
+              return 'git version 2.44.0';
+            }
 
-          if (command === 'pnpm') {
-            return '11.5.1';
-          }
+            if (command === 'pnpm') {
+              return version;
+            }
 
-          throw new Error('unexpected command');
-        },
-      });
+            throw new Error('unexpected command');
+          },
+        });
 
-      const payload = JSON.parse(result.stdout);
-      const pnpmCheck = payload.checks.find((check: { name: string }) => check.name === 'pnpm');
+        const payload = JSON.parse(result.stdout);
+        const pnpmCheck = payload.checks.find((check: { name: string }) => check.name === 'pnpm');
 
-      expect(payload.status).toBe('ok');
-      expect(pnpmCheck).toEqual({
-        name: 'pnpm',
-        status: 'warning',
-        version: '11.5.1',
-        required: false,
-        details: 'optional for CLI use; required for repository development',
-        fix: 'Use pnpm 10.34.1 through Corepack: corepack prepare pnpm@10.34.1 --activate.',
-      });
-      expect(payload.nextSteps).not.toContain(
-        'Use pnpm 10.34.1 through Corepack: corepack prepare pnpm@10.34.1 --activate.'
-      );
-    } finally {
-      await rm(root, { recursive: true, force: true });
+        expect(payload.status).toBe('ok');
+        expect(pnpmCheck).toEqual({
+          name: 'pnpm',
+          status: 'warning',
+          version,
+          required: false,
+          details: 'optional for CLI use; required for repository development',
+          fix: 'Use pnpm 10.34.9: run `corepack install` from the repository.',
+        });
+        expect(payload.nextSteps).not.toContain(
+          'Use pnpm 10.34.9: run `corepack install` from the repository.'
+        );
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
     }
-  });
+  );
 
   it('previews init by default without writing files', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-cli-'));

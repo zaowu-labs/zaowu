@@ -4,6 +4,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import process from 'node:process';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const cliEntry = path.join(root, 'packages', 'cli', 'dist', 'index.js');
@@ -14,7 +15,8 @@ const run = (args, options = {}) => {
   const output = execFileSync('node', [cliEntry, ...args], {
     cwd: options.cwd ?? scratch,
     encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
+    input: options.input,
+    stdio: [options.input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'],
   }).trim();
 
   if (options.json) {
@@ -84,6 +86,17 @@ try {
   const doctor = run(['doctor', '--json'], { json: true });
   assert(['ok', 'warning'].includes(doctor.status), 'doctor should return a known status');
   assert(doctor.operationPlan?.schemaVersion === 1, 'doctor should expose operation plan');
+  if (process.platform === 'darwin') {
+    const mac = doctor.checks.find((check) => check.name === 'macOS');
+    assert(
+      mac?.details.includes(`Node.js ${process.arch}`),
+      'doctor should report macOS Node architecture'
+    );
+    assert(
+      doctor.checks.some((check) => check.name === 'zw on PATH'),
+      'doctor should inspect macOS PATH'
+    );
+  }
 
   const notePath = path.join(examples, 'docs', 'report.md');
 
@@ -131,6 +144,26 @@ try {
   const dataSchema = run(['data', 'schema', dataPath, '--json'], { json: true });
   assert(dataSchema.schemaVersion === 1, 'data schema should expose result schema version');
   assert(dataSchema.columns?.[1]?.type === 'number', 'data schema should infer numbers');
+
+  const aiFromData = run(
+    ['ai', 'ask', 'Describe the table schema', '--stdin', '--provider', 'echo', '--json'],
+    { input: JSON.stringify(dataSchema), json: true }
+  );
+  assert(aiFromData.input.source === 'prompt+stdin', 'ai ask should consume a pipeline');
+  assert(aiFromData.input.stdinCharacters > 0, 'ai ask should count piped input');
+  assert(aiFromData.output.includes('amount'), 'Echo should include the piped data');
+
+  const rawInput = '  Unicode input 造物\n\n';
+  const rawAnswer = execFileSync(
+    process.execPath,
+    [cliEntry, 'ai', 'ask', '--stdin', '--provider', 'echo', '--raw'],
+    { cwd: scratch, input: rawInput, encoding: 'utf8' }
+  );
+  assert(
+    rawAnswer.startsWith('This is the local echo provider.'),
+    'raw stdout contains the answer'
+  );
+  assert(rawAnswer.endsWith(rawInput), 'raw stdout preserves trailing line breaks exactly');
 
   const workflowPath = path.join(examples, 'workflows', 'message.yml');
   const autoPlan = run(['auto', 'plan', workflowPath, '--json'], { json: true });

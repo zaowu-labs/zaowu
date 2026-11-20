@@ -26,11 +26,11 @@ const assert = (condition, message) => {
 const rootPackage = await readJson('package.json');
 
 assert(rootPackage.private === true, 'Root package must stay private.');
-assert(rootPackage.packageManager === 'pnpm@10.34.1', 'Root packageManager must pin pnpm.');
+assert(rootPackage.packageManager === 'pnpm@10.34.9', 'Root packageManager must pin pnpm.');
 assert(rootPackage.engines?.node === '>=20.19.0', 'Root package must require Node.js >=20.19.0.');
 assert(
-  rootPackage.engines?.pnpm === '>=10.34.1 <11',
-  'Root package must require pnpm >=10.34.1 <11.'
+  rootPackage.engines?.pnpm === '>=10.34.9 <11',
+  'Root package must require pnpm >=10.34.9 <11.'
 );
 assert(
   rootPackage.repository?.url === 'https://github.com/zaowu-labs/zaowu.git',

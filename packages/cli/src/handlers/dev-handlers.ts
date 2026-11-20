@@ -3,9 +3,9 @@ import {
   DEV_AI_DIFF_CHARACTER_LIMIT,
   applyDevAiCommitSuggestion,
   buildDevAiCommitPrompt,
-  buildDevAiReviewPrompt,
   getDevStatus,
   parseDevAiReviewFindings,
+  prepareDevAiReview,
   previewDevCommit,
   reviewDevChanges,
   readDevDiff,
@@ -42,7 +42,12 @@ const buildAiOperationPlan = (
   ai: ResolvedAiProvider,
   prompt: string,
   context: DomainHandlerContext,
-  options: { isReview: boolean; reviewUsesWorktree: boolean; diffCharacters: number }
+  options: {
+    isReview: boolean;
+    reviewUsesWorktree: boolean;
+    diffCharacters: number;
+    includedDiffCharacters: number;
+  }
 ): OperationPlan => {
   const actionName = options.isReview ? 'review' : 'suggestion';
 
@@ -67,7 +72,7 @@ const buildAiOperationPlan = (
     network: ai.networkTarget ? [ai.networkTarget] : [],
     secrets: ai.provider.requiredEnv,
     notes: [
-      `AI diff context: ${Math.min(options.diffCharacters, DEV_AI_DIFF_CHARACTER_LIMIT)} of ${options.diffCharacters} characters.${options.diffCharacters > DEV_AI_DIFF_CHARACTER_LIMIT ? ' Remaining changes are not sent; stage a smaller change for full coverage.' : ''}`,
+      `AI diff context: ${options.includedDiffCharacters} of ${options.diffCharacters} characters.${options.includedDiffCharacters < options.diffCharacters ? ' Remaining changes are not sent; stage a smaller change for full coverage.' : ''}`,
       ai.provider.network
         ? `AI ${actionName} sends the diff context to the ${ai.providerId} provider and requires --yes.`
         : `AI ${actionName} was generated using the ${ai.providerId} provider.`,
@@ -132,6 +137,7 @@ export const handleDevCommit: DomainActionHandler = async (_args, context) => {
       isReview: false,
       reviewUsesWorktree: false,
       diffCharacters: diffText.length,
+      includedDiffCharacters: Math.min(diffText.length, DEV_AI_DIFF_CHARACTER_LIMIT),
     });
 
     if (ai.provider.network && !context.yes) {
@@ -238,13 +244,14 @@ export const handleDevReview: DomainActionHandler = async (_args, context) => {
         why: 'Untracked files are listed by name only and cannot be reviewed by a model from an empty diff.',
         fix: 'Inspect and stage the intended files, then run zw dev review --staged --ai with an explicitly selected provider.',
       });
-    const prompt = buildDevAiReviewPrompt(diffText);
+    const { prompt, evidence, includedDiffCharacters } = prepareDevAiReview(diffText);
     const ai = await resolveAiProvider(context);
 
     operationPlan = buildAiOperationPlan(ai, prompt, context, {
       isReview: true,
       reviewUsesWorktree,
       diffCharacters: diffText.length,
+      includedDiffCharacters,
     });
 
     if (ai.provider.network && !context.yes) {
@@ -281,10 +288,7 @@ export const handleDevReview: DomainActionHandler = async (_args, context) => {
           ? review.findings
           : [
               ...review.findings,
-              ...parseDevAiReviewFindings(response.output, {
-                files: review.summary.files,
-                hunks: review.diffHunks,
-              }).map((finding) => ({
+              ...parseDevAiReviewFindings(response.output, evidence).map((finding) => ({
                 ...finding,
                 origin: 'ai' as const,
               })),

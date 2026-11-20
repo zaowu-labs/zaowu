@@ -20,7 +20,7 @@ Legend:
 | `zw version`         | none                   | none            | none      | none              | none             | none              | read-only                           |
 | `zw init`            | none                   | `zw.yml`        | none      | none              | none             | none              | preview, `--yes` to write           |
 | `zw doctor`          | config path            | none            | none      | fixed diagnostics | none             | env presence only | read-only                           |
-| `zw ai ask`          | optional `--file`      | optional output | none      | none              | HTTP endpoint    | env presence/key  | HTTP/output preview, --yes to apply |
+| `zw ai ask`          | optional file/stdin    | optional output | none      | none              | HTTP endpoint    | env presence/key  | HTTP/output preview, --yes to apply |
 | `zw ai providers`    | none                   | none            | none      | none              | none             | env presence only | read-only                           |
 | `zw auto validate`   | workflow file          | none            | none      | none              | none             | none              | read-only                           |
 | `zw auto plan`       | workflow file          | none            | none      | none              | none             | none              | read-only planning                  |

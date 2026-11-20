@@ -58,6 +58,7 @@ describe('golden command output contracts', () => {
     try {
       const result = await executeCli(['doctor'], {
         cwd: root,
+        platform: 'linux',
         nodeVersion: '20.19.0',
         commandRunner: (command, args) => {
           if (command === 'git') {
@@ -65,11 +66,11 @@ describe('golden command output contracts', () => {
           }
 
           if (command === 'pnpm') {
-            return '10.34.1';
+            return '10.34.9';
           }
 
           if (command === 'corepack' && args.join(' ') === 'pnpm --version') {
-            return '10.34.1';
+            return '10.34.9';
           }
 
           throw new Error('unexpected command');
@@ -83,7 +84,7 @@ describe('golden command output contracts', () => {
         'Checks:',
         '- Node.js: ok v20.19.0',
         '- Git: ok 2.44.0',
-        '- pnpm: ok 10.34.1 optional for CLI use; required for repository development',
+        '- pnpm: ok 10.34.9 optional for CLI use; required for repository development',
         '- Config: missing',
         '- AI provider: ok echo (local, configured)',
         `- Command matrix: ok ${COMMAND_CONTRACTS.length + 3} command surface(s) tracked`,
@@ -142,7 +143,10 @@ describe('golden command output contracts', () => {
           return '1\t0\tpackages/dev/src/index.ts\n1\t0\tpackages/dev/src/index.test.ts';
         }
 
-        if (args.join(' ') === 'diff --cached --unified=0 --no-ext-diff --no-textconv --no-color') {
+        if (
+          args.join(' ') ===
+          'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+        ) {
           return [
             'diff --git a/packages/dev/src/index.ts b/packages/dev/src/index.ts',
             '@@ -10,0 +11 @@',
@@ -179,7 +183,10 @@ describe('golden command output contracts', () => {
           return '1\t0\tpackages/dev/src/index.ts';
         }
 
-        if (args.join(' ') === 'diff --cached --unified=0 --no-ext-diff --no-textconv --no-color') {
+        if (
+          args.join(' ') ===
+          'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+        ) {
           return [
             'diff --git a/packages/dev/src/index.ts b/packages/dev/src/index.ts',
             '@@ -10,0 +11 @@',

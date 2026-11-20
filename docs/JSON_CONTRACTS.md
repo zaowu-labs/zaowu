@@ -133,6 +133,11 @@ project/global preferences as AI commands.
 The operation plan also discloses the five-second diagnostic timeout and disabled
 Corepack network access, prompts, and project auto-pinning.
 
+On macOS, `checks` can additionally include `macOS`, `Homebrew`, and `zw on PATH`.
+These are optional checks. `operationPlan` reports the fixed Apple probes and
+filesystem reads used for those diagnostics. If Apple's Git stub lacks developer
+tools, the plan omits the Git version invocation and the `Git` check carries a fix.
+
 ### `zw config validate --json`
 
 Current result schema: `schemaVersion: 1`.
@@ -237,6 +242,11 @@ requests, `model` and the `operationPlan.subjects` model entry use the same
 resolved value: explicit `--model`, then provider-specific environment defaults
 such as `OPENAI_MODEL`, then the provider default.
 
+With `--stdin`, `input.source` is `stdin` or `prompt+stdin`, and
+`input.stdinCharacters` counts the UTF-8 text after decoding. `combinedCharacters`
+also includes the prompt and input label. The `operationPlan.reads` list names
+standard input. Previews expose counts and the content-bound fingerprint.
+
 ### `zw ai providers --json`
 
 Current result schema: `schemaVersion: 1`.
@@ -299,6 +309,10 @@ Stable fields:
 default.
 Each finding includes `severity`, `priority`, `category`, `title`, and `detail`;
 optional `filePath`, `line`, and `hunkHeader` fields locate hunk-level risks.
+For `origin: "ai"` findings, location fields use only the patch sent to the
+provider, including its context lines and hunk headers. The local `diffHunks`
+summary uses zero-context Git hunks, so its headers can differ. Unverified
+location fields are omitted, and `detail` explains the omission.
 
 ### `zw dev status --json`
 

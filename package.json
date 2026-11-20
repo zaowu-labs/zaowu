@@ -2,7 +2,7 @@
   "name": "zaowu",
   "version": "1.2.1",
   "private": true,
-  "packageManager": "pnpm@10.34.1",
+  "packageManager": "pnpm@10.34.9",
   "description": "Open-source AI toolkit for development, automation, documents, data, teaching, plugins, and workflows.",
   "type": "module",
   "license": "Apache-2.0",
@@ -40,6 +40,7 @@
     "verify:release-candidate": "node scripts/verify-release-candidate.mjs",
     "verify:smoke": "node scripts/verify-cli-smoke.mjs",
     "verify:pack-install": "node scripts/verify-packed-cli.mjs",
+    "verify:pack-install:npm": "node scripts/verify-packed-cli.mjs --npm-global",
     "pack:check": "corepack pnpm --filter \"./packages/*\" pack --dry-run",
     "dev": "corepack pnpm --recursive run dev",
     "zw": "node packages/cli/dist/index.js",
@@ -61,6 +62,6 @@
   },
   "engines": {
     "node": ">=20.19.0",
-    "pnpm": ">=10.34.1 <11"
+    "pnpm": ">=10.34.9 <11"
   }
 }

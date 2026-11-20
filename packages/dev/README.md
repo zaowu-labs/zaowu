@@ -43,13 +43,15 @@ are disabled; read-only commands leave the index and worktree unchanged.
 
 Cross-package commits use a project scope instead of choosing the first package.
 Local rules are risk signals, not a complete review. Untracked files remain
-name-only until staged. AI previews disclose included/total diff characters;
-only the first 100,000 characters are sent, so stage smaller changes for full
-context. Neither local nor AI suggestions commit, stage, or push changes.
+name-only until staged. AI previews disclose included/total diff characters.
+The limit is 100,000 characters, and review truncation stops at a complete diff
+line. Stage smaller changes for full context. Review and commit suggestions leave
+Git state unchanged.
 
-AI review locations must agree on file, new-file line, and hunk. Deletion-only
-anchors cannot validate new-file lines. Invalid locations are omitted with a
-visible explanation; this checks diff coordinates, not the truth of a model claim.
+AI review locations must agree on file, new-file line, and hunk in the patch
+sent to the provider. Deletion-only hunks carry no new-file line coordinates.
+Invalid locations are omitted with a visible explanation. Coordinate validation
+checks the cited evidence, while the model's interpretation remains a suggestion.
 Structured reviews require supported classifications when supplied; invalid JSON
 shapes/fences and empty output fail. Omitted classifications keep defaults; plain
 prose remains an informational summary and [] is a valid no-findings result.

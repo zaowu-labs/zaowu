@@ -27,6 +27,9 @@ confirm. Local document and data commands work without a model account.
 Requires **Node.js 20.19+**. Git is needed for developer commands. pnpm is only
 needed for repository development.
 
+On a Mac, see the [macOS setup and workflows](docs/MACOS.md) for Apple Silicon,
+Intel, Terminal PATH, and clipboard pipelines.
+
 ```bash
 npm install -g @zaowu-labs/cli@1.2.1
 zw --version
@@ -110,6 +113,16 @@ real model providers. The OpenAI example previews the request; sending it needs
 the provider environment setup and explicit confirmation. Copy the confirmation
 command from the preview to bind it to the exact input and plan.
 
+Use `--stdin` to pass another command's output directly to AI. This example
+uses the demo CSV above.
+
+```bash
+zw data schema zaowu-demo.csv --json | zw ai ask "Describe the table" --stdin --provider echo --json
+```
+
+For network previews, supply the same piped text again with the displayed
+confirmation command.
+
 You can save a project preference after initialization:
 
 ```bash
@@ -177,10 +190,11 @@ See the [command catalog](docs/experience/COMMAND_CATALOG.md) for complete usage
 
 ## Develop and Contribute
 
-The monorepo uses TypeScript and pnpm `>=10.34.1 <11` through Corepack:
+The monorepo uses TypeScript and pnpm `>=10.34.9 <11` through Corepack.
+If `corepack` is missing, see [contributor setup](docs/GETTING_STARTED.md#repository-development).
 
 ```bash
-corepack enable
+corepack install
 corepack pnpm install --frozen-lockfile
 corepack pnpm verify
 corepack pnpm --silent zw --help

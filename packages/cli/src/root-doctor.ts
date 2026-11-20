@@ -8,13 +8,15 @@ import {
 } from '@zaowu-labs/config';
 import { createOperationPlan, isZaoWuError, type OperationPlan } from '@zaowu-labs/core';
 import { ADDITIONAL_ROOT_SURFACES, COMMAND_CONTRACTS } from './command-contracts.js';
+import { checkMacEnvironment, MAC_DOCTOR_PROBES } from './macos-doctor.js';
 import { runSystemCommand } from './system-command.js';
 import type { CliExecutionOptions, CommandRunner } from './types.js';
+import { getCliVersion } from './version.js';
 
 type CheckStatus = 'ok' | 'warning' | 'missing';
 type OverallStatus = 'ok' | 'warning';
 
-interface DoctorCheck {
+export interface DoctorCheck {
   name: string;
   status: CheckStatus;
   version?: string;
@@ -32,12 +34,12 @@ export interface DoctorResult {
 }
 
 const MINIMUM_NODE_VERSION = '20.19.0';
-const MINIMUM_PNPM_VERSION = '10.34.1';
+const MINIMUM_PNPM_VERSION = '10.34.9';
 const MAXIMUM_PNPM_MAJOR = 11;
-const PNPM_MISSING_FIX = 'Run `corepack enable` or install pnpm.';
-const PNPM_VERSION_FIX =
-  `Use pnpm ${MINIMUM_PNPM_VERSION} through Corepack: ` +
-  `corepack prepare pnpm@${MINIMUM_PNPM_VERSION} --activate.`;
+const PNPM_MISSING_FIX =
+  `Install Corepack if needed and run \`corepack install\` from the repository, ` +
+  `or install pnpm ${MINIMUM_PNPM_VERSION}.`;
+const PNPM_VERSION_FIX = `Use pnpm ${MINIMUM_PNPM_VERSION}: run \`corepack install\` from the repository.`;
 
 const diagnosticOptions = (command: string) => ({
   timeout: 5_000,
@@ -47,6 +49,8 @@ const diagnosticOptions = (command: string) => ({
           COREPACK_ENABLE_NETWORK: '0',
           COREPACK_ENABLE_DOWNLOAD_PROMPT: '0',
           COREPACK_ENABLE_AUTO_PIN: '0',
+          npm_config_manage_package_manager_versions: 'false',
+          pnpm_config_pm_on_fail: 'ignore',
         },
       }
     : {}),
@@ -268,7 +272,20 @@ export const buildDoctorResult = async (
 ): Promise<DoctorResult> => {
   const cwd = options.cwd ?? process.cwd();
   const nodeVersion = options.nodeVersion ?? process.versions.node;
-  const commandRunner = options.commandRunner ?? runSystemCommand;
+  const run = options.commandRunner ?? runSystemCommand;
+  const commandRunner: CommandRunner = (command, args, settings) =>
+    run(command, args, { cwd, ...settings });
+  const mac =
+    (options.platform ?? process.platform) === 'darwin'
+      ? await checkMacEnvironment({
+          cwd,
+          searchPath: process.env.PATH ?? '/usr/bin:/bin',
+          architecture: process.arch,
+          nodePath: process.execPath,
+          runningVersion: getCliVersion(),
+          commandRunner,
+        })
+      : undefined;
   const checks: DoctorCheck[] = [];
 
   checks.push({
@@ -281,13 +298,14 @@ export const buildDoctorResult = async (
   });
 
   checks.push(
-    checkCommand(
-      'Git',
-      'git',
-      ['--version'],
-      'Install Git and make sure it is on PATH.',
-      commandRunner
-    )
+    mac?.gitCheck ??
+      checkCommand(
+        'Git',
+        'git',
+        ['--version'],
+        'Install Git and make sure it is on PATH.',
+        commandRunner
+      )
   );
   const pnpm = checkPnpm(commandRunner);
   checks.push({
@@ -304,6 +322,7 @@ export const buildDoctorResult = async (
     await checkAIProvider(config.resolvedConfig, config.checkedInvalidConfig ?? false, cwd)
   );
   checks.push(checkCommandMatrix());
+  if (mac) checks.push(...mac.checks);
 
   const nextSteps = checks
     .filter((check) => check.required !== false && check.status !== 'ok' && check.fix)
@@ -323,11 +342,23 @@ export const buildDoctorResult = async (
         'resolved ZaoWu config',
         'AI provider environment variable presence',
         'command contract registry',
+        ...(mac
+          ? [
+              'PATH executable candidates for git, brew, and zw',
+              'ZaoWu package version on PATH',
+              'selected Apple developer directory',
+            ]
+          : []),
       ],
-      executes: ['git --version', 'pnpm --version', 'corepack pnpm --version'],
+      executes: [
+        ...(mac?.gitCheck ? [] : ['git --version']),
+        'pnpm --version',
+        'corepack pnpm --version',
+        ...(mac ? MAC_DOCTOR_PROBES : []),
+      ],
       notes: [
         'Doctor runs fixed local diagnostics and does not write files.',
-        'Each diagnostic has a five-second timeout; Corepack network access, download prompts, and auto-pinning are disabled.',
+        'Each diagnostic has a five-second timeout. The version probes disable Corepack network access and pnpm version switching.',
       ],
     }),
   };
@@ -354,6 +385,13 @@ export const formatDoctorHuman = (doctor: DoctorResult): string => {
     doctor.nextSteps.forEach((step, index) => {
       lines.push(`${index + 1}. ${step}`);
     });
+  }
+
+  if (doctor.checks.some((check) => check.name === 'macOS')) {
+    const optionalFixes = doctor.checks.filter((check) => check.required === false && check.fix);
+    if (optionalFixes.length > 0) {
+      lines.push('', 'Optional setup', ...optionalFixes.map((check) => `- ${check.fix}`));
+    }
   }
 
   return lines.join('\n');

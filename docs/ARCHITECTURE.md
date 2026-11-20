@@ -160,9 +160,9 @@ AI commands must be transparent about:
 - what output is generated
 - whether any file or Git state will change
 
-The current OpenAI adapter uses a non-streaming text request through the
-Responses API. Feature packages should depend on the provider interface, not on
-OpenAI-specific request shapes.
+The OpenAI adapter uses the Responses API. OpenAI, Anthropic, and Ollama stream
+text for interactive `zw ai ask` output and request a complete response for
+`--json`. The provider interface keeps request shapes inside `packages/ai`.
 
 ## Config Boundary
 

@@ -14,6 +14,8 @@
         "code": {
           "enum": [
             "AI_INPUT_FILE_READ_FAILED",
+            "AI_INPUT_STDIN_READ_FAILED",
+            "AI_INPUT_STDIN_REQUIRED",
             "AI_INPUT_TOO_LARGE",
             "AI_NETWORK_CONFIRMATION_REQUIRED",
             "AI_PROMPT_REQUIRED",

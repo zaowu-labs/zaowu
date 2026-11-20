@@ -78,6 +78,27 @@ export const assertValidOptionValues = (
 
   const format = getValue(parsed, '--format');
   const [domain, action] = commandArgs;
+  if (domain === 'ai' && action === 'ask' && hasFlag(parsed, '--raw') && hasFlag(parsed, '--json'))
+    throw new ZaoWuError({
+      code: 'OPTION_VALUE_INVALID',
+      message: 'AI output modes conflict.',
+      why: '--raw and --json produce different output formats.',
+      fix: 'Choose --raw for the complete answer or --json for a structured result.',
+    });
+
+  if (
+    domain === 'ai' &&
+    action === 'ask' &&
+    getValue(parsed, '--file') !== undefined &&
+    hasFlag(parsed, '--stdin')
+  )
+    throw new ZaoWuError({
+      code: 'OPTION_VALUE_INVALID',
+      message: 'AI input sources conflict.',
+      why: '--file and --stdin both supply additional context.',
+      fix: 'Choose --file or --stdin.',
+    });
+
   if (
     domain === 'dev' &&
     action === 'review' &&

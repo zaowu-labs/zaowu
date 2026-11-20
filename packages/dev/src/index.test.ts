@@ -40,7 +40,10 @@ describe('dev domain', () => {
         return '10\t2\tpackages/dev/src/index.ts\n5\t0\tpackages/dev/src/index.test.ts';
       }
 
-      if (args.join(' ') === 'diff --cached --unified=0 --no-ext-diff --no-textconv --no-color') {
+      if (
+        args.join(' ') ===
+        'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+      ) {
         return '';
       }
 
@@ -92,7 +95,10 @@ describe('dev domain', () => {
         return '1\t0\tpackages/dev/src/index.ts\n1\t0\tdist/cli.js';
       }
 
-      if (args.join(' ') === 'diff --cached --unified=0 --no-ext-diff --no-textconv --no-color') {
+      if (
+        args.join(' ') ===
+        'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+      ) {
         return [
           'diff --git a/packages/dev/src/index.ts b/packages/dev/src/index.ts',
           '@@ -1,0 +1 @@',
@@ -146,7 +152,10 @@ describe('dev domain', () => {
         return '3\t1\tpackages/dev/src/index.ts';
       }
 
-      if (args.join(' ') === 'diff --unified=0 --no-ext-diff --no-textconv --no-color') {
+      if (
+        args.join(' ') ===
+        'diff --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+      ) {
         return [
           'diff --git a/packages/dev/src/index.ts b/packages/dev/src/index.ts',
           '@@ -1 +1,3 @@',
@@ -243,7 +252,10 @@ describe('dev domain', () => {
         return 'scripts/verify-local.sh';
       }
 
-      if (args.join(' ') === 'diff --unified=0 --no-ext-diff --no-textconv --no-color') {
+      if (
+        args.join(' ') ===
+        'diff --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+      ) {
         return '';
       }
 
@@ -295,7 +307,10 @@ describe('dev domain', () => {
         return '1\t0\tpackages/dev/src/a.ts\n1\t0\tpackages/dev/src/b.ts';
       }
 
-      if (args.join(' ') === 'diff --cached --unified=0 --no-ext-diff --no-textconv --no-color') {
+      if (
+        args.join(' ') ===
+        'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+      ) {
         return [
           'diff --git a/packages/dev/src/a.ts b/packages/dev/src/a.ts',
           '@@ -0,0 +1 @@',
@@ -354,7 +369,10 @@ describe('dev domain', () => {
         return '3\t1\tpackages/dev/src/index.ts';
       }
 
-      if (args.join(' ') === 'diff --cached --unified=0 --no-ext-diff --no-textconv --no-color') {
+      if (
+        args.join(' ') ===
+        'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+      ) {
         return [
           'diff --git a/packages/dev/src/index.ts b/packages/dev/src/index.ts',
           '@@ -4,0 +5 @@',
@@ -412,7 +430,10 @@ describe('dev domain', () => {
         return '2\t0\tdocs/experience/ZW_AUTO_EXECUTION.md';
       }
 
-      if (args.join(' ') === 'diff --cached --unified=0 --no-ext-diff --no-textconv --no-color') {
+      if (
+        args.join(' ') ===
+        'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+      ) {
         return [
           'diff --git a/docs/experience/ZW_AUTO_EXECUTION.md b/docs/experience/ZW_AUTO_EXECUTION.md',
           '@@ -1,0 +2,2 @@',
@@ -447,7 +468,10 @@ describe('dev domain', () => {
         return '1\t0\tpackages/auto/package.json';
       }
 
-      if (args.join(' ') === 'diff --cached --unified=0 --no-ext-diff --no-textconv --no-color') {
+      if (
+        args.join(' ') ===
+        'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+      ) {
         return '';
       }
 
@@ -480,7 +504,10 @@ describe('dev domain', () => {
         return '2\t0\tpackages/dev/src/index.ts';
       }
 
-      if (args.join(' ') === 'diff --cached --unified=0 --no-ext-diff --no-textconv --no-color') {
+      if (
+        args.join(' ') ===
+        'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+      ) {
         return [
           'diff --git a/packages/dev/src/index.ts b/packages/dev/src/index.ts',
           '@@ -1,0 +1,2 @@',
@@ -532,7 +559,10 @@ describe('dev domain', () => {
         ].join('\n');
       }
 
-      if (args.join(' ') === 'diff --cached --unified=0 --no-ext-diff --no-textconv --no-color') {
+      if (
+        args.join(' ') ===
+        'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+      ) {
         return '';
       }
 
@@ -563,7 +593,10 @@ describe('dev domain', () => {
         return '1\t1\tpnpm-lock.yaml';
       }
 
-      if (args.join(' ') === 'diff --cached --unified=0 --no-ext-diff --no-textconv --no-color') {
+      if (
+        args.join(' ') ===
+        'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+      ) {
         return '';
       }
 
@@ -737,7 +770,10 @@ describe('dev domain', () => {
       if (args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color') {
         return '2\t1\t"some folder/file with spaces.ts"';
       }
-      if (args.join(' ') === 'diff --cached --unified=0 --no-ext-diff --no-textconv --no-color') {
+      if (
+        args.join(' ') ===
+        'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+      ) {
         return [
           'diff --git a/"some folder/file with spaces.ts" b/"some folder/file with spaces.ts"',
           '@@ -1 +1,2 @@',
@@ -770,7 +806,10 @@ describe('dev domain', () => {
       if (args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color') {
         return '5\t1\tpackages/dev/src/index.test.ts';
       }
-      if (args.join(' ') === 'diff --cached --unified=0 --no-ext-diff --no-textconv --no-color') {
+      if (
+        args.join(' ') ===
+        'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+      ) {
         return '';
       }
       throw new Error('unexpected git command: ' + args.join(' '));
@@ -791,7 +830,10 @@ describe('dev domain', () => {
       if (args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color') {
         return '5\t1\tpackages/dev/src/fixtures/my-package.json';
       }
-      if (args.join(' ') === 'diff --cached --unified=0 --no-ext-diff --no-textconv --no-color') {
+      if (
+        args.join(' ') ===
+        'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+      ) {
         return '';
       }
       throw new Error('unexpected git command: ' + args.join(' '));

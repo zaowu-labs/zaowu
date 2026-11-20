@@ -205,6 +205,7 @@ const executeCliInternal = async (
           yes: hasFlag(parsed, '--yes') && !hasFlag(parsed, '--dry-run'),
           onChunk: options.onChunk,
           signal: options.signal,
+          stdin: options.stdin,
         });
       }
 
@@ -242,7 +243,7 @@ export const executeCli = async (
       }
     : {
         ...result,
-        stdout: escapeTerminalText(result.stdout),
+        stdout: result.rawStdout ? result.stdout : escapeTerminalText(result.stdout),
         stderr: escapeTerminalText(result.stderr),
       };
 };
@@ -253,11 +254,16 @@ export const runCli = async (args: readonly string[]): Promise<number> => {
   const parsed = parseArgs(args);
   const cancellable =
     parsed.positionals[0] === 'ai' || (parsed.positionals[0] === 'dev' && hasFlag(parsed, '--ai'));
+  const stdin =
+    parsed.positionals[0] === 'ai' && parsed.positionals[1] === 'ask' && hasFlag(parsed, '--stdin')
+      ? process.stdin
+      : undefined;
   if (cancellable) process.on('SIGINT', cancel);
   let result: CliResult;
   try {
     result = await executeCli(args, {
       signal: controller.signal,
+      stdin: stdin?.isTTY ? undefined : stdin,
       onChunk: (chunk) => {
         process.stdout.write(chunk);
       },
@@ -267,7 +273,12 @@ export const runCli = async (args: readonly string[]): Promise<number> => {
   }
 
   if (result.stdout) {
-    process.stdout.write(`${result.stdout}\n`);
+    const stdout = result.rawStdout
+      ? process.stdout.isTTY
+        ? escapeTerminalText(result.stdout)
+        : result.stdout
+      : `${result.stdout}\n`;
+    process.stdout.write(stdout);
   }
 
   if (result.stderr) {
