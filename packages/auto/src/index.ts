@@ -1,4 +1,4 @@
-import { realpath, writeFile } from 'node:fs/promises';
+import { lstat, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import YAML from 'yaml';
 import {
@@ -90,7 +90,7 @@ const getWorkflowFormat = (filePath: string): 'json' | 'yaml' => {
 };
 
 const parseWorkflowVersion = (value: unknown): { version: number; versionWarning?: string } => {
-  if (value === undefined || value === null || value === '') {
+  if (value === undefined) {
     return {
       version: SUPPORTED_WORKFLOW_VERSION,
     };
@@ -193,6 +193,56 @@ const workflowStepError = (stepName: string, why: string, fix: string): ZaoWuErr
     fix,
   });
 
+type VariableKey = 'vars' | 'variables';
+
+const parseVariableMap = (key: VariableKey, value: unknown): Record<string, string> | undefined => {
+  if (value === undefined) return undefined;
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    throw workflowParseError(
+      `Workflow field \`${key}\` must be a variable map.`,
+      `Give \`${key}\` an object with string, number, or boolean values, or omit the field.`
+    );
+  }
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => {
+      if (typeof item !== 'string' && typeof item !== 'number' && typeof item !== 'boolean') {
+        throw workflowParseError(
+          `Variable \`${key}\` must be a string, number, or boolean.`,
+          'Provide a scalar value for each workflow variable, then validate again.'
+        );
+      }
+      return [key, String(item)];
+    })
+  );
+};
+
+const parseWorkflowVariables = (
+  input: Partial<Record<VariableKey, unknown>>,
+  preferred: VariableKey
+): Record<string, string> => {
+  const vars = parseVariableMap('vars', input.vars);
+  const variables = parseVariableMap('variables', input.variables);
+  return (preferred === 'vars' ? (vars ?? variables) : (variables ?? vars)) ?? {};
+};
+
+const parseWriteFile = (value: unknown, index: number): AutomationStep['writeFile'] => {
+  if (value === undefined) return undefined;
+  if (
+    value &&
+    typeof value === 'object' &&
+    'path' in value &&
+    'content' in value &&
+    typeof value.path === 'string' &&
+    typeof value.content === 'string'
+  ) {
+    return { path: value.path, content: value.content };
+  }
+  throw workflowParseError(
+    `Step ${index + 1} must provide a text path and content for writeFile.`,
+    'Set writeFile.path to a relative file name and writeFile.content to text. Use an empty string to create an empty file.'
+  );
+};
+
 const parseWorkflowJson = (content: string): ParsedAutomationWorkflow => {
   let parsed: Partial<AutomationWorkflow>;
 
@@ -213,12 +263,7 @@ const parseWorkflowJson = (content: string): ParsedAutomationWorkflow => {
     );
   const version = parseWorkflowVersion(parsed.version);
   const { policy, permissionWarnings } = parseExecutionPolicy(parsed.permissions);
-  const variables =
-    parsed.variables && typeof parsed.variables === 'object' && !Array.isArray(parsed.variables)
-      ? Object.fromEntries(
-          Object.entries(parsed.variables).map(([key, value]) => [key, String(value)])
-        )
-      : {};
+  const variables = parseWorkflowVariables(parsed, 'variables');
 
   return {
     ...version,
@@ -227,36 +272,19 @@ const parseWorkflowJson = (content: string): ParsedAutomationWorkflow => {
     permissions: policy,
     permissionWarnings,
     steps: Array.isArray(parsed.steps)
-      ? parsed.steps.map((step): AutomationStep => {
+      ? parsed.steps.map((step, index): AutomationStep => {
           if (!step || typeof step !== 'object') {
             return { name: '' };
           }
 
           const stepObj = step as unknown as Record<string, unknown>;
-          const writeFileValue = stepObj.writeFile;
-          const writeFileAction =
-            writeFileValue && typeof writeFileValue === 'object' && !Array.isArray(writeFileValue)
-              ? (writeFileValue as Record<string, unknown>)
-              : undefined;
+          const writeFile = parseWriteFile(stepObj.writeFile, index);
 
           return {
             name: typeof stepObj.name === 'string' ? stepObj.name : '',
             ...(typeof stepObj.message === 'string' ? { message: stepObj.message } : {}),
             ...(typeof stepObj.run === 'string' ? { run: stepObj.run } : {}),
-            ...(writeFileAction
-              ? {
-                  writeFile: {
-                    path:
-                      typeof writeFileAction.path === 'string'
-                        ? writeFileAction.path
-                        : String(writeFileAction.path ?? ''),
-                    content:
-                      typeof writeFileAction.content === 'string'
-                        ? writeFileAction.content
-                        : String(writeFileAction.content ?? ''),
-                  },
-                }
-              : {}),
+            ...(writeFile ? { writeFile } : {}),
           };
         })
       : [],
@@ -294,24 +322,13 @@ const parseWorkflowYaml = (content: string): ParsedAutomationWorkflow => {
   const version = parseWorkflowVersion(parsed.version);
   const name = typeof parsed.name === 'string' && parsed.name ? parsed.name.trim() : 'workflow';
 
-  const variables: Record<string, string> = {};
-  const rawVars = parsed.vars ?? parsed.variables;
-  if (rawVars && typeof rawVars === 'object' && !Array.isArray(rawVars)) {
-    for (const [k, v] of Object.entries(rawVars)) {
-      Object.defineProperty(variables, k, {
-        value: v === null || v === undefined ? '' : String(v).trim(),
-        enumerable: true,
-        writable: true,
-        configurable: true,
-      });
-    }
-  }
+  const variables = parseWorkflowVariables(parsed, 'vars');
 
   const { policy, permissionWarnings } = parseExecutionPolicy(parsed.permissions);
 
   const steps: AutomationStep[] = [];
   if (Array.isArray(parsed.steps)) {
-    for (const step of parsed.steps) {
+    for (const [index, step] of parsed.steps.entries()) {
       if (step && typeof step === 'object') {
         const stepObj = step as Record<string, unknown>;
         const stepName =
@@ -319,23 +336,7 @@ const parseWorkflowYaml = (content: string): ParsedAutomationWorkflow => {
         const stepMessage =
           typeof stepObj.message === 'string' ? stepObj.message.trim() : undefined;
         const stepRun = typeof stepObj.run === 'string' ? stepObj.run.trim() : undefined;
-        const writeFileValue = stepObj.writeFile;
-        const writeFileAction =
-          writeFileValue && typeof writeFileValue === 'object' && !Array.isArray(writeFileValue)
-            ? (writeFileValue as Record<string, unknown>)
-            : undefined;
-        const stepWriteFile = writeFileAction
-          ? {
-              path:
-                typeof writeFileAction.path === 'string'
-                  ? writeFileAction.path.trim()
-                  : String(writeFileAction.path ?? '').trim(),
-              content:
-                typeof writeFileAction.content === 'string'
-                  ? writeFileAction.content
-                  : String(writeFileAction.content ?? ''),
-            }
-          : undefined;
+        const stepWriteFile = parseWriteFile(stepObj.writeFile, index);
 
         steps.push({
           name: stepName,
@@ -513,6 +514,7 @@ const createStepOperationPlan = (step: {
       notes: [
         ...blockedNote,
         'writeFile steps can only create new files inside the workflow directory.',
+        'Confirmed runs may check similar output names in a temporary directory beside the outputs.',
       ],
     });
   }
@@ -800,6 +802,87 @@ export const planWorkflowContent = (
 export const planWorkflowFile = async (filePath: string): Promise<AutomationPlanResult> =>
   planWorkflowContent(await readWorkflowFile(filePath), filePath);
 
+const writeTargetError = (step: AutomationPlanStep, exists: boolean): ZaoWuError =>
+  workflowStepError(
+    step.name,
+    exists
+      ? `ZaoWu refused to overwrite existing file \`${step.targetPath}\`.`
+      : `ZaoWu could not access the write target \`${step.targetPath}\`.`,
+    exists
+      ? 'Choose a new writeFile.path or remove the existing file yourself first.'
+      : 'Check the workflow directory permissions, then try again.'
+  );
+
+const duplicateWriteTarget = (step: AutomationPlanStep, target: string): ZaoWuError =>
+  workflowStepError(
+    step.name,
+    `Several workflow steps target \`${target}\`.`,
+    'Give each writeFile step a different output path.'
+  );
+
+const checkWriteTargets = async (plan: AutomationPlanResult): Promise<void> => {
+  const groups = new Map<string, Map<string, AutomationPlanStep>>();
+  for (const step of plan.steps) {
+    if (
+      step.blocked ||
+      step.action !== 'writeFile' ||
+      !step.targetPath ||
+      !step.contentSha256 ||
+      !plan.workflow.steps[step.index - 1]?.writeFile
+    )
+      continue;
+    const target = await resolveSandboxedWriteTarget(
+      plan.sandbox.workflowDirectory,
+      step.targetPath,
+      step.name
+    );
+    const directory = path.dirname(target);
+    const foldedName = path.basename(target).normalize('NFC').toLowerCase().toUpperCase();
+    const key = path.join(directory, foldedName);
+    const group = groups.get(key) ?? new Map<string, AutomationPlanStep>();
+    if (group.has(target)) throw duplicateWriteTarget(step, target);
+    group.set(target, step);
+    groups.set(key, group);
+    try {
+      await lstat(target);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
+      throw writeTargetError(step, false);
+    }
+    throw writeTargetError(step, true);
+  }
+
+  // Case and Unicode equivalence depend on the destination filesystem. Only
+  // probe ambiguous names, under a private directory on that same filesystem.
+  for (const [key, group] of groups) {
+    if (group.size < 2) continue;
+    const directory = path.dirname(key);
+    let probe: string;
+    try {
+      probe = await mkdtemp(path.join(directory, '.zaowu-preflight-'));
+    } catch {
+      throw workflowStepError(
+        group.values().next().value!.name,
+        `ZaoWu could not check similar output names inside \`${directory}\`.`,
+        'Check directory permissions or choose distinct writeFile names, then try again.'
+      );
+    }
+    try {
+      for (const [target, step] of group) {
+        try {
+          await writeFile(path.join(probe, path.basename(target)), '', { flag: 'wx' });
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === 'EEXIST')
+            throw duplicateWriteTarget(step, target);
+          throw writeTargetError(step, false);
+        }
+      }
+    } finally {
+      await rm(probe, { recursive: true, force: true });
+    }
+  }
+};
+
 export const runWorkflowPlan = async (
   plan: AutomationPlanResult,
   options: { yes?: boolean } = {}
@@ -831,6 +914,10 @@ export const runWorkflowPlan = async (
     skipped.push(`${step.name}: ${detail}`);
     receipts.push(createStepReceipt(step, status, detail));
   };
+
+  // Check known destination conflicts before any confirmed step creates a file.
+  // Each write still resolves the sandbox and uses exclusive creation at execution.
+  if (options.yes) await checkWriteTargets(plan);
 
   for (const step of plan.steps) {
     if (step.blocked) {
@@ -877,16 +964,7 @@ export const runWorkflowPlan = async (
       try {
         await writeFile(sandboxedTarget, content, { encoding: 'utf8', flag: 'wx' });
       } catch (error) {
-        const exists = (error as { code?: string }).code === 'EEXIST';
-        throw workflowStepError(
-          step.name,
-          exists
-            ? `ZaoWu refused to overwrite existing file \`${step.targetPath}\`.`
-            : `ZaoWu tried to write \`${step.targetPath}\`, but the file system rejected the write.`,
-          exists
-            ? 'Choose a new writeFile.path or remove the existing file yourself first.'
-            : 'Check the workflow directory permissions, then try again.'
-        );
+        throw writeTargetError(step, (error as NodeJS.ErrnoException).code === 'EEXIST');
       }
 
       executed.push(`${step.name}: wrote ${step.targetPath}`);

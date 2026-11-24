@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+## 1.3.1 - 2026-11-25
+
+- Bind `zw dev sync` confirmations to the worktree and origin. Fetch the named
+  branch, check for newly exposed discard risks, and reset to the verified commit.
+  A deleted remote branch, edits to an obstructing file, or a new discard risk
+  stop a fingerprinted reset. A tag sharing the branch name cannot redirect sync.
+- Report repository-wide paths from subdirectories in Git status, commit previews,
+  and reviews. Show the branch name before the first commit and preserve trailing
+  whitespace in patches.
+- Resolve the physical output directory in document and data export previews.
+  Report occupied targets and missing directories before confirmation.
+- Accept versioned provider URLs, preserve whitespace in multi-block AI
+  answers, and recognize SSE events terminated by a carriage return.
+- Read UTF-8 and BOM-marked UTF-16 documents, teaching material, CSV and TSV.
+  Generate teaching plans and quizzes from Markdown headings and prose outside
+  frontmatter and code blocks.
+- Export CSV or TSV according to the requested extension. Preserve exact XLSX
+  sheet names, count trimmed cells, and improve averages for very large or
+  cancelling values.
+- Validate workflow variable maps, preserve whitespace and check for occupied
+  destinations and equivalent filenames on the destination volume before
+  creating outputs. Report unreadable local configs and
+  reject config edits larger than the one MiB read limit.
+- Resolve named local plugin directories and verify manifest IDs and fields.
+  Respect quoted response charset parameters and keep complete Unicode
+  characters at web preview limits.
+
 ## 1.3.0 - 2026-11-21
 
 - Preserve the command exit status and complete confirmed file saves when a

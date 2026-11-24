@@ -5,6 +5,10 @@ Configuration lifecycle package for ZaoWu.
 This package resolves `zw.yml`, validates supported config keys, previews safe
 config writes, and owns config migration behavior.
 
+From Node.js, `findConfigFile()` searches the current directory and its parents.
+For a project configuration report, run `zw config validate` with the
+[ZaoWu CLI](https://www.npmjs.com/package/@zaowu-labs/cli).
+
 Safety:
 
 - Config writes preview by default.
@@ -21,3 +25,6 @@ Safety:
   refused. New configs are created exclusively with private default permissions.
 - Replacement protects against partial-file writes and detected concurrent edits;
   it is not a conditional filesystem transaction with unrelated external writers.
+- Configuration discovery stops at a local config file or link. A read error
+  there must be fixed before an edit can proceed. Reads validate UTF-8 and
+  proposed writes must fit the same one MiB limit as subsequent reads.

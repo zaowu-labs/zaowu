@@ -3,14 +3,17 @@
 This roadmap keeps ZaoWu focused while the foundation is still young. It is not a
 release promise. It is the preferred order of work.
 
-## Current delivery status (1.3.0)
+## Current delivery status (1.3.1)
 
 The numbered phases below describe product areas, not unfinished work in a strict
 sequence. Configuration, real model adapters with streaming/cancellation, developer
 previews, rich-document/table handling, bounded workflow writes, and local plugin
 metadata already exist. Saved AI answers complete the first file-to-model output
 loop, and [1.2.1 improves AI review evidence checks](reviews/2026-10-30-review-integrity.md).
-Version 1.3.0 adds macOS setup diagnostics and plain-text AI pipelines.
+The current CLI includes macOS setup diagnostics, plain-text AI pipelines,
+UTF-16 document and spreadsheet imports, and previewed CSV/TSV exports.
+Git sync checks for local work that a reset would discard, including filename
+collisions on case-insensitive volumes. See the [release history](../CHANGELOG.md).
 The [product assessment](reviews/2026-10-25-product-assessment.md) distinguishes
 verified behavior from remaining depth, quality, and execution limitations.
 

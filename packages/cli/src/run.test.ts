@@ -378,20 +378,22 @@ describe('executeCli', () => {
     const result = await executeCli(['dev', 'commit', '--json'], {
       commandRunner: (_command, args) => {
         if (
-          args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+          args.join(' ') ===
+          'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color --no-relative'
         ) {
           return 'packages/dev/src/index.ts';
         }
 
         if (
-          args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color'
+          args.join(' ') ===
+          'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color --no-relative'
         ) {
           return '3\t1\tpackages/dev/src/index.ts';
         }
 
         if (
           args.join(' ') ===
-          'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+          'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color --no-relative'
         ) {
           return '';
         }
@@ -942,7 +944,7 @@ describe('executeCli', () => {
   it('runs dev status from CLI', async () => {
     const result = await executeCli(['dev', 'status', '--json'], {
       commandRunner: (_command, args) => {
-        if (args.join(' ') === 'status --short --branch -z') {
+        if (args.join(' ') === 'status --porcelain=v1 --branch --untracked-files=normal -z') {
           return '## main\nM  packages/dev/src/index.ts\n?? README.md';
         }
 
@@ -961,7 +963,7 @@ describe('executeCli', () => {
       operationPlan: {
         schemaVersion: 1,
         risk: 'low',
-        executes: ['git status --short --branch'],
+        executes: ['git status --porcelain=v1 --branch --untracked-files=normal'],
       },
     });
   });
@@ -969,23 +971,28 @@ describe('executeCli', () => {
   it('keeps confirmed dev sync aligned with its previewed operation plan', async () => {
     const commandRunner = (_command: string, args: readonly string[]): string => {
       switch (args.join(' ')) {
-        case 'status --short --branch -z':
+        case 'status --porcelain=v1 --branch --untracked-files=normal -z':
           return '## main...origin/main';
-        case 'symbolic-ref --quiet --short HEAD':
-          return 'main';
+        case 'rev-parse --absolute-git-dir':
+          return '/fixture/.git';
+        case 'remote get-url origin':
+          return 'fixture-origin';
+        case 'symbolic-ref --quiet HEAD':
+          return 'refs/heads/main';
         case 'rev-parse --verify refs/remotes/origin/main':
         case 'rev-parse HEAD':
           return 'commit_hash_123';
-        case 'rev-list --count refs/remotes/origin/main..HEAD':
+        case 'rev-list --count commit_hash_123..HEAD':
           return '0';
-        case 'diff --cached --binary --no-ext-diff --no-textconv --no-color':
-        case 'diff HEAD --binary --no-ext-diff --no-textconv --no-color':
+        case 'diff --cached --binary --no-ext-diff --no-textconv --no-color --no-relative':
+        case 'diff HEAD --binary --no-ext-diff --no-textconv --no-color --no-relative':
         case 'ls-files --full-name --others --directory -z -- :/':
-        case 'ls-tree --full-tree -r --name-only -z refs/remotes/origin/main':
+        case 'ls-tree --full-tree -r --name-only -z commit_hash_123':
+        case 'diff-index --cached --name-only --no-renames --diff-filter=DT -z commit_hash_123 -- :/':
           return '';
-        case 'fetch origin':
+        case 'fetch origin +refs/heads/main:refs/remotes/origin/main':
           return 'fetched';
-        case 'reset --hard refs/remotes/origin/main':
+        case 'reset --hard commit_hash_123':
           return 'reset';
         default:
           throw new Error(`unexpected command: ${args.join(' ')}`);
@@ -1009,7 +1016,10 @@ describe('executeCli', () => {
     expect(confirmed.exitCode).toBe(0);
     expect(confirmedPayload.operationPlan).toMatchObject({
       confirmationRequired: false,
-      executes: ['git fetch origin', 'git reset --hard refs/remotes/origin/main'],
+      executes: [
+        'git fetch origin +refs/heads/main:refs/remotes/origin/main',
+        'git reset --hard <verified-origin-commit>',
+      ],
       network: ['git remote origin'],
       fingerprint: previewPayload.operationPlan.fingerprint,
     });
@@ -1021,23 +1031,28 @@ describe('executeCli', () => {
     const commandRunner = (_command: string, args: readonly string[]): string => {
       calls.push(args.join(' '));
       switch (args.join(' ')) {
-        case 'status --short --branch -z':
+        case 'status --porcelain=v1 --branch --untracked-files=normal -z':
           return statusOutput;
-        case 'symbolic-ref --quiet --short HEAD':
-          return 'main';
+        case 'rev-parse --absolute-git-dir':
+          return '/fixture/.git';
+        case 'remote get-url origin':
+          return 'fixture-origin';
+        case 'symbolic-ref --quiet HEAD':
+          return 'refs/heads/main';
         case 'rev-parse --verify refs/remotes/origin/main':
         case 'rev-parse HEAD':
           return 'commit_hash_123';
-        case 'rev-list --count refs/remotes/origin/main..HEAD':
+        case 'rev-list --count commit_hash_123..HEAD':
           return '0';
-        case 'diff --cached --binary --no-ext-diff --no-textconv --no-color':
-        case 'diff HEAD --binary --no-ext-diff --no-textconv --no-color':
+        case 'diff --cached --binary --no-ext-diff --no-textconv --no-color --no-relative':
+        case 'diff HEAD --binary --no-ext-diff --no-textconv --no-color --no-relative':
         case 'ls-files --full-name --others --directory -z -- :/':
-        case 'ls-tree --full-tree -r --name-only -z refs/remotes/origin/main':
+        case 'ls-tree --full-tree -r --name-only -z commit_hash_123':
+        case 'diff-index --cached --name-only --no-renames --diff-filter=DT -z commit_hash_123 -- :/':
           return '';
-        case 'fetch origin':
+        case 'fetch origin +refs/heads/main:refs/remotes/origin/main':
           return 'fetched';
-        case 'reset --hard refs/remotes/origin/main':
+        case 'reset --hard commit_hash_123':
           return 'reset';
         default:
           throw new Error(`unexpected command: ${args.join(' ')}`);
@@ -1069,29 +1084,34 @@ describe('executeCli', () => {
 
     expect(staleConfirm.exitCode).toBe(1);
     expect(JSON.parse(staleConfirm.stderr).error.code).toBe('OPERATION_PLAN_MISMATCH');
-    expect(calls).not.toContain('fetch origin');
+    expect(calls).not.toContain('fetch origin +refs/heads/main:refs/remotes/origin/main');
   });
 
   it('requires --discard-local for confirmed dev sync with local discard risk', async () => {
     const commandRunner = (_command: string, args: readonly string[]): string => {
       switch (args.join(' ')) {
-        case 'status --short --branch -z':
+        case 'status --porcelain=v1 --branch --untracked-files=normal -z':
           return '## main...origin/main [ahead 1]\nM  packages/dev/src/index.ts';
-        case 'symbolic-ref --quiet --short HEAD':
-          return 'main';
+        case 'rev-parse --absolute-git-dir':
+          return '/fixture/.git';
+        case 'remote get-url origin':
+          return 'fixture-origin';
+        case 'symbolic-ref --quiet HEAD':
+          return 'refs/heads/main';
         case 'rev-parse --verify refs/remotes/origin/main':
         case 'rev-parse HEAD':
           return 'commit_hash_123';
-        case 'rev-list --count refs/remotes/origin/main..HEAD':
+        case 'rev-list --count commit_hash_123..HEAD':
           return '0';
-        case 'diff --cached --binary --no-ext-diff --no-textconv --no-color':
-        case 'diff HEAD --binary --no-ext-diff --no-textconv --no-color':
+        case 'diff --cached --binary --no-ext-diff --no-textconv --no-color --no-relative':
+        case 'diff HEAD --binary --no-ext-diff --no-textconv --no-color --no-relative':
         case 'ls-files --full-name --others --directory -z -- :/':
-        case 'ls-tree --full-tree -r --name-only -z refs/remotes/origin/main':
+        case 'ls-tree --full-tree -r --name-only -z commit_hash_123':
+        case 'diff-index --cached --name-only --no-renames --diff-filter=DT -z commit_hash_123 -- :/':
           return '';
-        case 'fetch origin':
+        case 'fetch origin +refs/heads/main:refs/remotes/origin/main':
           return 'fetched';
-        case 'reset --hard refs/remotes/origin/main':
+        case 'reset --hard commit_hash_123':
           return 'reset';
         default:
           throw new Error(`unexpected command: ${args.join(' ')}`);
@@ -1135,20 +1155,22 @@ describe('executeCli', () => {
     const result = await executeCli(['dev', 'review', '--staged', '--json'], {
       commandRunner: (_command, args) => {
         if (
-          args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+          args.join(' ') ===
+          'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color --no-relative'
         ) {
           return 'packages/dev/src/index.ts';
         }
 
         if (
-          args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color'
+          args.join(' ') ===
+          'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color --no-relative'
         ) {
           return '3\t1\tpackages/dev/src/index.ts';
         }
 
         if (
           args.join(' ') ===
-          'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+          'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color --no-relative'
         ) {
           return [
             'diff --git a/packages/dev/src/index.ts b/packages/dev/src/index.ts',
@@ -1201,24 +1223,26 @@ describe('executeCli', () => {
       {
         commandRunner: (_command, args) => {
           if (
-            args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+            args.join(' ') ===
+            'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color --no-relative'
           ) {
             return 'packages/dev/src/index.ts';
           }
           if (
-            args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color'
+            args.join(' ') ===
+            'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color --no-relative'
           ) {
             return '3\t1\tpackages/dev/src/index.ts';
           }
           if (
             args.join(' ') ===
-            'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+            'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color --no-relative'
           ) {
             return 'diff --git a/packages/dev/src/index.ts b/packages/dev/src/index.ts\n@@ -10,0 +11 @@\n+execFileSync("git", ["status"])';
           }
           if (
             args.join(' ') ===
-            'diff --cached --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+            'diff --cached --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color --no-relative'
           ) {
             return 'mock diff content';
           }
@@ -1240,22 +1264,26 @@ describe('executeCli', () => {
   it('previews dev commit --ai with a network provider instead of sending the diff', async () => {
     const commandRunner = (_command: string, args: readonly string[]) => {
       if (
-        args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+        args.join(' ') ===
+        'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color --no-relative'
       ) {
         return 'packages/dev/src/index.ts';
       }
-      if (args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color') {
+      if (
+        args.join(' ') ===
+        'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color --no-relative'
+      ) {
         return '3\t1\tpackages/dev/src/index.ts';
       }
       if (
         args.join(' ') ===
-        'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+        'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color --no-relative'
       ) {
         return 'diff --git a/x b/x\n@@ -1,0 +2 @@\n+line';
       }
       if (
         args.join(' ') ===
-        'diff --cached --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+        'diff --cached --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color --no-relative'
       ) {
         return 'mock diff content';
       }
@@ -1279,22 +1307,26 @@ describe('executeCli', () => {
   it('rejects confirmed dev commit --ai when the staged diff changed after preview', async () => {
     const makeRunner = (diff: string) => (_command: string, args: readonly string[]) => {
       if (
-        args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+        args.join(' ') ===
+        'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color --no-relative'
       ) {
         return 'packages/dev/src/index.ts';
       }
-      if (args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color') {
+      if (
+        args.join(' ') ===
+        'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color --no-relative'
+      ) {
         return '3\t1\tpackages/dev/src/index.ts';
       }
       if (
         args.join(' ') ===
-        'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+        'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color --no-relative'
       ) {
         return 'diff --git a/x b/x\n@@ -1,0 +2 @@\n+line';
       }
       if (
         args.join(' ') ===
-        'diff --cached --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+        'diff --cached --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color --no-relative'
       ) {
         return diff;
       }
@@ -1331,24 +1363,26 @@ describe('executeCli', () => {
     const result = await executeCli(['dev', 'commit', '--ai', '--provider', 'echo', '--json'], {
       commandRunner: (_command, args) => {
         if (
-          args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+          args.join(' ') ===
+          'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color --no-relative'
         ) {
           return 'packages/dev/src/index.ts';
         }
         if (
-          args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color'
+          args.join(' ') ===
+          'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color --no-relative'
         ) {
           return '3\t1\tpackages/dev/src/index.ts';
         }
         if (
           args.join(' ') ===
-          'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+          'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color --no-relative'
         ) {
           return 'diff --git a/packages/dev/src/index.ts b/packages/dev/src/index.ts\n@@ -10,0 +11 @@\n+execFileSync("git", ["status"])';
         }
         if (
           args.join(' ') ===
-          'diff --cached --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+          'diff --cached --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color --no-relative'
         ) {
           return 'mock diff content';
         }

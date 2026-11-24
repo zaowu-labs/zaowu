@@ -18,6 +18,7 @@ import {
   createContentOperationSubjects,
   createOperationPlan,
   hashOperationContent,
+  prepareExclusiveOutputPath,
   ZaoWuError,
   type OperationPlan,
 } from '@zaowu-labs/core';
@@ -96,6 +97,28 @@ export const resolveFileTarget = (
   context: Pick<DomainHandlerContext, 'cwd'>,
   target: string
 ): string => path.resolve(context.cwd, target);
+
+export const resolveExportTarget = async (
+  context: DomainHandlerContext,
+  domain: 'data' | 'doc'
+): Promise<string | undefined> => {
+  const target = getValue(context.parsed, '--output');
+  if (!target) return undefined;
+  return prepareExclusiveOutputPath(resolveFileTarget(context, target), {
+    exists: {
+      code: domain === 'doc' ? 'DOCUMENT_OUTPUT_CONFLICT' : 'DATA_OUTPUT_CONFLICT',
+      message: 'Output path already exists.',
+      why: `The requested destination \`${target}\` already has a file, directory, or link.`,
+      fix: 'Choose a new --output filename.',
+    },
+    failed: {
+      code: domain === 'doc' ? 'DOCUMENT_WRITE_FAILED' : 'DATA_WRITE_FAILED',
+      message: 'Could not prepare the output file.',
+      why: `The parent of \`${target}\` must be an existing, writable directory.`,
+      fix: 'Check the output directory and permissions, then preview again.',
+    },
+  });
+};
 
 export const requireTarget = (args: readonly string[], command: string): string => {
   const target = args[0];

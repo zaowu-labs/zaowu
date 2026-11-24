@@ -66,7 +66,7 @@ const buildAiOperationPlan = (
       : ['staged git diff', 'staged git diff hunks'],
     executes: options.isReview
       ? options.reviewUsesWorktree
-        ? ['git diff', 'git ls-files --others --exclude-standard']
+        ? ['git diff', 'git ls-files --others --exclude-standard --full-name -z -- :/']
         : ['git diff --cached']
       : ['git diff --cached'],
     network: ai.networkTarget ? [ai.networkTarget] : [],
@@ -227,7 +227,7 @@ export const handleDevReview: DomainActionHandler = async (_args, context) => {
       ? ['working-tree git diff', 'untracked git file list']
       : ['staged git diff'],
     executes: reviewUsesWorktree
-      ? ['git diff', 'git ls-files --others --exclude-standard']
+      ? ['git diff', 'git ls-files --others --exclude-standard --full-name -z -- :/']
       : ['git diff --cached'],
     notes: ['No Git state is modified.'],
   });
@@ -334,7 +334,7 @@ export const handleDevStatus: DomainActionHandler = async (_args, context) => {
   const operationPlan = createOperationPlan({
     risk: 'low',
     reads: ['git status'],
-    executes: ['git status --short --branch'],
+    executes: ['git status --porcelain=v1 --branch --untracked-files=normal'],
     notes: ['No Git state is modified.'],
   });
   const human = [
@@ -359,24 +359,13 @@ export const handleDevStatus: DomainActionHandler = async (_args, context) => {
 };
 
 export const handleDevSync: DomainActionHandler = async (_args, context) => {
-  const preview = syncDevRepo(context.commandRunner, { cwd: context.cwd });
-  const discardLocal = hasFlag(context.parsed, '--discard-local');
-
-  if (!preview.operationPlan) {
-    throw new ZaoWuError({
-      code: 'INTERNAL_ERROR',
-      message: 'Operation plan is required for synchronization preview.',
-      why: 'ZaoWu could not generate an operation plan for the Git synchronization.',
-      fix: 'Verify your Git repository is configured correctly.',
-    });
-  }
-
-  assertOperationPlanFingerprint(context, preview.operationPlan);
-
-  const syncResult = context.yes
-    ? syncDevRepo(context.commandRunner, { cwd: context.cwd, yes: true, discardLocal })
-    : preview;
-  const operationPlan = syncResult.operationPlan ?? preview.operationPlan;
+  const syncResult = syncDevRepo(context.commandRunner, {
+    cwd: context.cwd,
+    yes: context.yes,
+    discardLocal: hasFlag(context.parsed, '--discard-local'),
+    expectedPlanFingerprint: context.expectedPlanFingerprint,
+  });
+  const operationPlan = syncResult.operationPlan;
   const requiresDiscardLocal = operationPlan.notes.some((note) =>
     note.includes('Confirmed sync requires both --yes and --discard-local')
   );

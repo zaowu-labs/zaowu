@@ -14,6 +14,7 @@ import {
   formatOperationPlan,
   getValue,
   requireTarget,
+  resolveExportTarget,
   resolveFileTarget,
   result,
   withOperationPlan,
@@ -107,10 +108,7 @@ export const handleDocSearch: DomainActionHandler = async (args, context) => {
 
 export const handleDocConvert: DomainActionHandler = async (args, context) => {
   const target = resolveFileTarget(context, requireTarget(args, 'zw doc convert'));
-  const requestedOutputPath = getValue(context.parsed, '--output');
-  const outputPath = requestedOutputPath
-    ? resolveFileTarget(context, requestedOutputPath)
-    : undefined;
+  const outputPath = await resolveExportTarget(context, 'doc');
   const format = getValue(context.parsed, '--format');
   // One options object for both the preview and the confirmed call: the
   // fingerprint the user confirms is computed from the preview, so the two

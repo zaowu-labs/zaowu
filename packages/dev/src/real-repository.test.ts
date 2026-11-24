@@ -22,6 +22,31 @@ const runner: DevCommandRunner = (command, args, options) =>
   });
 
 describe('real Git review and commit previews', () => {
+  it('reports repository-wide paths from a subdirectory despite user display preferences', async () => {
+    const cwd = await mkdtemp(path.join(os.tmpdir(), 'zaowu-review-scope-'));
+    const nested = path.join(cwd, 'nested');
+    try {
+      await mkdir(nested);
+      const git = (...args: string[]) => runner('git', args, { cwd });
+      git('init', '-b', 'main');
+      git('config', 'diff.relative', 'true');
+      git('config', 'status.showUntrackedFiles', 'no');
+      await writeFile(path.join(cwd, 'staged.txt'), 'staged text  \n');
+      git('add', 'staged.txt');
+      await writeFile(path.join(cwd, 'loose.txt'), 'outside');
+      await writeFile(path.join(nested, 'new.txt'), 'inside');
+      const status = getDevStatus(runner, { cwd: nested });
+      expect(status.branch).toBe('main');
+      expect(status.untracked).toContain('loose.txt');
+      expect(previewDevCommit(runner, { cwd: nested }).summary.files).toEqual(['staged.txt']);
+      expect(readDevDiff(runner, { cwd: nested, source: 'staged' })).toContain('+staged text  \n');
+      const review = reviewDevChanges(runner, { cwd: nested, mode: 'worktree' });
+      expect(review.summary.untrackedFiles).toEqual(['loose.txt', 'nested/new.txt']);
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
   it('handles Unicode/space paths, blocks diff drivers, and leaves the index and worktree unchanged', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-review-real-'));
     const git = (...args: string[]) => runner('git', args, { cwd: root });

@@ -15,14 +15,14 @@ export const runGit = (
       args[0] === 'diff'
         ? [
             ...args,
-            ...['--no-ext-diff', '--no-textconv', '--no-color'].filter(
+            ...['--no-ext-diff', '--no-textconv', '--no-color', '--no-relative'].filter(
               (flag) => !args.includes(flag)
             ),
           ]
         : args;
     return commandRunner('git', safeArgs, {
       cwd,
-      env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' },
+      env: { ...process.env, LC_ALL: 'C', GIT_OPTIONAL_LOCKS: '0' },
       timeout: 10_000,
     });
   } catch {

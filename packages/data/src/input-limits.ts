@@ -1,5 +1,5 @@
 import JSZip from 'jszip';
-import { readBoundedFile, ZaoWuError } from '@zaowu-labs/core';
+import { decodeTextBytes, readBoundedFile, ZaoWuError } from '@zaowu-labs/core';
 
 export const MAX_DATA_ROWS = 250_000;
 export const MAX_DATA_COLUMNS = 1_024;
@@ -29,8 +29,19 @@ export const readDataFile = (filePath: string): Promise<Buffer> =>
     tooLarge: dataTooLarge(),
   });
 
-export const readDataText = async (filePath: string): Promise<string> => {
+export const readDataText = async (
+  filePath: string,
+  format: 'csv' | 'tsv' | 'json'
+): Promise<string> => {
   const bytes = await readDataFile(filePath);
+  if (format !== 'json') {
+    return decodeTextBytes(bytes, {
+      code: 'DATA_READ_FAILED',
+      message: 'Could not decode delimited table text.',
+      why: 'The input contains invalid text encoding or NUL characters.',
+      fix: 'Export the table as UTF-8, UTF-16 with a byte-order mark, or XLSX.',
+    });
+  }
   try {
     return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
   } catch {

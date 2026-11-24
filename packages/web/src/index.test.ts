@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { fetchWebTarget, inspectWebTarget, WEB_DOMAIN, type WebFetcher } from './index';
 
 describe('web domain', () => {
@@ -264,5 +264,53 @@ describe('web domain', () => {
       body: 'café',
       bodyLength: 4,
     });
+  });
+
+  it('reads the actual charset parameter even after a quoted note or similarly named parameter', async () => {
+    const fetcher: WebFetcher = async () =>
+      new Response('中文 🌱', {
+        headers: {
+          'content-type': 'text/plain; note="charset=latin1"; x-charset=latin1; charset=UTF-8',
+        },
+      });
+    await expect(
+      fetchWebTarget('https://example.test/report', { yes: true, fetcher })
+    ).resolves.toMatchObject({ body: '中文 🌱', bodyLengthExact: true });
+  });
+
+  it('keeps complete Unicode characters at byte and display boundaries', async () => {
+    const opts = { yes: true, fetcher: async () => new Response('a🌱b') };
+    await expect(
+      fetchWebTarget('https://example.test/report', { ...opts, maxBodyLength: 2 })
+    ).resolves.toMatchObject({ body: 'a', bodyLength: 4, bodyTruncated: true });
+    await expect(
+      fetchWebTarget('https://example.test/report', { ...opts, maxResponseBytes: 3 })
+    ).resolves.toMatchObject({
+      body: 'a',
+      bodyLength: 1,
+      bodyLengthExact: false,
+      responseBytesRead: 3,
+    });
+    await expect(
+      fetchWebTarget('https://example.test/report', { ...opts, maxResponseBytes: 5 })
+    ).resolves.toMatchObject({ body: 'a🌱', bodyLength: 3, bodyLengthExact: false });
+  });
+
+  it.each([302, 404])('reports the HTTP %i response from the confirmed URL', async (status) => {
+    const fetcher = vi.fn(
+      async () => new Response('Result', { status, headers: { location: '/next' } })
+    );
+    await expect(
+      fetchWebTarget('https://example.test/page', { yes: true, fetcher })
+    ).resolves.toMatchObject({
+      url: 'https://example.test/page',
+      statusCode: status,
+      body: 'Result',
+    });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(fetcher).toHaveBeenCalledWith(
+      'https://example.test/page',
+      expect.objectContaining({ redirect: 'manual' })
+    );
   });
 });

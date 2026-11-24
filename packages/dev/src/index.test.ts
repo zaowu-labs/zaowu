@@ -31,18 +31,22 @@ describe('dev domain', () => {
   it('previews a commit message from staged changes', () => {
     const runner: DevCommandRunner = (_command, args) => {
       if (
-        args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+        args.join(' ') ===
+        'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color --no-relative'
       ) {
         return 'packages/dev/src/index.ts\npackages/dev/src/index.test.ts';
       }
 
-      if (args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color') {
+      if (
+        args.join(' ') ===
+        'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color --no-relative'
+      ) {
         return '10\t2\tpackages/dev/src/index.ts\n5\t0\tpackages/dev/src/index.test.ts';
       }
 
       if (
         args.join(' ') ===
-        'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+        'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color --no-relative'
       ) {
         return '';
       }
@@ -86,18 +90,22 @@ describe('dev domain', () => {
   it('includes staged risk findings in commit preview', () => {
     const runner: DevCommandRunner = (_command, args) => {
       if (
-        args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+        args.join(' ') ===
+        'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color --no-relative'
       ) {
         return 'packages/dev/src/index.ts\ndist/cli.js';
       }
 
-      if (args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color') {
+      if (
+        args.join(' ') ===
+        'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color --no-relative'
+      ) {
         return '1\t0\tpackages/dev/src/index.ts\n1\t0\tdist/cli.js';
       }
 
       if (
         args.join(' ') ===
-        'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+        'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color --no-relative'
       ) {
         return [
           'diff --git a/packages/dev/src/index.ts b/packages/dev/src/index.ts',
@@ -139,22 +147,28 @@ describe('dev domain', () => {
   it('reviews working-tree changes when no staged changes exist', () => {
     const runner: DevCommandRunner = (_command, args) => {
       if (
-        args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+        args.join(' ') ===
+        'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color --no-relative'
       ) {
         return '';
       }
 
-      if (args.join(' ') === 'diff --name-only -z --no-ext-diff --no-textconv --no-color') {
+      if (
+        args.join(' ') ===
+        'diff --name-only -z --no-ext-diff --no-textconv --no-color --no-relative'
+      ) {
         return 'packages/dev/src/index.ts';
       }
 
-      if (args.join(' ') === 'diff --numstat -z --no-ext-diff --no-textconv --no-color') {
+      if (
+        args.join(' ') === 'diff --numstat -z --no-ext-diff --no-textconv --no-color --no-relative'
+      ) {
         return '3\t1\tpackages/dev/src/index.ts';
       }
 
       if (
         args.join(' ') ===
-        'diff --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+        'diff --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color --no-relative'
       ) {
         return [
           'diff --git a/packages/dev/src/index.ts b/packages/dev/src/index.ts',
@@ -165,11 +179,14 @@ describe('dev domain', () => {
         ].join('\n');
       }
 
-      if (args.join(' ') === 'ls-files --others --exclude-standard -z') {
+      if (args.join(' ') === 'ls-files --others --exclude-standard --full-name -z -- :/') {
         return '';
       }
 
-      if (args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color') {
+      if (
+        args.join(' ') ===
+        'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color --no-relative'
+      ) {
         return '';
       }
 
@@ -231,30 +248,39 @@ describe('dev domain', () => {
   it('includes untracked files in working-tree review', () => {
     const runner: DevCommandRunner = (_command, args) => {
       if (
-        args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+        args.join(' ') ===
+        'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color --no-relative'
       ) {
         return '';
       }
 
-      if (args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color') {
+      if (
+        args.join(' ') ===
+        'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color --no-relative'
+      ) {
         return '';
       }
 
-      if (args.join(' ') === 'diff --name-only -z --no-ext-diff --no-textconv --no-color') {
+      if (
+        args.join(' ') ===
+        'diff --name-only -z --no-ext-diff --no-textconv --no-color --no-relative'
+      ) {
         return '';
       }
 
-      if (args.join(' ') === 'diff --numstat -z --no-ext-diff --no-textconv --no-color') {
+      if (
+        args.join(' ') === 'diff --numstat -z --no-ext-diff --no-textconv --no-color --no-relative'
+      ) {
         return '';
       }
 
-      if (args.join(' ') === 'ls-files --others --exclude-standard -z') {
+      if (args.join(' ') === 'ls-files --others --exclude-standard --full-name -z -- :/') {
         return 'scripts/verify-local.sh';
       }
 
       if (
         args.join(' ') ===
-        'diff --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+        'diff --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color --no-relative'
       ) {
         return '';
       }
@@ -298,18 +324,22 @@ describe('dev domain', () => {
   it('keeps added-line parsing accurate for diff-like content and metadata', () => {
     const runner: DevCommandRunner = (_command, args) => {
       if (
-        args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+        args.join(' ') ===
+        'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color --no-relative'
       ) {
         return 'packages/dev/src/a.ts\npackages/dev/src/b.ts';
       }
 
-      if (args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color') {
+      if (
+        args.join(' ') ===
+        'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color --no-relative'
+      ) {
         return '1\t0\tpackages/dev/src/a.ts\n1\t0\tpackages/dev/src/b.ts';
       }
 
       if (
         args.join(' ') ===
-        'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+        'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color --no-relative'
       ) {
         return [
           'diff --git a/packages/dev/src/a.ts b/packages/dev/src/a.ts',
@@ -360,18 +390,22 @@ describe('dev domain', () => {
   it('reviews staged changes when explicitly requested', () => {
     const runner: DevCommandRunner = (_command, args) => {
       if (
-        args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+        args.join(' ') ===
+        'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color --no-relative'
       ) {
         return 'packages/dev/src/index.ts';
       }
 
-      if (args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color') {
+      if (
+        args.join(' ') ===
+        'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color --no-relative'
+      ) {
         return '3\t1\tpackages/dev/src/index.ts';
       }
 
       if (
         args.join(' ') ===
-        'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+        'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color --no-relative'
       ) {
         return [
           'diff --git a/packages/dev/src/index.ts b/packages/dev/src/index.ts',
@@ -421,18 +455,22 @@ describe('dev domain', () => {
   it('does not flag sensitive keywords in documentation-only diffs', () => {
     const runner: DevCommandRunner = (_command, args) => {
       if (
-        args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+        args.join(' ') ===
+        'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color --no-relative'
       ) {
         return 'docs/experience/ZW_AUTO_EXECUTION.md';
       }
 
-      if (args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color') {
+      if (
+        args.join(' ') ===
+        'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color --no-relative'
+      ) {
         return '2\t0\tdocs/experience/ZW_AUTO_EXECUTION.md';
       }
 
       if (
         args.join(' ') ===
-        'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+        'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color --no-relative'
       ) {
         return [
           'diff --git a/docs/experience/ZW_AUTO_EXECUTION.md b/docs/experience/ZW_AUTO_EXECUTION.md',
@@ -459,18 +497,22 @@ describe('dev domain', () => {
   it('flags package manifest and lockfile consistency risks', () => {
     const runner: DevCommandRunner = (_command, args) => {
       if (
-        args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+        args.join(' ') ===
+        'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color --no-relative'
       ) {
         return 'packages/auto/package.json';
       }
 
-      if (args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color') {
+      if (
+        args.join(' ') ===
+        'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color --no-relative'
+      ) {
         return '1\t0\tpackages/auto/package.json';
       }
 
       if (
         args.join(' ') ===
-        'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+        'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color --no-relative'
       ) {
         return '';
       }
@@ -495,18 +537,22 @@ describe('dev domain', () => {
   it('prioritizes secret-like literals and destructive Git commands', () => {
     const runner: DevCommandRunner = (_command, args) => {
       if (
-        args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+        args.join(' ') ===
+        'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color --no-relative'
       ) {
         return 'packages/dev/src/index.ts';
       }
 
-      if (args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color') {
+      if (
+        args.join(' ') ===
+        'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color --no-relative'
+      ) {
         return '2\t0\tpackages/dev/src/index.ts';
       }
 
       if (
         args.join(' ') ===
-        'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+        'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color --no-relative'
       ) {
         return [
           'diff --git a/packages/dev/src/index.ts b/packages/dev/src/index.ts',
@@ -542,7 +588,8 @@ describe('dev domain', () => {
   it('flags package source changes without matching package tests', () => {
     const runner: DevCommandRunner = (_command, args) => {
       if (
-        args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+        args.join(' ') ===
+        'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color --no-relative'
       ) {
         return [
           'packages/dev/src/index.ts',
@@ -551,7 +598,10 @@ describe('dev domain', () => {
         ].join('\n');
       }
 
-      if (args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color') {
+      if (
+        args.join(' ') ===
+        'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color --no-relative'
+      ) {
         return [
           '1\t0\tpackages/dev/src/index.ts',
           '1\t0\tpackages/dev/src/index.test.ts',
@@ -561,7 +611,7 @@ describe('dev domain', () => {
 
       if (
         args.join(' ') ===
-        'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+        'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color --no-relative'
       ) {
         return '';
       }
@@ -584,18 +634,22 @@ describe('dev domain', () => {
   it('flags lockfile changes without package manifests', () => {
     const runner: DevCommandRunner = (_command, args) => {
       if (
-        args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+        args.join(' ') ===
+        'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color --no-relative'
       ) {
         return 'pnpm-lock.yaml';
       }
 
-      if (args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color') {
+      if (
+        args.join(' ') ===
+        'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color --no-relative'
+      ) {
         return '1\t1\tpnpm-lock.yaml';
       }
 
       if (
         args.join(' ') ===
-        'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+        'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color --no-relative'
       ) {
         return '';
       }
@@ -615,7 +669,7 @@ describe('dev domain', () => {
 
   it('parses Git status output', () => {
     const runner: DevCommandRunner = (_command, args) => {
-      if (args.join(' ') === 'status --short --branch -z') {
+      if (args.join(' ') === 'status --porcelain=v1 --branch --untracked-files=normal -z') {
         return '## codex/work...origin/codex/work [ahead 1]\nM  packages/dev/src/index.ts\n M README.md\n?? scratch.md\nR  old.txt -> new.txt\nA  "quoted file.txt"';
       }
 
@@ -643,29 +697,32 @@ describe('dev domain', () => {
 
   it('previews and performs dev sync operations', () => {
     const runner: DevCommandRunner = (_command, args) => {
-      if (args.join(' ') === 'status --short --branch -z') {
+      if (args.join(' ') === 'status --porcelain=v1 --branch --untracked-files=normal -z') {
         return '## main...origin/main\n';
       }
-      if (args.join(' ') === 'symbolic-ref --quiet --short HEAD') return 'main';
+      if (args.join(' ') === 'rev-parse --absolute-git-dir') return '/fixture/.git';
+      if (args.join(' ') === 'remote get-url origin') return 'fixture-origin';
+      if (args.join(' ') === 'symbolic-ref --quiet HEAD') return 'refs/heads/main';
       if (args.join(' ') === 'rev-parse --verify refs/remotes/origin/main')
         return 'commit_hash_123';
-      if (args.join(' ') === 'rev-list --count refs/remotes/origin/main..HEAD') return '0';
+      if (args.join(' ') === 'rev-list --count commit_hash_123..HEAD') return '0';
       if (
         [
-          'diff --cached --binary --no-ext-diff --no-textconv --no-color',
-          'diff HEAD --binary --no-ext-diff --no-textconv --no-color',
+          'diff --cached --binary --no-ext-diff --no-textconv --no-color --no-relative',
+          'diff HEAD --binary --no-ext-diff --no-textconv --no-color --no-relative',
           'ls-files --full-name --others --directory -z -- :/',
-          'ls-tree --full-tree -r --name-only -z refs/remotes/origin/main',
+          'ls-tree --full-tree -r --name-only -z commit_hash_123',
+          'diff-index --cached --name-only --no-renames --diff-filter=DT -z commit_hash_123 -- :/',
         ].includes(args.join(' '))
       )
         return '';
       if (args.join(' ') === 'rev-parse HEAD') {
         return 'commit_hash_123';
       }
-      if (args.join(' ') === 'fetch origin') {
+      if (args.join(' ') === 'fetch origin +refs/heads/main:refs/remotes/origin/main') {
         return 'fetched';
       }
-      if (args.join(' ') === 'reset --hard refs/remotes/origin/main') {
+      if (args.join(' ') === 'reset --hard commit_hash_123') {
         return 'reset';
       }
       throw new Error('unexpected git command: ' + args.join(' '));
@@ -678,19 +735,23 @@ describe('dev domain', () => {
       previousCommit: 'commit_hash_123',
       currentCommit: 'commit_hash_123',
       output:
-        'Preview: ZaoWu will run `git fetch origin` and `git reset --hard refs/remotes/origin/main`.',
+        'Preview: ZaoWu will run `git fetch origin +refs/heads/main:refs/remotes/origin/main` and `git reset --hard <verified-origin-commit>`.',
       operationPlan: {
         risk: 'high',
         confirmationRequired: true,
         reads: [
           'current Git branch',
+          'Git worktree identity and origin fetch URL',
           'current HEAD commit',
           'current Git status',
           'tracked Git diff',
           'origin branch history',
           'untracked and ignored reset collisions',
         ],
-        executes: ['git fetch origin', 'git reset --hard refs/remotes/origin/main'],
+        executes: [
+          'git fetch origin +refs/heads/main:refs/remotes/origin/main',
+          'git reset --hard <verified-origin-commit>',
+        ],
         network: ['git remote origin'],
       },
     });
@@ -705,7 +766,10 @@ describe('dev domain', () => {
       operationPlan: {
         risk: 'high',
         confirmationRequired: false,
-        executes: ['git fetch origin', 'git reset --hard refs/remotes/origin/main'],
+        executes: [
+          'git fetch origin +refs/heads/main:refs/remotes/origin/main',
+          'git reset --hard <verified-origin-commit>',
+        ],
         network: ['git remote origin'],
       },
     });
@@ -715,29 +779,32 @@ describe('dev domain', () => {
     const calls: string[] = [];
     const runner: DevCommandRunner = (_command, args) => {
       calls.push(args.join(' '));
-      if (args.join(' ') === 'status --short --branch -z') {
+      if (args.join(' ') === 'status --porcelain=v1 --branch --untracked-files=normal -z') {
         return '## main...origin/main [ahead 2]\nM  packages/dev/src/index.ts\n M README.md\n';
       }
-      if (args.join(' ') === 'symbolic-ref --quiet --short HEAD') return 'main';
+      if (args.join(' ') === 'rev-parse --absolute-git-dir') return '/fixture/.git';
+      if (args.join(' ') === 'remote get-url origin') return 'fixture-origin';
+      if (args.join(' ') === 'symbolic-ref --quiet HEAD') return 'refs/heads/main';
       if (args.join(' ') === 'rev-parse --verify refs/remotes/origin/main')
         return 'commit_hash_123';
-      if (args.join(' ') === 'rev-list --count refs/remotes/origin/main..HEAD') return '2';
+      if (args.join(' ') === 'rev-list --count commit_hash_123..HEAD') return '2';
       if (
         [
-          'diff --cached --binary --no-ext-diff --no-textconv --no-color',
-          'diff HEAD --binary --no-ext-diff --no-textconv --no-color',
+          'diff --cached --binary --no-ext-diff --no-textconv --no-color --no-relative',
+          'diff HEAD --binary --no-ext-diff --no-textconv --no-color --no-relative',
           'ls-files --full-name --others --directory -z -- :/',
-          'ls-tree --full-tree -r --name-only -z refs/remotes/origin/main',
+          'ls-tree --full-tree -r --name-only -z commit_hash_123',
+          'diff-index --cached --name-only --no-renames --diff-filter=DT -z commit_hash_123 -- :/',
         ].includes(args.join(' '))
       )
         return '';
       if (args.join(' ') === 'rev-parse HEAD') {
         return 'commit_hash_123';
       }
-      if (args.join(' ') === 'fetch origin') {
+      if (args.join(' ') === 'fetch origin +refs/heads/main:refs/remotes/origin/main') {
         return 'fetched';
       }
-      if (args.join(' ') === 'reset --hard refs/remotes/origin/main') {
+      if (args.join(' ') === 'reset --hard commit_hash_123') {
         return 'reset';
       }
       throw new Error('unexpected git command: ' + args.join(' '));
@@ -747,7 +814,7 @@ describe('dev domain', () => {
     expect(() => syncDevRepo(runner, { yes: true })).toThrow(
       'Local Git changes require explicit discard confirmation.'
     );
-    expect(calls).not.toContain('fetch origin');
+    expect(calls).not.toContain('fetch origin +refs/heads/main:refs/remotes/origin/main');
 
     expect(syncDevRepo(runner, { yes: true, discardLocal: true })).toMatchObject({
       status: 'ok',
@@ -763,16 +830,20 @@ describe('dev domain', () => {
   it('parses quoted file paths with spaces correctly', () => {
     const runner: DevCommandRunner = (_command, args) => {
       if (
-        args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+        args.join(' ') ===
+        'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color --no-relative'
       ) {
         return '"some folder/file with spaces.ts"';
       }
-      if (args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color') {
+      if (
+        args.join(' ') ===
+        'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color --no-relative'
+      ) {
         return '2\t1\t"some folder/file with spaces.ts"';
       }
       if (
         args.join(' ') ===
-        'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+        'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color --no-relative'
       ) {
         return [
           'diff --git a/"some folder/file with spaces.ts" b/"some folder/file with spaces.ts"',
@@ -799,16 +870,20 @@ describe('dev domain', () => {
   it('classifies test-only staged changes as a test commit', () => {
     const runner: DevCommandRunner = (_command, args) => {
       if (
-        args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+        args.join(' ') ===
+        'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color --no-relative'
       ) {
         return 'packages/dev/src/index.test.ts';
       }
-      if (args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color') {
+      if (
+        args.join(' ') ===
+        'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color --no-relative'
+      ) {
         return '5\t1\tpackages/dev/src/index.test.ts';
       }
       if (
         args.join(' ') ===
-        'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+        'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color --no-relative'
       ) {
         return '';
       }
@@ -823,16 +898,20 @@ describe('dev domain', () => {
   it('does not classify files merely ending in package.json as dependency changes', () => {
     const runner: DevCommandRunner = (_command, args) => {
       if (
-        args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+        args.join(' ') ===
+        'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color --no-relative'
       ) {
         return 'packages/dev/src/fixtures/my-package.json';
       }
-      if (args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color') {
+      if (
+        args.join(' ') ===
+        'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color --no-relative'
+      ) {
         return '5\t1\tpackages/dev/src/fixtures/my-package.json';
       }
       if (
         args.join(' ') ===
-        'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+        'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color --no-relative'
       ) {
         return '';
       }

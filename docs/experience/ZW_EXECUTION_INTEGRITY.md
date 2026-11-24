@@ -51,8 +51,10 @@ reading an incomplete answer. No real model credentials are needed for tests.
 
 ## 9. Safety
 
-Bind write targets to their working directory. Recheck confirmed configuration
-output and original file content before replacement. Write complete config files
+Resolve document and data export targets through their physical parent directories.
+Report existing targets and missing output directories at preview time, then
+create the reviewed output exclusively. Recheck configuration output paths and
+original file content before replacement. Write complete config files
 through a temporary sibling, preserve permissions, refuse redirected targets, and
 clean temporary files on failure. New files use exclusive creation semantics.
 Plugin removal rechecks the confirmed manifest state before unlinking it.

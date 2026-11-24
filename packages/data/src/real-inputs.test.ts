@@ -5,7 +5,14 @@ import JSZip from 'jszip';
 import * as XLSX from 'xlsx';
 import { afterEach, describe, expect, it } from 'vitest';
 import { assertWorkbookSize } from './input-limits';
-import { analyzeData, inferDataSchema, inspectData, sampleData } from './index';
+import {
+  analyzeData,
+  cleanData,
+  inferDataSchema,
+  inspectData,
+  listSheets,
+  sampleData,
+} from './index';
 
 const roots: string[] = [];
 afterEach(async () => {
@@ -67,6 +74,27 @@ describe('real bounded data inputs', () => {
     );
     const target = await file('sparse.xlsx', await zip.generateAsync({ type: 'nodebuffer' }));
     await expect(inspectData(target)).rejects.toMatchObject({ code: 'DATA_INPUT_TOO_LARGE' });
+  });
+
+  it('selects worksheet names exactly as listed and reports trimmed XLSX cells', async () => {
+    const workbook = XLSX.utils.book_new();
+    for (const name of ['Sales', ' Sales ']) {
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([[' id '], [name]]), name);
+    }
+    const target = await file(
+      'names.xlsx',
+      XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' })
+    );
+    const { sheets } = await listSheets(target);
+    expect(sheets).toEqual(['Sales', ' Sales ']);
+    await expect(cleanData(target, { sheet: sheets[1] })).resolves.toMatchObject({
+      sheetName: ' Sales ',
+      trimmedCells: 2,
+      content: 'id\nSales\n',
+    });
+    await expect(sampleData(target, { sheet: 'toString' })).rejects.toMatchObject({
+      code: 'DATA_SHEET_NOT_FOUND',
+    });
   });
 
   it('stops a highly compressed workbook at the actual inflation budget', async () => {
@@ -133,5 +161,16 @@ describe('real bounded data inputs', () => {
       count: 2,
       nonNumericCount: 1,
     });
+  });
+
+  it.each([
+    [[Number.MAX_VALUE, Number.MAX_VALUE, Number.MAX_VALUE], Number.MAX_VALUE],
+    [[Number.MAX_VALUE, Number.MAX_VALUE, -Number.MAX_VALUE], Number.MAX_VALUE / 3],
+    [[Number.MAX_VALUE, -Number.MAX_VALUE, 4 * Number.MIN_VALUE], Number.MIN_VALUE],
+    [[Number.MIN_VALUE, Number.MIN_VALUE, 0], Number.MIN_VALUE],
+    [[1e16, 1, -1e16], 1 / 3],
+  ] as const)('keeps the numeric average of %j representable', async (values, expected) => {
+    const target = await file('mean.csv', 'value\n' + values.join('\n'));
+    expect((await analyzeData(target)).numericColumns[0].average).toBe(expected);
   });
 });

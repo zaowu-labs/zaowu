@@ -37,5 +37,5 @@ export const runSystemCommand: CommandRunner = (command, args, options) => {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
   });
-  return output.includes('\0') ? output : output.trim();
+  return command === 'git' || output.includes('\0') ? output : output.trim();
 };

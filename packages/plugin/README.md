@@ -5,6 +5,10 @@ Local plugin manifest package for ZaoWu.
 This package validates local plugin manifests and previews install or remove
 operations under `.zaowu/plugins`.
 
+To check a local bundle containing `plugin.json` or `zaowu.plugin.json`,
+call `validatePluginSource("./bundle")` from Node.js or run
+`zw plugin validate ./bundle` with the [ZaoWu CLI](https://www.npmjs.com/package/@zaowu-labs/cli).
+
 Safety:
 
 - Install and remove preview by default.
@@ -19,3 +23,8 @@ Safety:
   omitted from list results. Directory read failures produce a recovery error.
 - Removal rechecks the confirmed manifest content before deleting it. Install
   plans bind the id and resolved source; the timestamp is generated on confirmation.
+- An explicit source naming a local directory resolves against the project,
+  including a bare name such as `--source bundle`. Its manifest id must match
+  the installation id.
+- Validation reports unsupported fields and empty display names or versions.
+  The JSON result includes `manifest` only when it passes validation.

@@ -16,6 +16,7 @@ import {
   getValue,
   parsePositiveInteger,
   requireTarget,
+  resolveExportTarget,
   resolveFileTarget,
   result,
   withOperationPlan,
@@ -62,10 +63,7 @@ export const handleDataAnalyze: DomainActionHandler = async (args, context) => {
 
 export const handleDataClean: DomainActionHandler = async (args, context) => {
   const target = resolveFileTarget(context, requireTarget(args, 'zw data clean'));
-  const requestedOutputPath = getValue(context.parsed, '--output');
-  const outputPath = requestedOutputPath
-    ? resolveFileTarget(context, requestedOutputPath)
-    : undefined;
+  const outputPath = await resolveExportTarget(context, 'data');
   const sheet = getValue(context.parsed, '--sheet');
   // One options object for both the preview and the confirmed call: the
   // fingerprint the user confirms is computed from the preview, so the two

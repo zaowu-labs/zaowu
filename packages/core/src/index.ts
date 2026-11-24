@@ -24,8 +24,10 @@ export {
   assertSafeOutputPath,
   isPathEscapingDirectory,
   pathExists,
+  prepareExclusiveOutputPath,
   readBoundedFile,
   readTextFileOrThrow,
   writeTextFileExclusive,
 } from './fs.js';
-export { stripUtf8Bom } from './text.js';
+export { decodeTextBytes, stripUtf8Bom } from './text.js';
+export { scanMarkdown, type MarkdownScan } from './markdown.js';

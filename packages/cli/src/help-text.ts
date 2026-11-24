@@ -178,10 +178,12 @@ Options:
     clean: `ZaoWu Data Clean
 
 Usage:
-  zw data clean <file.csv|file.tsv|file.json|file.xlsx> [--output <path>] [--yes] [options]
+  zw data clean <file.csv|file.tsv|file.xlsx> [--output <path>] [--yes] [options]
 
 Description:
   Trim cells, remove empty lines, and preview cleaned output by default.
+  Use .csv or .tsv to select the delimiter. Stdout, .txt, and extensionless paths
+  use the source delimiter (CSV for XLSX). Use CSV for cells with tabs or newlines.
 
 Options:
   --output <path>    Output file path
@@ -284,7 +286,7 @@ Description:
 Options:
   --dry-run          Force preview mode
   --yes              Execute the synchronization immediately, discarding any local divergence
-  --discard-local    Required with --yes when tracked changes or local ahead commits would be discarded
+  --discard-local    Required with --yes to discard tracked changes, local commits, or obstructing untracked or ignored paths
   --plan-fingerprint <hash>
                      Require the current plan to match a prior preview
   --json             Output machine-readable JSON`,

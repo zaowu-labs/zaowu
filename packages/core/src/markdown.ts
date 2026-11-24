@@ -1,6 +1,7 @@
 export interface MarkdownScan {
   headings: Array<{ level: number; title: string; line: number }>;
   prose: string[];
+  firstProseLine?: number;
   codeBlockCount: number;
 }
 
@@ -33,7 +34,10 @@ export const scanMarkdown = (content: string): MarkdownScan => {
     const heading = /^ {0,3}(#{1,6})\s+(.+?)(?:\s+#+)?\s*$/.exec(line);
     if (heading)
       result.headings.push({ level: heading[1].length, title: heading[2].trim(), line: index + 1 });
-    else if (line.trim()) result.prose.push(line.trim());
+    else if (line.trim()) {
+      result.firstProseLine ??= index + 1;
+      result.prose.push(line.trim());
+    }
   }
   return result;
 };

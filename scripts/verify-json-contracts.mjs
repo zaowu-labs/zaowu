@@ -685,17 +685,17 @@ try {
 const runner = (_command, args) => {
   const key = args.join(' ');
 
-  if (key === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color') {
+  if (key === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color --no-relative') {
     return 'packages/dev/src/index.ts';
   }
 
-  if (key === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color') {
+  if (key === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color --no-relative') {
     return '2\t1\tpackages/dev/src/index.ts';
   }
 
   if (
     key ===
-    'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+    'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color --no-relative'
   ) {
     return [
       'diff --git a/packages/dev/src/index.ts b/packages/dev/src/index.ts',
@@ -706,19 +706,22 @@ const runner = (_command, args) => {
     ].join('\n');
   }
 
-  if (key === 'status --short --branch -z') {
+  if (key === 'status --porcelain=v1 --branch --untracked-files=normal -z') {
     return '## main\nM  packages/dev/src/index.ts';
   }
 
-  if (key === 'symbolic-ref --quiet --short HEAD') return 'main';
+  if (key === 'rev-parse --absolute-git-dir') return '/fixture/.git';
+  if (key === 'remote get-url origin') return 'fixture-origin';
+  if (key === 'symbolic-ref --quiet HEAD') return 'refs/heads/main';
   if (key === 'rev-parse --verify refs/remotes/origin/main') return 'commit_hash_123';
-  if (key === 'rev-list --count refs/remotes/origin/main..HEAD') return '2';
+  if (key === 'rev-list --count commit_hash_123..HEAD') return '2';
   if (
     [
-      'diff --cached --binary --no-ext-diff --no-textconv --no-color',
-      'diff HEAD --binary --no-ext-diff --no-textconv --no-color',
+      'diff --cached --binary --no-ext-diff --no-textconv --no-color --no-relative',
+      'diff HEAD --binary --no-ext-diff --no-textconv --no-color --no-relative',
       'ls-files --full-name --others --directory -z -- :/',
-      'ls-tree --full-tree -r --name-only -z refs/remotes/origin/main',
+      'ls-tree --full-tree -r --name-only -z commit_hash_123',
+      'diff-index --cached --name-only --no-renames --diff-filter=DT -z commit_hash_123 -- :/',
     ].includes(key)
   )
     return '';
@@ -726,11 +729,11 @@ const runner = (_command, args) => {
     return 'commit_hash_123';
   }
 
-  if (key === 'fetch origin') {
+  if (key === 'fetch origin +refs/heads/main:refs/remotes/origin/main') {
     return 'fetched';
   }
 
-  if (key === 'reset --hard refs/remotes/origin/main') {
+  if (key === 'reset --hard commit_hash_123') {
     return 'reset';
   }
 
@@ -790,7 +793,7 @@ assert(
 );
 assert(devSync.status === 'ok', 'dev sync confirmed mode must succeed.');
 assert(
-  devSyncPreview.operationPlan?.executes?.includes('git reset --hard refs/remotes/origin/main'),
+  devSyncPreview.operationPlan?.executes?.includes('git reset --hard <verified-origin-commit>'),
   'dev sync preview must disclose the hard reset command.'
 );
 assert(
@@ -1169,8 +1172,7 @@ try {
     'CLI dev sync preview should require confirmation.'
   );
   assert(
-    cliDevSync.operationPlan?.executes?.includes('git reset --hard refs/remotes/origin/master') ||
-      cliDevSync.operationPlan?.executes?.includes('git reset --hard refs/remotes/origin/main'),
+    cliDevSync.operationPlan?.executes?.includes('git reset --hard <verified-origin-commit>'),
     'CLI dev sync preview should disclose its hard reset target.'
   );
   assert(
@@ -1184,7 +1186,9 @@ try {
     'CLI dev sync preview should bind the current Git status.'
   );
   assert(
-    cliStatus.operationPlan?.executes?.includes('git status --short --branch'),
+    cliStatus.operationPlan?.executes?.includes(
+      'git status --porcelain=v1 --branch --untracked-files=normal'
+    ),
     'CLI dev status operation plan should disclose git status.'
   );
   assert(cliCommit.schemaVersion === 1, 'CLI dev commit schemaVersion must be 1.');

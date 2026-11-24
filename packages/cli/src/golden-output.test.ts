@@ -132,20 +132,22 @@ describe('golden command output contracts', () => {
     const result = await executeCli(['dev', 'review', '--staged'], {
       commandRunner: (_command, args) => {
         if (
-          args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+          args.join(' ') ===
+          'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color --no-relative'
         ) {
           return 'packages/dev/src/index.ts\npackages/dev/src/index.test.ts';
         }
 
         if (
-          args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color'
+          args.join(' ') ===
+          'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color --no-relative'
         ) {
           return '1\t0\tpackages/dev/src/index.ts\n1\t0\tpackages/dev/src/index.test.ts';
         }
 
         if (
           args.join(' ') ===
-          'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+          'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color --no-relative'
         ) {
           return [
             'diff --git a/packages/dev/src/index.ts b/packages/dev/src/index.ts',
@@ -172,20 +174,22 @@ describe('golden command output contracts', () => {
     const result = await executeCli(['dev', 'commit'], {
       commandRunner: (_command, args) => {
         if (
-          args.join(' ') === 'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color'
+          args.join(' ') ===
+          'diff --cached --name-only -z --no-ext-diff --no-textconv --no-color --no-relative'
         ) {
           return 'packages/dev/src/index.ts';
         }
 
         if (
-          args.join(' ') === 'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color'
+          args.join(' ') ===
+          'diff --cached --numstat -z --no-ext-diff --no-textconv --no-color --no-relative'
         ) {
           return '1\t0\tpackages/dev/src/index.ts';
         }
 
         if (
           args.join(' ') ===
-          'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color'
+          'diff --cached --unified=0 --src-prefix=a/ --dst-prefix=b/ --no-ext-diff --no-textconv --no-color --no-relative'
         ) {
           return [
             'diff --git a/packages/dev/src/index.ts b/packages/dev/src/index.ts',

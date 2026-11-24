@@ -4,6 +4,24 @@ import { describe, expect, it, vi } from 'vitest';
 import { askAI } from './index';
 
 describe('complete JSON model answers', () => {
+  it.each(['openai', 'anthropic'])(
+    'preserves the outer whitespace of %s text blocks',
+    async (provider) => {
+      const text = '  indented example\n\n';
+      const payload =
+        provider === 'openai'
+          ? { output: [{ content: [{ type: 'output_text', text }] }] }
+          : { content: [{ type: 'text', text }] };
+      const answer = await askAI({
+        provider,
+        prompt: 'Example',
+        allowNetwork: true,
+        env: { OPENAI_API_KEY: 'test', ANTHROPIC_API_KEY: 'test' },
+        fetcher: async () => Response.json(payload),
+      });
+      expect(answer.output).toBe(text);
+    }
+  );
   it.each([
     ['openai', { status: 'incomplete', output_text: 'partial' }],
     ['openai', { status: 'failed', output_text: 'partial' }],
@@ -161,5 +179,47 @@ describe('stream line limits', () => {
     await expect(readAIStream(response, 'ollama', vi.fn())).resolves.toMatchObject({
       output: 'complete',
     });
+  });
+
+  it('finishes a CR-delimited SSE response immediately on the last blank line', async () => {
+    const body = new ReadableStream<Uint8Array>(
+      {
+        start(controller) {
+          controller.enqueue(
+            Buffer.from(
+              'data: {"type":"response.output_text.delta","delta":"ok"}\r\r' +
+                'data: {"type":"response.completed","response":{"status":"completed"}}\r\r'
+            )
+          );
+        },
+        pull(controller) {
+          controller.error(new Error('Request read past a complete terminal event'));
+        },
+      },
+      { highWaterMark: 0 }
+    );
+    await expect(
+      readAIStream(
+        { ok: true, status: 200, statusText: 'OK', body, json: async () => null },
+        'openai',
+        vi.fn()
+      )
+    ).resolves.toMatchObject({ output: 'ok' });
+  });
+
+  it('keeps multiline SSE events together when CRLF is split between chunks', async () => {
+    const response = responseWithChunks([
+      'event: response.output_text.delta\r',
+      '\ndata: {"type":"response.output_text.delta",\r',
+      '\ndata: "delta":"ok"}\r',
+      '\n\r',
+      '\n',
+      'data: {"type":"response.completed","response":{"status":"completed"}}\n\n',
+    ]);
+    const onChunk = vi.fn();
+    await expect(readAIStream(response, 'openai', onChunk)).resolves.toMatchObject({
+      output: 'ok',
+    });
+    expect(onChunk.mock.calls).toEqual([['ok']]);
   });
 });

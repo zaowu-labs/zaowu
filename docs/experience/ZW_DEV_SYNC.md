@@ -7,7 +7,11 @@ explicitly previewed fetch and hard reset.
 
 ## Safety
 
-- The command previews by default.
+- The command previews by default. Execution validates the supplied fingerprint
+  against the snapshot it will use before fetching.
+- Fetch the named branch explicitly. If it has been deleted on origin, stop
+  before resetting, even when a cached tracking ref still exists. Inspect the
+  fetched commit and pass its object ID to the reset.
 - Execution requires `--yes`.
 - If tracked changes, commits unique to the local branch, or untracked/ignored
   paths obstructing files in `origin/<branch>` are present, execution also
@@ -22,13 +26,20 @@ explicitly previewed fetch and hard reset.
   - current Git status
   - staged and tracked working-copy content
   - origin branch history and untracked/ignored reset collisions
-  - `git fetch origin`
-  - `git reset --hard refs/remotes/origin/<branch>`
+  - `git fetch origin +refs/heads/<branch>:refs/remotes/origin/<branch>`
+  - `git reset --hard <verified-origin-commit>`
   - network access to the origin remote
-- The operation plan fingerprint must bind the branch, current HEAD, and a
-  normalized Git status digest, tracked diff digest, and cached origin target
-  so stale confirmations fail if local state changes between preview and
-  execution. A second local-state check after fetch stops concurrent edits.
+- The operation plan fingerprint binds the full local branch identity, current
+  HEAD, worktree and origin, normalized Git status, tracked diff, cached origin
+  target, and the contents of obstructing paths. For obstructing directories,
+  this includes entries beneath them. For symbolic links, it includes the link
+  destination without reading its referent. Unreadable obstructions stop the sync.
+  Each inspection reads up to 64 MiB and 4,096 entries across the obstructing
+  paths. Move larger obstructions to a backup location before trying again.
+  A second local-state check after fetch stops edits outside the reviewed plan.
+  A fingerprinted confirmation requires a fresh preview if the fetch exposes
+  a new obstructing path or changes the target with local commits to discard.
+  Shared directories are inspected for individual obstructing paths.
 - Confirmed output must set `operationPlan.confirmationRequired` to `false`.
 - `--plan-fingerprint` must reject a changed branch or reset target.
 - Expected Git failures use structured ZaoWu errors without raw stack traces.

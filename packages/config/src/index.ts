@@ -4,8 +4,8 @@ import {
   replaceConfigFile,
   type ConfigWriteOptions,
 } from './write.js';
-import { constants } from 'node:fs';
-import { access, stat } from 'node:fs/promises';
+import { isUtf8 } from 'node:buffer';
+import { lstat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import YAML from 'yaml';
@@ -258,12 +258,20 @@ const YAML_CONFIG_LAYOUT: readonly {
   },
 ];
 
-const isReadableFile = async (filePath: string): Promise<boolean> => {
+const isConfigCandidate = async (filePath: string): Promise<boolean> => {
   try {
-    await access(filePath, constants.R_OK);
-    return (await stat(filePath)).isFile();
-  } catch {
-    return false;
+    const entry = await lstat(filePath);
+    // Select a local link even when its destination is missing. The bounded
+    // file read reports the error before callers can fall back to a parent.
+    return entry.isFile() || entry.isSymbolicLink();
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
+    throw new ZaoWuError({
+      code: 'CONFIG_PARSE_FAILED',
+      message: 'Could not inspect ZaoWu config.',
+      why: `The configuration path \`${filePath}\` is inaccessible.`,
+      fix: 'Check the directory permissions before reading or editing the config.',
+    });
   }
 };
 
@@ -281,7 +289,7 @@ export const getGlobalConfigPath = (): string => {
 
 export const loadGlobalConfig = async (): Promise<ZaoWuConfig | null> => {
   const globalPath = getGlobalConfigPath();
-  if (await isReadableFile(globalPath)) {
+  if (await isConfigCandidate(globalPath)) {
     const loaded = await loadConfig(globalPath);
     return parseConfig(loaded.content, globalPath);
   }
@@ -358,7 +366,7 @@ export const findConfigFile = async (
     for (const name of names) {
       const candidate = path.join(currentDirectory, name);
 
-      if (await isReadableFile(candidate)) {
+      if (await isConfigCandidate(candidate)) {
         return candidate;
       }
     }
@@ -375,26 +383,32 @@ export const findConfigFile = async (
 
 export const loadConfig = async (filePath: string): Promise<LoadedConfig> => {
   const resolvedPath = path.resolve(filePath);
-  const content = (
-    await readBoundedFile(resolvedPath, MAX_CONFIG_BYTES, {
-      failed: {
-        code: 'CONFIG_PARSE_FAILED',
-        message: 'Could not read ZaoWu config.',
-        why: `The configuration at \`${resolvedPath}\` is not a readable regular file.`,
-        fix: 'Check the path and file permissions.',
-      },
-      tooLarge: {
-        code: 'CONFIG_PARSE_FAILED',
-        message: 'ZaoWu config is too large.',
-        why: 'Configuration files are limited to one MiB.',
-        fix: 'Reduce the config file to project preferences and move large data to separate files.',
-      },
-    })
-  ).toString('utf8');
+  const bytes = await readBoundedFile(resolvedPath, MAX_CONFIG_BYTES, {
+    failed: {
+      code: 'CONFIG_PARSE_FAILED',
+      message: 'Could not read ZaoWu config.',
+      why: `The configuration at \`${resolvedPath}\` is not a readable regular file.`,
+      fix: 'Check the path and file permissions.',
+    },
+    tooLarge: {
+      code: 'CONFIG_PARSE_FAILED',
+      message: 'ZaoWu config is too large.',
+      why: 'Configuration files are limited to one MiB.',
+      fix: 'Reduce the config file to project preferences and move large data to separate files.',
+    },
+  });
+  if (!isUtf8(bytes)) {
+    throw new ZaoWuError({
+      code: 'CONFIG_PARSE_FAILED',
+      message: 'Could not read ZaoWu config as UTF-8.',
+      why: `The configuration at \`${resolvedPath}\` contains invalid UTF-8 bytes.`,
+      fix: 'Save the config file as UTF-8 and retry.',
+    });
+  }
 
   return {
     filePath: resolvedPath,
-    content,
+    content: bytes.toString('utf8'),
   };
 };
 
@@ -571,6 +585,15 @@ const normalizeConfigValue = (key: ConfigKey, value: string): string | null => {
   }
 
   return trimmed;
+};
+
+const assertWritableConfigSize = (content: string): void => {
+  if (Buffer.byteLength(content, 'utf8') > MAX_CONFIG_BYTES) {
+    throw configValueInvalidError(
+      'The resulting configuration would exceed the one MiB config file limit.',
+      'Shorten the value or reduce the config file size and preview the change again.'
+    );
+  }
 };
 
 const getConfigValue = (config: ZaoWuConfig, key: ConfigKey): string | null =>
@@ -804,7 +827,7 @@ export const setResolvedConfigValue = async (
   let originalContent: string | null = null;
   let currentConfig = createDefaultConfig();
 
-  if (await isReadableFile(filePath)) {
+  if (!options.global || (await isConfigCandidate(filePath))) {
     const loaded = await loadConfig(filePath);
     loadedContent = loaded.content;
     originalContent = loaded.content;
@@ -833,6 +856,7 @@ export const setResolvedConfigValue = async (
     content = serializeConfig(nextConfig, filePath);
   }
 
+  assertWritableConfigSize(content);
   if (options.yes) {
     assertExpectedConfigContent(content, options.expectedContent);
     await replaceConfigFile(filePath, content, originalContent);
@@ -863,6 +887,7 @@ export const migrateResolvedConfig = async (
   const content = serializeConfig(config, filePath);
   const changed = fromVersion !== 1 || stripUtf8Bom(loaded.content) !== content;
 
+  assertWritableConfigSize(content);
   if (options.yes) assertExpectedConfigContent(content, options.expectedContent);
   if (!changed) {
     return {
