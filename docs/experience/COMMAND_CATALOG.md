@@ -192,7 +192,7 @@ Current format support:
 | ----------------- | ----------------------------------- | -------------------------------------------- |
 | `zw data inspect` | Show table shape and missing values | `zw data inspect sales.xlsx --sheet Q1`      |
 | `zw data analyze` | Analyze numeric columns             | `zw data analyze sales.csv`                  |
-| `zw data clean`   | Trim values and remove empty lines  | `zw data clean sales.csv --output clean.csv` |
+| `zw data clean`   | Trim values and export CSV or TSV   | `zw data clean sales.tsv --output clean.csv` |
 | `zw data schema`  | Infer lightweight column schema     | `zw data schema sales.xlsx --sheet Q1`       |
 | `zw data sample`  | Show sample rows                    | `zw data sample sales.csv --rows 3`          |
 

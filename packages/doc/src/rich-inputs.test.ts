@@ -1,4 +1,4 @@
-import { mkdtemp, open, rm, writeFile } from 'node:fs/promises';
+import { access, mkdtemp, open, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import JSZip from 'jszip';
@@ -26,6 +26,42 @@ const p = (text: string, properties = ''): string =>
   `<w:p>${properties}<w:r><w:t>${text}</w:t></w:r></w:p>`;
 
 describe('bounded rich document extraction', () => {
+  it.each(['little', 'big'])(
+    'reads BOM-marked %s-endian UTF-16 text before extracting structure',
+    async (endian) => {
+      const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-doc-encoding-'));
+      roots.push(root);
+      const bytes = Buffer.from('\uFEFF# 周报\r\n\r\n正文 🌱。\r\n', 'utf16le');
+      const file = path.join(root, 'report.md');
+      await writeFile(file, endian === 'big' ? bytes.swap16() : bytes);
+      await expect(summarizeDocument(file)).resolves.toMatchObject({
+        title: '周报',
+        summary: '正文 🌱。',
+      });
+      const html = path.join(root, 'report.htm');
+      const markup = Buffer.from('\uFEFF<h1>周报</h1><p>正文</p>', 'utf16le');
+      await writeFile(html, endian === 'big' ? markup.swap16() : markup);
+      await expect(outlineDocument(html)).resolves.toMatchObject({ outline: [{ title: '周报' }] });
+    }
+  );
+
+  it.each([
+    ['malformed UTF-8', Buffer.from([0x61, 0xff, 0x62])],
+    ['truncated UTF-16', Buffer.from([0xff, 0xfe, 0x61])],
+    ['embedded NUL', Buffer.from('a\0b')],
+  ] as const)('rejects %s before creating converted output', async (_name, bytes) => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'zaowu-doc-encoding-'));
+    roots.push(root);
+    const file = path.join(root, 'report.txt');
+    const outputPath = path.join(root, 'output.md');
+    await writeFile(file, bytes);
+    await expect(convertDocument(file, { outputPath, yes: true })).rejects.toMatchObject({
+      code: 'DOCUMENT_READ_FAILED',
+      fix: expect.stringContaining('UTF-8'),
+    });
+    await expect(access(outputPath)).rejects.toHaveProperty('code', 'ENOENT');
+  });
+
   it('retains inherited headings, Unicode, safe links, lists, and tables in a real DOCX', async () => {
     const file = await fixture(
       [

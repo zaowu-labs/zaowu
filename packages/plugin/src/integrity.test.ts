@@ -57,6 +57,40 @@ describe('installed plugin metadata integrity', () => {
       await rm(cwd, { recursive: true, force: true });
     }
   });
+  it('uses a bare directory passed as an explicit manifest source', async () => {
+    const cwd = await mkdtemp(path.join(os.tmpdir(), 'zaowu-plugin-local-'));
+    const source = path.join(cwd, 'bundle');
+    try {
+      await mkdir(source);
+      await writeFile(path.join(source, 'plugin.json'), JSON.stringify({ id: 'actual' }));
+      await expect(
+        installPlugin('wrong', { cwd, source: 'bundle', yes: true })
+      ).rejects.toMatchObject({ code: 'PLUGIN_SOURCE_ID_MISMATCH' });
+      const result = await installPlugin('actual', { cwd, source: 'bundle' });
+      expect(result.plugin.source).toBe(source);
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it.each([
+    null,
+    { id: 'valid', name: '' },
+    { id: 'valid', unexpected: 'value' },
+    { id: 'valid', commands: [{ name: 'go', extra: 1 }] },
+  ])('omits invalid manifest data from validation JSON', async (manifest) => {
+    const cwd = await mkdtemp(path.join(os.tmpdir(), 'zaowu-plugin-schema-'));
+    try {
+      const file = path.join(cwd, 'plugin.json');
+      await writeFile(file, JSON.stringify(manifest));
+      const result = await validatePluginSource(file);
+      expect(result.status).toBe('warning');
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result).not.toHaveProperty('manifest');
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
   it('bounds source metadata before parsing', async () => {
     const cwd = await mkdtemp(path.join(os.tmpdir(), 'zaowu-plugin-large-'));
     const file = path.join(cwd, 'plugin.json');

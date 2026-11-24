@@ -7,6 +7,9 @@ and streaming/non-streaming Ollama, OpenAI Responses, and Anthropic adapters use
 Feature packages should depend on this boundary instead of calling providers
 directly.
 
+For a local check, call `listAIProviders()` from Node.js or run `zw ai providers`
+with the [ZaoWu CLI](https://www.npmjs.com/package/@zaowu-labs/cli). Both list adapters without issuing a model request.
+
 `zw ai ask --stdin` consumes one bounded UTF-8 stream. The AI package accepts
 its decoded text as `stdinText`, as an alternative to `filePath`, and includes
 the text in the same combined-request and fingerprint validation as other input.
@@ -17,6 +20,8 @@ Safety:
 - Every HTTP-backed provider, including Ollama, previews by default.
 - Provider requests require explicit confirmation from the CLI path.
 - Operation plans disclose the resolved provider endpoint, including configured base URLs.
+- Reverse proxies can supply a path prefix. For example, `OPENAI_BASE_URL=https://example.test/team/v1`
+  resolves to `https://example.test/team/v1/responses` in both preview and execution.
 - Requests reject HTTP redirects so prompts and credentials cannot be sent to
   another endpoint without a new preview.
 - Each request attempt has a bounded timeout covering both response headers
@@ -46,6 +51,9 @@ responses honor a capped Retry-After delay. It never retries incomplete output.
 UTF-8 is decoded across byte boundaries. Ollama NDJSON requires `done: true`;
 OpenAI SSE requires a successful `response.completed`; Anthropic SSE requires a
 final `end_turn`/`stop_sequence` reason followed by `message_stop`.
+SSE accepts LF, CRLF and CR line endings and finishes at the terminal event even
+if the server keeps the connection open. Completed JSON text blocks retain
+leading indentation and trailing line breaks when returned or saved.
 Malformed JSON, incomplete stop reasons, empty answers, invalid UTF-8, and EOF
 without completion are errors. Metadata, thinking, and tool blocks are not text.
 JSON-compatible proxies may return a complete JSON body instead of a stream.

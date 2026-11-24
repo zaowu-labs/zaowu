@@ -1,5 +1,5 @@
 import { constants } from 'node:fs';
-import { access, open, readFile, writeFile } from 'node:fs/promises';
+import { access, lstat, open, readFile, realpath, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { ZaoWuError, type ZaoWuErrorOptions } from './errors.js';
 import { stripUtf8Bom } from './text.js';
@@ -65,6 +65,29 @@ export const readTextFileOrThrow = async (
     return options.stripBom ? stripUtf8Bom(content) : content;
   } catch {
     throw new ZaoWuError(error);
+  }
+};
+
+/** Resolve the parent for a new output, keeping links at the final name as conflicts. */
+export const prepareExclusiveOutputPath = async (
+  filePath: string,
+  errors: { exists: ZaoWuErrorOptions; failed: ZaoWuErrorOptions }
+): Promise<string> => {
+  try {
+    const absolute = path.resolve(filePath);
+    const parent = await realpath(path.dirname(absolute));
+    const target = path.join(parent, path.basename(absolute));
+    try {
+      await lstat(target);
+      throw new ZaoWuError(errors.exists);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    }
+    await access(parent, constants.W_OK | constants.X_OK);
+    return target;
+  } catch (error) {
+    if (error instanceof ZaoWuError) throw error;
+    throw new ZaoWuError(errors.failed);
   }
 };
 

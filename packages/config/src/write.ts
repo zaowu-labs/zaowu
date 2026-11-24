@@ -57,7 +57,7 @@ export const replaceConfigFile = async (
         failed: writeFailed(filePath),
         tooLarge: changedConfig(),
       });
-      if (current.toString('utf8') !== original) throw changedConfig();
+      if (!current.equals(Buffer.from(original, 'utf8'))) throw changedConfig();
       return info;
     } catch (error) {
       if ((error as { code?: string }).code !== 'ENOENT') throw error;

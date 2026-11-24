@@ -38,6 +38,23 @@ If Git resolves to Apple's `/usr/bin/git` and doctor reports missing developer
 tools, run `xcode-select --install` when ready, or put a standalone Git earlier
 on PATH. [Apple Command Line Tools](https://developer.apple.com/documentation/xcode/installing-the-command-line-tools)
 
+## Preview an export on a Mac volume
+
+When a project directory is reached through a symbolic link, `zw doc convert`
+and `zw data clean` show the physical output path in the preview. Check that
+path before copying the confirmation command, especially for external volumes.
+
+```zsh
+zw data clean sales.tsv --output sales.csv --json
+```
+
+On a case-insensitive volume, an existing `Sales.csv` occupies the requested
+`sales.csv` path. Choose another name and preview again. The `.csv` suffix
+selects comma-separated output even when the source is tab-separated.
+TextEdit documents and Excel CSV/TSV exports can use UTF-8 or UTF-16 with a
+byte-order mark. A UTF-16 Markdown lesson can be used directly with both
+`zw doc outline` and `zw teach plan`.
+
 ## Use the clipboard with ZaoWu
 
 Copy text in any Mac app and inspect what the AI command would receive with

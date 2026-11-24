@@ -260,7 +260,7 @@ export const loadDataTable = async (
 
   if (source.format === 'json') {
     try {
-      const jsonContent = await readDataText(filePath);
+      const jsonContent = await readDataText(filePath, source.format);
       const parsed = JSON.parse(stripUtf8Bom(jsonContent));
       if (
         !parsed ||
@@ -364,9 +364,12 @@ export const loadDataTable = async (
       }
 
       const firstSheetName = workbook.SheetNames[0];
-      const sheetName = options.sheet?.trim() || firstSheetName;
+      const requestedSheet = options.sheet ?? '';
+      const sheetName = workbook.SheetNames.includes(requestedSheet)
+        ? requestedSheet
+        : requestedSheet.trim() || firstSheetName;
 
-      if (options.sheet && !workbook.Sheets[sheetName]) {
+      if (!workbook.SheetNames.includes(sheetName)) {
         throw new ZaoWuError({
           code: 'DATA_SHEET_NOT_FOUND',
           message: 'XLSX sheet was not found.',
@@ -387,7 +390,15 @@ export const loadDataTable = async (
             defval: '',
           }) as unknown[][])
         : [];
-      const normalizedRows = rows.map((row) => row.map((value) => String(value).trim()));
+      let trimmedCellCount = 0;
+      const normalizedRows = rows.map((row) =>
+        row.map((value) => {
+          const original = String(value);
+          const trimmed = original.trim();
+          if (original !== trimmed) trimmedCellCount++;
+          return trimmed;
+        })
+      );
       const width = normalizedRows.reduce((max, row) => Math.max(max, row.length), 0);
       assertTableSize(Math.max(0, normalizedRows.length - 1), width);
       const headers = normalizeHeaders(
@@ -405,7 +416,7 @@ export const loadDataTable = async (
         // Math.max guards the fully-empty-sheet case, where zero rows minus
         // the header slot would otherwise report -1 removed rows.
         emptyLineCount: Math.max(0, normalizedRows.length - 1 - dataRows.length),
-        trimmedCellCount: 0,
+        trimmedCellCount,
       };
     } catch (error) {
       if (error instanceof ZaoWuError) {
@@ -421,7 +432,7 @@ export const loadDataTable = async (
     }
   }
 
-  content = stripUtf8Bom(await readDataText(filePath));
+  content = stripUtf8Bom(await readDataText(filePath, source.format));
 
   const { records, emptyLineCount } =
     source.delimiter === ',' ? parseCsvRecords(content) : parseTsvRecords(content);
@@ -489,6 +500,34 @@ export const inspectData = async (
   };
 };
 
+/** Scale by a power of two only when a direct sum could overflow. */
+const numericAverage = (numbers: number[], min: number, max: number): number => {
+  if (min === max) return min;
+  const count = numbers.length;
+  const scale =
+    Math.max(Math.abs(min), Math.abs(max)) >= Number.MAX_VALUE / (2 * count)
+      ? 2 ** (Math.ceil(Math.log2(count)) + 1)
+      : 1;
+  let sum = 0;
+  let correction = 0;
+  let scalingRemainder = 0;
+  for (const number of numbers) {
+    const value = number / scale;
+    // A power-of-two division is exact except in the subnormal range.
+    scalingRemainder += number - value * scale;
+    const next = sum + value;
+    // Neumaier compensation retains small values through cancellation.
+    correction += Math.abs(sum) >= Math.abs(value) ? sum - next + value : value - next + sum;
+    sum = next;
+  }
+  const scaledSum = sum + correction;
+  const total = scaledSum * scale;
+  const mean = Number.isFinite(total)
+    ? (total + scalingRemainder) / count
+    : scaledSum / (count / scale);
+  return Math.max(min, Math.min(max, mean));
+};
+
 export const analyzeData = async (
   filePath: string,
   options: DataReadOptions = {}
@@ -497,48 +536,33 @@ export const analyzeData = async (
   const numericColumns: NumericColumnAnalysis[] = [];
 
   for (const [index, header] of table.headers.entries()) {
-    const numbers = table.rows
-      .map((row) => (row[index] ?? '').trim())
-      .filter((value) => value && isNumericText(value))
-      .map((value) => Number(value));
-
-    if (numbers.length === 0) {
-      continue;
-    }
-
-    // Reduce instead of Math.min(...numbers)/Math.max(...numbers): spreading a
-    // large numeric column into an argument list throws RangeError (call stack)
-    // once the column has ~100k+ values.
-    let average = 0;
-    let correction = 0;
-    let min = numbers[0];
-    let max = numbers[0];
-
-    for (const value of numbers) {
-      const adjusted = value / numbers.length - correction;
-      const nextAverage = average + adjusted;
-      correction = nextAverage - average - adjusted;
-      average = nextAverage;
-
-      if (value < min) {
-        min = value;
-      }
-
-      if (value > max) {
-        max = value;
+    const numbers: number[] = [];
+    let min = Infinity;
+    let max = -Infinity;
+    let missingCount = 0;
+    let nonNumericCount = 0;
+    for (const row of table.rows) {
+      const text = (row[index] ?? '').trim();
+      if (!text) {
+        missingCount++;
+      } else if (isNumericText(text)) {
+        const value = Number(text);
+        numbers.push(value);
+        min = Math.min(min, value);
+        max = Math.max(max, value);
+      } else {
+        nonNumericCount++;
       }
     }
-
+    if (numbers.length === 0) continue;
     numericColumns.push({
       column: header,
       count: numbers.length,
       min,
       max,
-      average,
-      missingCount: table.rows.filter((row) => !row[index]?.trim()).length,
-      nonNumericCount: table.rows.filter(
-        (row) => row[index]?.trim() && !isNumericText(row[index].trim())
-      ).length,
+      average: numericAverage(numbers, min, max),
+      missingCount,
+      nonNumericCount,
     });
   }
 
@@ -566,10 +590,20 @@ export const cleanData = async (
     });
   }
 
+  const extension = path.extname(options.outputPath ?? '').toLowerCase();
+  if (!['', '.txt', '.csv', '.tsv'].includes(extension)) {
+    throw new ZaoWuError({
+      code: 'DATA_FORMAT_UNSUPPORTED',
+      message: 'Unsupported data clean output format.',
+      why: 'The cleaner writes delimited text and cannot produce the requested file format.',
+      fix: 'Choose a .csv or .tsv output path, or use .txt or no extension for the default delimiter.',
+    });
+  }
   const table = await loadDataTable(inputPath, options);
+  const delimiter = extension === '.csv' ? ',' : extension === '.tsv' ? '\t' : table.delimiter;
   const lines = [
-    serializeDelimitedLine(table.headers, table.delimiter),
-    ...table.rows.map((row) => serializeDelimitedLine(row, table.delimiter)),
+    serializeDelimitedLine(table.headers, delimiter),
+    ...table.rows.map((row) => serializeDelimitedLine(row, delimiter)),
   ];
   const content = `${lines.join('\n')}\n`;
 

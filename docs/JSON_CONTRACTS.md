@@ -332,7 +332,9 @@ Stable fields:
 - `behind`
 - `operationPlan` when routed through the CLI
 
-`zw dev status` reads Git status only and does not modify Git state.
+`staged`, `unstaged`, and `untracked` use repository-root-relative paths,
+including when the command runs in a subdirectory. Before the first commit,
+`branch` reports the name of the initial branch.
 
 ### `zw dev sync --json`
 
@@ -340,15 +342,17 @@ Current result schema: `schemaVersion: 1`.
 
 Schema file: `schemas/zaowu.command.dev-sync.schema.json`.
 
-Sync previews by default. Its operation plan lists `git fetch origin`,
-`git reset --hard refs/remotes/origin/<branch>`, and network access to the origin remote.
+Sync previews by default. Its operation plan lists `git fetch origin +refs/heads/<branch>:refs/remotes/origin/<branch>`,
+`git reset --hard <verified-origin-commit>`, and network access to the origin remote.
 Confirmed results keep the same fingerprint and set
 `confirmationRequired: false`.
 If tracked changes or local commits ahead of `origin/<branch>` exist, `--yes`
 alone returns `GIT_SYNC_DISCARD_CONFIRMATION_REQUIRED`; execution also requires
 `--discard-local`. Obstructing untracked or ignored paths require the same
-acknowledgement. The command rechecks these risks after fetching. Plan subjects
-also bind the cached origin target and staged/working-copy content digests.
+acknowledgement. The fingerprint binds the worktree, origin, branch, cached
+origin commit, tracked edits, and contents of obstructing paths. The command
+rechecks discard risks after fetching the named branch. A deleted branch
+stops the sync before reset.
 
 ### `zw auto validate --json`
 
@@ -416,8 +420,9 @@ Stable fields:
 
 In the foundation version, `message` steps and structured `writeFile` steps can
 execute after confirmation. File writes are create-only and confined to the
-real workflow directory. Shell steps remain blocked even when workflow
-permissions request `prompt`.
+real workflow directory. Before creating the first file, a confirmed run checks
+each planned destination for an existing entry, invalid parent, or duplicate.
+Shell steps remain blocked even when workflow permissions request `prompt`.
 `receipts` is a structured per-step ledger for executed, skipped, and blocked
 work. It preserves target paths and content fingerprints for `writeFile` steps
 without requiring callers to parse human-readable strings.
@@ -429,7 +434,8 @@ Current result schema: `schemaVersion: 1`.
 Schema files: `schemas/zaowu.command.doc-*.schema.json`.
 
 Summary, extract, outline, and search are read-only. Convert reports its input,
-format, content, output path, and write state. CLI conversion adds the shared
+format, content, output path, and write state. CLI export previews resolve the
+physical parent directory and report an occupied destination immediately. Conversion adds the shared
 `operationPlan`; writes remain preview-first when `--output` is used. The CLI
 operation plan binds converted content with `content-sha256` and
 `content-length` subjects so stale confirmations are rejected when the input
@@ -444,7 +450,9 @@ Schema files: `schemas/zaowu.command.data-*.schema.json`.
 Inspect, analyze, schema, and sample expose normalized tabular results. Clean
 reports content and cleanup counts, and adds the shared `operationPlan` through
 the CLI when a write may occur. The CLI operation plan binds cleaned output
-content with `content-sha256` and `content-length` subjects.
+content with `content-sha256` and `content-length` subjects. CSV and TSV output
+extensions select the delimiter, including when converting between them.
+The preview reports the physical output path used for confirmation.
 Schema column types include `date`, `percent`, and `currency` in addition to the
 existing primitive, empty, and mixed classifications.
 
@@ -473,8 +481,9 @@ Current result schema: `schemaVersion: 1`.
 
 Schema files: `schemas/zaowu.command.teach-*.schema.json`.
 
-Plan and quiz return deterministic local results. They do not imply network or
-external AI access.
+Plan and quiz return deterministic local results. For Markdown sources, they
+derive headings and prose from the same scan used by document commands,
+skipping frontmatter and fenced code blocks.
 
 ### Web Commands
 
@@ -489,7 +498,9 @@ Confirmed fetch results bound the displayed body preview and report
 `responseBytesRead`, `maxResponseBytes`, and `bodyLengthExact`. Native streaming
 responses stop at the byte limit instead of buffering an unbounded body.
 At exactly the cap, `bodyLengthExact` is conservatively false without another
-blocking read. Headers and body share one deadline; responses are closed after use.
+blocking read. Preview decoding respects the declared charset, including quoted
+parameters, and emits complete characters at the byte or preview-text limit.
+Headers and body share one deadline; responses are closed after use.
 
 ## Verification
 

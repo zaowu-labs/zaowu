@@ -14,7 +14,7 @@ Terminal PATH, Apple Git, and clipboard examples.
 ## Install
 
 ```bash
-npm install -g @zaowu-labs/cli@1.3.0
+npm install -g @zaowu-labs/cli@1.3.1
 zw --version
 zw doctor
 ```
@@ -22,7 +22,7 @@ zw doctor
 To try the CLI without installing globally:
 
 ```bash
-npx --package @zaowu-labs/cli@1.3.0 zw --help
+npx --package @zaowu-labs/cli@1.3.1 zw --help
 ```
 
 ### npm 12: `EALLOWREMOTE`
@@ -34,7 +34,7 @@ SheetJS 0.20.3, pinned to its official distribution:
 If installation reports `EALLOWREMOTE`, allow URL dependencies for that command:
 
 ```bash
-npm install -g --allow-remote=all @zaowu-labs/cli@1.3.0
+npm install -g --allow-remote=all @zaowu-labs/cli@1.3.1
 zw --version
 zw doctor --json
 ```
@@ -42,7 +42,7 @@ zw doctor --json
 For a single invocation:
 
 ```bash
-npx --allow-remote=all --package @zaowu-labs/cli@1.3.0 zw --help
+npx --allow-remote=all --package @zaowu-labs/cli@1.3.1 zw --help
 ```
 
 `--allow-remote=all` permits URL dependencies for that command, without changing
@@ -142,13 +142,14 @@ Review output includes change categories, diff hunk summaries, deterministic
 risk signals, and recommended validation commands so the next check is explicit.
 Worktree review lists untracked files by name; stage them when you need full Git
 diff context.
-`zw dev sync` is different: it fetches `origin` and hard-resets the current
-branch to `origin/<branch>`. It previews by default and requires `--yes`; local
-tracked changes and diverged local commits can be discarded. When either risk
-is present, confirmed execution also requires `--discard-local`. Untracked or
-ignored paths that obstruct the reset also require `--discard-local`, because
-Git can delete them. Unrelated untracked files remain untouched. Discard risk
-is checked again after fetching, against the actual origin branch.
+`zw dev sync` previews the fetch and hard reset to `origin/<branch>`. Review
+the branch, tracked edits, local-only commits, and any untracked or ignored paths
+the reset would replace. Those risks require `--discard-local` in addition to
+`--yes`. Keep a copy of any work you want to save before confirming. On a
+case-insensitive volume even `Notes.txt` can obstruct a tracked `notes.txt`.
+The command checks the fetched branch again before resetting. If it reports a
+changed plan, run `zw dev sync` again and inspect the new preview.
+See the [sync specification](experience/ZW_DEV_SYNC.md).
 
 Work with supported documents. Text, Markdown-like files, HTML, PDF, and DOCX
 are handled as extracted text in this foundation version. HTML headings and
@@ -159,6 +160,11 @@ zw doc summary zaowu-demo.md
 zw doc outline zaowu-demo.md
 zw doc search zaowu-demo.md Tasks
 ```
+
+For a TextEdit plain-text export, use `.txt`. UTF-8 and UTF-16 with a
+byte-order mark are supported. `zw doc outline` lists Markdown headings outside
+code blocks. `zw doc summary` uses the first three prose lines outside headings,
+frontmatter, and code blocks.
 
 Work with CSV, TSV, or XLSX data. XLSX reads the first worksheet by default and
 supports `--sheet <name>` when a workbook has multiple sheets:
@@ -171,6 +177,14 @@ zw data sample zaowu-demo.csv --rows 3
 zw data clean zaowu-demo.csv --output clean.csv
 zw data clean zaowu-demo.csv --output clean.csv --yes
 ```
+
+For Excel's Unicode Text export, give the tab-separated file a `.tsv` suffix.
+ZaoWu reads UTF-8 and BOM-marked UTF-16 CSV or TSV. To generate UTF-8 CSV, run
+`zw data clean sales.tsv --output sales.csv`. For a workbook, use
+`zw data sheets workbook.xlsx` to see the exact worksheet names, then quote the
+name when passing `--sheet`. A `.csv` or `.tsv` output suffix selects the
+delimiter. The preview shows the physical destination directory even when you
+opened the project through a symbolic link. Confirm after checking that path.
 
 Blank and duplicate headers are normalized to stable names such as `column_3`
 and `name_2` before schema or sample JSON is produced.

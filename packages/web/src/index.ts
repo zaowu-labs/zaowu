@@ -1,3 +1,4 @@
+import { MIMEType } from 'node:util';
 import { createCapabilityLedger, ZaoWuError, type DomainDefinition } from '@zaowu-labs/core';
 
 export interface WebResponseLike {
@@ -272,13 +273,12 @@ const createResponseTextDecoder = (response: WebResponseLike): InstanceType<type
     }
   });
 
-  const charset = /charset=["']?([^;"'\s]+)/i.exec(contentType ?? '')?.[1];
-
-  if (charset) {
+  if (contentType) {
     try {
-      return new TextDecoder(charset);
+      const charset = new MIMEType(contentType).params.get('charset');
+      if (charset) return new TextDecoder(charset.replace(/^'(.+)'$/, '$1'));
     } catch {
-      // Unrecognized charset label — fall through to UTF-8.
+      // Invalid media type or unsupported charset label.
     }
   }
 
@@ -351,12 +351,7 @@ export const fetchWebTarget = async (
 
         if (accepted.byteLength < value.byteLength || observedBytes >= maxResponseBytes) {
           bodyLengthExact = false;
-          // Flush the streaming decoder so a trailing partial multibyte
-          // character it is still holding is not silently dropped, matching
-          // the clean end-of-stream path above.
-          const flushed = decoder.decode();
-          observedCharacters += flushed.length;
-          preview += flushed.slice(0, Math.max(0, maxBodyLength - preview.length));
+          // The following bytes might complete a character. Flush only at true EOF.
           break;
         }
       }
@@ -404,6 +399,9 @@ export const fetchWebTarget = async (
   }
 
   const bodyTruncated = !bodyLengthExact || bodyLength > maxBodyLength;
+  // Character limits are measured in UTF-16 units. Keep complete code points
+  // when a display boundary falls between a supplementary character's surrogates.
+  if (bodyTruncated && /[\ud800-\udbff]$/u.test(body)) body = body.slice(0, -1);
 
   return {
     schemaVersion: 1,

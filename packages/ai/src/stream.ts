@@ -89,7 +89,8 @@ export const readAIStream = async (
     let output = '';
     let completed = false;
     let anthropicStopConfirmed = false;
-    let buffer = '';
+    let partialLine = '';
+    let previousEndedWithCR = false;
     let dataLines: string[] = [];
     let eventName = '';
     let eventCharacters = 0;
@@ -205,26 +206,30 @@ export const readAIStream = async (
       if (eventCharacters > MAX_EVENT_CHARACTERS)
         throw invalidAIStream('A streaming event exceeds the one MiB event limit.');
     };
-    const drain = (flush = false): boolean => {
-      while (!completed) {
-        const match = /[\r\n]/.exec(buffer);
-        if ((match?.index ?? buffer.length) > MAX_EVENT_CHARACTERS)
-          throw invalidAIStream('A streaming line exceeds the one MiB line limit.');
-        if (!match || (!flush && match[0] === '\r' && match.index === buffer.length - 1)) break;
-        const value = buffer.slice(0, match.index);
-        const length = match[0] === '\r' && buffer[match.index + 1] === '\n' ? 2 : 1;
-        buffer = buffer.slice(match.index + length);
-        line(value);
-      }
-      return completed;
+    const appendLinePart = (part: string): void => {
+      if (partialLine.length + part.length > MAX_EVENT_CHARACTERS)
+        throw invalidAIStream('A streaming line exceeds the one MiB line limit.');
+      partialLine += part;
     };
     try {
       await readChunks(response, (text) => {
-        buffer += text;
-        return drain();
+        if (!text) return;
+        // CR ends the line immediately. Only its optional following LF needs
+        // to wait for the next chunk, even when the server keeps the stream open.
+        let start = previousEndedWithCR && text.startsWith('\n') ? 1 : 0;
+        previousEndedWithCR = text.endsWith('\r');
+        const delimiters = /\r\n|[\r\n]/g;
+        delimiters.lastIndex = start;
+        for (let match = delimiters.exec(text); match; match = delimiters.exec(text)) {
+          appendLinePart(text.slice(start, match.index));
+          line(partialLine);
+          if (completed) return true;
+          partialLine = '';
+          start = delimiters.lastIndex;
+        }
+        appendLinePart(text.slice(start));
       });
-      drain(true);
-      if (ndjson && !completed && buffer.trim()) line(buffer);
+      if (ndjson && !completed && partialLine.trim()) line(partialLine);
       if (!completed) throw invalidAIStream('The stream ended without a completion event.');
       if (!output.trim())
         throw invalidAIStream('The completed stream did not contain text output.');

@@ -151,14 +151,14 @@ const invalidCsvQuote = (): ZaoWuError =>
   });
 
 export const parseTsvRecords = (content: string): ParsedDelimitedRecords => {
-  const rawLines = content.split(/\r?\n/);
+  const rawLines = content.split(/\r\n|[\r\n]/);
   const contentLines = rawLines.at(-1) === '' ? rawLines.slice(0, -1) : rawLines;
   const records: ParsedDelimitedLine[] = [];
   let emptyLineCount = 0;
   let widestRecord = 0;
 
   for (const line of contentLines) {
-    if (line.trim() === '') {
+    if (!line.includes('\t') && line.trim() === '') {
       emptyLineCount += 1;
       continue;
     }
@@ -172,15 +172,32 @@ export const parseTsvRecords = (content: string): ParsedDelimitedRecords => {
   return { records, emptyLineCount };
 };
 
-export const serializeDelimitedLine = (values: readonly string[], delimiter: ',' | '\t'): string =>
-  values
+export const serializeDelimitedLine = (
+  values: readonly string[],
+  delimiter: ',' | '\t'
+): string => {
+  const emptySingleCell = values.length === 1 && !values[0].trim();
+  if (delimiter === '\t') {
+    if (emptySingleCell || values.some((value) => /[\t\r\n]/.test(value))) {
+      throw new ZaoWuError({
+        code: 'DATA_FORMAT_UNSUPPORTED',
+        message: 'This record cannot be written as plain TSV.',
+        why: 'A tab or line break inside a cell would split the record. A single empty cell would become a blank line.',
+        fix: 'Choose a .csv output path to preserve the record.',
+      });
+    }
+    return values.map((value) => value.trim()).join(delimiter);
+  }
+  if (emptySingleCell) return '""';
+  return values
     .map((value) => {
       const trimmed = value.trim();
 
-      if (delimiter === ',' && /[",\n\r]/.test(trimmed)) {
+      if (/[",\n\r]/.test(trimmed)) {
         return `"${trimmed.replaceAll('"', '""')}"`;
       }
 
       return trimmed;
     })
     .join(delimiter);
+};

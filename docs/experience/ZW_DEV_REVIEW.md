@@ -128,6 +128,10 @@ retain local results and use `method: "echo"`. AI plans disclose the exact diff
 character count and any truncation at the 100,000-character limit. Review
 prompts end at a complete diff line when truncated. Model findings are
 suggestions; names of untracked files do not imply their contents were reviewed.
+Status, commit previews and reviews use repository-root paths from any
+subdirectory. They include untracked paths when applicable even when Git is
+configured to hide them in interactive status output. Patch content preserves
+trailing whitespace.
 NUL-framed path lists/status preserve special filenames. Patches use fixed path
 prefixes and disable external drivers, text conversion, and color. Optional
 index locking is disabled. Real repository

@@ -167,7 +167,11 @@ const getWorkingTreeSummary = (commandRunner: DevCommandRunner, cwd?: string): G
   parseNumstat(
     runGit(commandRunner, ['diff', '--numstat', '-z'], cwd),
     getChangedFiles(commandRunner, ['diff', '--name-only', '-z'], cwd),
-    getChangedFiles(commandRunner, ['ls-files', '--others', '--exclude-standard', '-z'], cwd)
+    getChangedFiles(
+      commandRunner,
+      ['ls-files', '--others', '--exclude-standard', '--full-name', '-z', '--', ':/'],
+      cwd
+    )
   );
 
 const toPublicDiffHunks = (hunks: readonly ParsedDiffHunk[]): DevDiffHunk[] =>
@@ -778,12 +782,18 @@ export const getDevStatus = (
   commandRunner: DevCommandRunner,
   options: { cwd?: string } = {}
 ): DevStatusResult => {
-  const output = runGit(commandRunner, ['status', '--short', '--branch', '-z'], options.cwd);
+  const output = runGit(
+    commandRunner,
+    ['status', '--porcelain=v1', '--branch', '--untracked-files=normal', '-z'],
+    options.cwd
+  );
   const nulSeparated = output.includes('\0');
   const lines = output.split(nulSeparated ? '\0' : /\r?\n/).filter(Boolean);
   const firstLine = lines[0] ?? '';
   const branch =
-    /^##\s+(.+?)(?:\.{3}.+)?$/.exec(firstLine)?.[1].replace(/\s+\[.+\]$/, '') ?? 'unknown';
+    /^##\s+(?:No commits yet on |Initial commit on )?(.+?)(?:\.{3}.+)?$/
+      .exec(firstLine)?.[1]
+      .replace(/\s+\[.+\]$/, '') ?? 'unknown';
   const ahead = Number.parseInt(/\bahead\s+(\d+)/.exec(firstLine)?.[1] ?? '0', 10) || 0;
   const behind = Number.parseInt(/\bbehind\s+(\d+)/.exec(firstLine)?.[1] ?? '0', 10) || 0;
   const staged: string[] = [];
@@ -894,7 +904,7 @@ export const reviewDevChanges = (
 export const syncDevRepo = (
   commandRunner: DevCommandRunner,
   options: DevSyncOptions = {}
-): DevSyncResult => syncDevRepoInternal(commandRunner, options, getDevStatus);
+): Required<DevSyncResult> => syncDevRepoInternal(commandRunner, options, getDevStatus);
 
 /** Exact read-only diff used by CLI composition; errors must not become empty prompts. */
 export const readDevDiff = (

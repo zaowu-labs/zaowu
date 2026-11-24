@@ -24,6 +24,13 @@ the broader execution model below is implemented and verified.
   workflow directory.
 - Workflow files and individual write contents are bounded, and write-content
   SHA-256 digests participate in confirmation fingerprints.
+- Both workflow formats accept `vars` and `variables` and preserve line breaks
+  in substituted text. To create an empty file, specify `content: ""`.
+- Confirmed runs check all write destinations before creating the first file.
+  A collision or missing output directory leaves earlier destinations untouched.
+  When spellings may be equivalent, the run checks them in a temporary directory
+  on the destination volume and removes it before writing workflow outputs.
+  A later I/O failure can still leave files that were already created.
 
 ## Execution Principles
 

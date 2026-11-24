@@ -295,8 +295,7 @@ const resolveProviderEndpoint = (
     !['http:', 'https:'].includes(parsed.protocol) ||
     parsed.username ||
     parsed.password ||
-    parsed.search ||
-    parsed.hash
+    /[?#]/.test(parsed.href)
   ) {
     throw new ZaoWuError({
       code: 'AI_PROVIDER_REQUEST_FAILED',
@@ -306,7 +305,12 @@ const resolveProviderEndpoint = (
     });
   }
 
-  return `${parsed.toString().replace(/\/+$/, '')}${pathSuffix}`;
+  const basePath = parsed.pathname.replace(/\/+$/, '');
+  const apiPath = path.posix.dirname(pathSuffix);
+  // Accept both the server root and an API base such as /proxy/v1.
+  parsed.pathname =
+    basePath + (basePath.endsWith(apiPath) ? pathSuffix.slice(apiPath.length) : pathSuffix);
+  return parsed.href;
 };
 
 // Maps (not object literals) so an arbitrary caller-supplied provider id like
@@ -448,10 +452,9 @@ const extractOpenAIOutputText = (payload: unknown): string => {
         : ''
     )
     .filter(Boolean)
-    .join('\n')
-    .trim();
+    .join('\n');
 
-  if (text) {
+  if (text.trim()) {
     return text;
   }
 
@@ -519,10 +522,9 @@ const extractAnthropicOutputText = (payload: unknown): string => {
       content && content.type === 'text' && typeof content.text === 'string' ? content.text : ''
     )
     .filter(Boolean)
-    .join('\n')
-    .trim();
+    .join('\n');
 
-  if (output) {
+  if (output.trim()) {
     return output;
   }
 

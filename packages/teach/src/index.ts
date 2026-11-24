@@ -2,8 +2,9 @@ import { stat } from 'node:fs/promises';
 import path from 'node:path';
 import {
   createCapabilityLedger,
+  decodeTextBytes,
   readBoundedFile,
-  stripUtf8Bom,
+  scanMarkdown,
   ZaoWuError,
   type DomainDefinition,
 } from '@zaowu-labs/core';
@@ -79,38 +80,37 @@ const readTopicOrFile = async (input: string, cwd = process.cwd()): Promise<stri
       fix: 'Check the path and file permissions, or supply a literal topic.',
     });
   }
-  return stripUtf8Bom(
-    (
-      await readBoundedFile(filePath, 1024 * 1024, {
-        failed: {
-          code: 'TEACH_INPUT_READ_FAILED',
-          message: 'Could not read teaching input.',
-          why: 'The selected file is not readable as a regular text file.',
-          fix: 'Check the path and file permissions, or supply a literal topic.',
-        },
-        tooLarge,
-      })
-    ).toString('utf8')
-  );
+  const bytes = await readBoundedFile(filePath, 1024 * 1024, {
+    failed: {
+      code: 'TEACH_INPUT_READ_FAILED',
+      message: 'Could not read teaching input.',
+      why: 'The selected file is not readable as a regular text file.',
+      fix: 'Check the path and file permissions, or supply a literal topic.',
+    },
+    tooLarge,
+  });
+  return decodeTextBytes(bytes, {
+    code: 'TEACH_INPUT_READ_FAILED',
+    message: 'Could not decode teaching material.',
+    why: 'The teaching file contains invalid text encoding or NUL characters.',
+    fix: 'Export the material as UTF-8, or as UTF-16 with a byte-order mark.',
+  });
 };
 
-const HEADING_LINE_PATTERN = /^#{1,6}\s/;
-
-const stripHeadingMarker = (line: string): string => line.replace(/^#+\s*/, '').trim();
-
-const getTopic = (content: string): { topic: string; fromHeading: boolean } => {
-  const lines = content.split(/\r?\n/);
-  const topic = lines.map(stripHeadingMarker).find(Boolean) ?? 'Untitled topic';
-
-  // The topic counts as heading-derived only when the first non-empty line is
-  // itself a heading; a plain-text first line means every heading is a real
-  // section.
-  const firstNonEmptyLine = lines.map((line) => line.trim()).find(Boolean);
-
-  return {
-    topic,
-    fromHeading: firstNonEmptyLine ? HEADING_LINE_PATTERN.test(firstNonEmptyLine) : false,
-  };
+const readTeachingMaterial = async (input: string, cwd?: string) => {
+  const content = await readTopicOrFile(input, cwd);
+  const scan = scanMarkdown(content.includes('\n') ? content : content.trim());
+  const heading = scan.headings[0];
+  const fromHeading = heading && heading.line < (scan.firstProseLine ?? Infinity);
+  const topic = fromHeading ? heading.title : scan.prose[0];
+  if (!topic)
+    throw new ZaoWuError({
+      code: 'TEACH_INPUT_REQUIRED',
+      message: 'Teaching material needs a topic.',
+      why: 'No heading or prose was found outside metadata and code blocks.',
+      fix: 'Add a title or an explanatory sentence to the material.',
+    });
+  return { topic, scan, sectionHeadings: fromHeading ? scan.headings.slice(1) : scan.headings };
 };
 
 const getSentences = (content: string): string[] =>
@@ -122,25 +122,11 @@ const getSentences = (content: string): string[] =>
     .map((sentence) => sentence.trim())
     .filter(Boolean);
 
-/**
- * Extract heading lines from markdown-like content.
- * Returns bare heading text without the leading # characters.
- */
-const getHeadings = (content: string): string[] =>
-  content
-    .split(/\r?\n/)
-    .filter((line) => HEADING_LINE_PATTERN.test(line))
-    .map(stripHeadingMarker)
-    .filter(Boolean);
-
 export const createTeachingPlan = async (
   input: string,
   options: { cwd?: string } = {}
 ): Promise<TeachPlanResult> => {
-  const content = await readTopicOrFile(input, options.cwd);
-  const { topic, fromHeading } = getTopic(content);
-  const headings = getHeadings(content);
-  const sectionHeadings = fromHeading ? headings.slice(1) : headings;
+  const { topic, sectionHeadings } = await readTeachingMaterial(input, options.cwd);
 
   // Build a richer outline when the content has discoverable section headings.
   const outline =
@@ -148,7 +134,7 @@ export const createTeachingPlan = async (
       ? [
           `Goal: understand ${topic}.`,
           'Warm-up: ask what the learner already knows.',
-          ...sectionHeadings.map((h, i) => `Section ${i + 1}: ${h}`),
+          ...sectionHeadings.map((h, i) => `Section ${i + 1}: ${h.title}`),
           'Practice: complete a short guided exercise.',
           'Check: summarize the key point and one common mistake.',
         ]
@@ -184,9 +170,9 @@ export const createTeachingQuiz = async (
   }
 
   const count = rawCount;
-  const content = await readTopicOrFile(input, options.cwd);
-  const { topic } = getTopic(content);
-  const sentences = getSentences(content).slice(0, count);
+  const { topic, scan } = await readTeachingMaterial(input, options.cwd);
+  const material = scan.prose.length ? scan.prose : scan.headings.map((heading) => heading.title);
+  const sentences = getSentences(material.join('\n')).slice(0, count);
   const questions =
     sentences.length > 0
       ? sentences.map(

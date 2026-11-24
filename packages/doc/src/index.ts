@@ -1,12 +1,13 @@
 import path from 'node:path';
 import { extractDocx } from './docx.js';
 import { extractPdf } from './pdf.js';
-import { scanMarkdown } from './markdown.js';
 import {
   assertSafeOutputPath,
   createCapabilityLedger,
+  decodeTextBytes,
   stripUtf8Bom,
   readBoundedFile,
+  scanMarkdown,
   writeTextFileExclusive,
   ZaoWuError,
   type DomainDefinition,
@@ -242,9 +243,19 @@ const readTextDocument = async (
     let content: string;
     if (extension === '.pdf') content = await extractPdf(buffer);
     else if (extension === '.docx') content = await extractDocx(buffer, format ?? 'markdown');
-    else if (extension === '.html' || extension === '.htm')
-      content = stripHtmlTags(buffer.toString('utf8'));
-    else content = buffer.toString('utf8');
+    else {
+      const text = decodeTextBytes(
+        buffer,
+        {
+          code: 'DOCUMENT_READ_FAILED',
+          message: 'Could not decode document text.',
+          why: 'The input contains invalid text encoding or NUL characters.',
+          fix: 'Re-export the document as UTF-8, or as UTF-16 with a byte-order mark.',
+        },
+        { preserveBom: true }
+      );
+      content = extension === '.html' || extension === '.htm' ? stripHtmlTags(text) : text;
+    }
     if (content.length > 2_000_000) {
       throw new ZaoWuError({
         code: 'DOCUMENT_INPUT_TOO_LARGE',

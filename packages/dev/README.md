@@ -6,6 +6,10 @@ This package reads Git state for status, commit-message preview, and local diff
 review. It also owns the preview-first `dev sync` operation that fetches origin
 and hard-resets the current branch only after explicit confirmation.
 
+Install the [ZaoWu CLI](https://www.npmjs.com/package/@zaowu-labs/cli) and run `zw dev status` in a Git working tree.
+Status and review report paths relative to the repository root even when run
+from a subdirectory. Use `zw dev review --staged` for the staged patch.
+
 Safety:
 
 - Status, commit preview, and review do not modify Git state.
@@ -15,9 +19,10 @@ Safety:
   Unrelated untracked files are preserved. Risk is checked against the actual
   origin branch, regardless of upstream configuration, and rechecked after fetch.
 - Sync fingerprints bind tracked working-copy and staged content as well as
-  the branch, HEAD, cached remote target, and status. Local edits during fetch
-  stop the reset and require a fresh preview.
-- Sync operation plans disclose `git fetch origin`, the exact hard-reset target,
+  the worktree, origin, branch, HEAD, cached remote target, and obstructing paths.
+  On a case-insensitive volume a differently capitalized filename can obstruct
+  a reset. Local edits during fetch stop the reset and require a fresh preview.
+- Sync operation plans disclose `git fetch origin +refs/heads/<branch>:refs/remotes/origin/<branch>`, the exact hard-reset target,
   and network access to the origin remote.
 - Commit preview and review output are read-only and report risks as warnings.
 - Commit preview returns both a copyable `message` and a structured `suggestion`

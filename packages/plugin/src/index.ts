@@ -211,7 +211,7 @@ export const getPluginTargetSubjects = async (
   }
 };
 
-const getManifestPath = async (target: string): Promise<string | null> => {
+const getManifestPath = async (target: string): Promise<string | null | undefined> => {
   try {
     const info = await stat(target);
 
@@ -223,8 +223,8 @@ const getManifestPath = async (target: string): Promise<string | null> => {
           if ((await stat(candidate)).isFile()) {
             return candidate;
           }
-        } catch {
-          // Try the next manifest candidate.
+        } catch (error) {
+          rethrowUnlessMissing(error);
         }
       }
 
@@ -232,8 +232,25 @@ const getManifestPath = async (target: string): Promise<string | null> => {
     }
 
     return info.isFile() ? target : null;
-  } catch {
-    return null;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+    throw new ZaoWuError({
+      code: 'PLUGIN_READ_FAILED',
+      message: 'Could not inspect plugin source.',
+      why: `The file system could not resolve \`${target}\` or its manifest.`,
+      fix: 'Check that the source is accessible and the parent directories can be read.',
+    });
+  }
+};
+
+const reportUnknownFields = (
+  value: object,
+  fields: readonly string[],
+  label: string,
+  errors: string[]
+): void => {
+  for (const key of Object.keys(value)) {
+    if (!fields.includes(key)) errors.push(`${label} field \`${key}\` is not supported.`);
   }
 };
 
@@ -244,6 +261,13 @@ const validateSourceManifest = (value: unknown): PluginValidationResult['errors'
   if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
     return ['Manifest must be a JSON object.'];
   }
+
+  reportUnknownFields(
+    manifest,
+    ['schemaVersion', 'id', 'name', 'version', 'commands'],
+    'Manifest',
+    errors
+  );
 
   if (typeof manifest.id !== 'string' || !PLUGIN_ID_PATTERN.test(manifest.id)) {
     errors.push('Manifest `id` must be a valid plugin id.');
@@ -260,11 +284,13 @@ const validateSourceManifest = (value: unknown): PluginValidationResult['errors'
 
   if (manifest.name !== undefined && typeof manifest.name !== 'string') {
     errors.push('Manifest `name` must be a string when provided.');
-  }
+  } else if (manifest.name === '')
+    errors.push('Manifest `name` must include at least one character.');
 
   if (manifest.version !== undefined && typeof manifest.version !== 'string') {
     errors.push('Manifest `version` must be a string when provided.');
-  }
+  } else if (manifest.version === '')
+    errors.push('Manifest `version` must include at least one character.');
 
   if (manifest.commands !== undefined) {
     if (!Array.isArray(manifest.commands)) {
@@ -278,6 +304,7 @@ const validateSourceManifest = (value: unknown): PluginValidationResult['errors'
           return;
         }
 
+        reportUnknownFields(command, ['name', 'summary'], `Command at index ${index}`, errors);
         if (typeof command.name !== 'string' || !PLUGIN_ID_PATTERN.test(command.name)) {
           errors.push(`Command at index ${index} has an invalid name.`);
         } else if (commandNames.has(command.name)) {
@@ -303,7 +330,7 @@ export const validatePluginSource = async (
   const manifestPath = await getManifestPath(path.resolve(options.cwd ?? process.cwd(), target));
 
   if (!manifestPath) {
-    if (!isPathLike(target)) {
+    if (manifestPath === undefined && !isPathLike(target)) {
       assertPluginId(target);
 
       return {
@@ -333,7 +360,7 @@ export const validatePluginSource = async (
       status: errors.length > 0 ? 'warning' : 'ok',
       target,
       manifestPath,
-      manifest,
+      ...(errors.length === 0 ? { manifest } : {}),
       warnings: [],
       errors,
     };
@@ -426,9 +453,14 @@ export const installPlugin = async (
   const cwd = options.cwd ?? process.cwd();
   const pluginDir = getPluginDir(cwd);
   const requestedSource = options.source ?? id;
-  const source = isPathLike(requestedSource) ? path.resolve(cwd, requestedSource) : requestedSource;
+  const sourceValidation =
+    options.source !== undefined || isPathLike(requestedSource)
+      ? await validatePluginSource(requestedSource, { cwd })
+      : null;
+  const source = sourceValidation?.manifestPath
+    ? path.resolve(cwd, requestedSource)
+    : requestedSource;
   const pluginPath = getPluginPath(pluginDir, id);
-  const sourceValidation = isPathLike(source) ? await validatePluginSource(source) : null;
 
   await assertSafePluginDir(cwd, pluginDir);
 

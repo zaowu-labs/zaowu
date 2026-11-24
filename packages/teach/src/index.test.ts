@@ -45,6 +45,38 @@ describe('teach domain', () => {
     ]);
   });
 
+  it('uses lesson headings and prose outside Markdown metadata and example code', async () => {
+    const md = [
+      '---',
+      'author: ZaoWu',
+      '---',
+      '  # 课程 ###',
+      '',
+      '~~~sh',
+      '# 示例',
+      '~~~',
+      '## 第一节',
+      '先读教材。再做练习。',
+    ].join('\n');
+    const plan = await createTeachingPlan(md);
+    expect(plan.topic).toBe('课程');
+    expect(plan.outline.filter((line) => line.startsWith('Section'))).toEqual([
+      'Section 1: 第一节',
+    ]);
+    expect((await createTeachingQuiz(md)).questions).toEqual([
+      'Q1: Explain this idea in your own words: 先读教材.',
+      'Q2: Explain this idea in your own words: 再做练习.',
+    ]);
+  });
+
+  it('uses heading titles for outlines without prose and preserves literal hash prefixes', async () => {
+    expect((await createTeachingQuiz('# Safety\n## Recovery')).questions).toEqual([
+      'Q1: Explain this idea in your own words: Safety.',
+      'Q2: Explain this idea in your own words: Recovery.',
+    ]);
+    expect((await createTeachingPlan('#include in C')).topic).toBe('#include in C');
+  });
+
   it('creates quiz questions from material', async () => {
     await expect(
       createTeachingQuiz('Variables store values. Functions group behavior.')

@@ -939,11 +939,44 @@ describe('AI provider registry', () => {
     }
   });
 
+  it.each([
+    ['openai', 'OPENAI_BASE_URL', '/team/v1/', '/team/v1/responses'],
+    ['anthropic', 'ANTHROPIC_BASE_URL', '/v1', '/v1/messages'],
+    ['ollama', 'OLLAMA_HOST', '/local/api/', '/local/api/generate'],
+    ['openai', 'OPENAI_BASE_URL', '/team-v1/', '/team-v1/v1/responses'],
+  ])(
+    'preserves the API prefix on %s base URLs ending in %s %s',
+    async (provider, key, base, endpoint) => {
+      const origin = 'https://example.test';
+      const request = {
+        provider,
+        prompt: 'Answer',
+        allowNetwork: true,
+        env: { [key]: origin + base, OPENAI_API_KEY: 'test', ANTHROPIC_API_KEY: 'test' },
+      };
+      expect((await previewAIRequest(request)).endpoint).toBe(origin + endpoint);
+      const result = await askAI({
+        ...request,
+        fetcher: async (url) => {
+          expect(url).toBe(origin + endpoint);
+          return Response.json({
+            response: 'ok',
+            output_text: 'ok',
+            content: [{ type: 'text', text: 'ok' }],
+          });
+        },
+      });
+      expect(result.endpoint).toBe(origin + endpoint);
+    }
+  );
+
   it('rejects provider base URLs with query strings or fragments', () => {
     for (const [provider, env] of [
       ['openai', { OPENAI_BASE_URL: 'https://my-custom-proxy.internal?tenant=demo' }],
       ['ollama', { OLLAMA_HOST: 'http://localhost:11434?tenant=demo' }],
       ['anthropic', { ANTHROPIC_BASE_URL: 'https://my-anthropic-proxy.internal#messages' }],
+      ['openai', { OPENAI_BASE_URL: 'https://my-custom-proxy.internal/v1?' }],
+      ['anthropic', { ANTHROPIC_BASE_URL: 'https://my-anthropic-proxy.internal#' }],
     ] as const) {
       let thrown: unknown;
 

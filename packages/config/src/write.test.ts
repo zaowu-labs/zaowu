@@ -1,5 +1,6 @@
 import {
   chmod,
+  mkdir,
   mkdtemp,
   open,
   readFile,
@@ -12,7 +13,7 @@ import {
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { loadConfig, setResolvedConfigValue } from './index';
+import { loadConfig, migrateResolvedConfig, setResolvedConfigValue } from './index';
 import { replaceConfigFile } from './write';
 
 describe('complete config file replacement', () => {
@@ -83,6 +84,67 @@ describe('complete config file replacement', () => {
       }
     }
   );
+  it('refuses output exceeding the read limit in preview and confirmation', async () => {
+    const cwd = await mkdtemp(path.join(os.tmpdir(), 'zaowu-config-limit-'));
+    const file = path.join(cwd, 'zw.yml');
+    const prefix = '#'.repeat(1024 * 1024 - 36);
+    const content = prefix + '\nproject:\n  name: small\n';
+    try {
+      await writeFile(file, content);
+      for (const yes of [false, true]) {
+        await expect(
+          setResolvedConfigValue('project.name', '造物'.repeat(8), { cwd, yes })
+        ).rejects.toMatchObject({ code: 'CONFIG_VALUE_INVALID' });
+      }
+      expect(await readFile(file, 'utf8')).toBe(content);
+      await writeFile(file, 'project: {name: "' + 'X'.repeat(1024 * 1024 - 48) + '"}\n');
+      await expect(migrateResolvedConfig({ cwd, yes: true })).rejects.toMatchObject({
+        code: 'CONFIG_VALUE_INVALID',
+      });
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses malformed UTF-8 before a config edit can replace user bytes', async () => {
+    const cwd = await mkdtemp(path.join(os.tmpdir(), 'zaowu-config-encoding-'));
+    const file = path.join(cwd, 'zw.yml');
+    const original = Buffer.concat([
+      Buffer.from('# '),
+      Buffer.from([0xff]),
+      Buffer.from('\nproject: {name: old}\n'),
+    ]);
+    try {
+      await writeFile(file, original);
+      await expect(
+        setResolvedConfigValue('project.name', 'new', { cwd, yes: true })
+      ).rejects.toMatchObject({ code: 'CONFIG_PARSE_FAILED' });
+      expect(await readFile(file)).toEqual(original);
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+  it.skipIf(process.platform === 'win32')(
+    'keeps an unavailable local config from redirecting a write to the parent',
+    async () => {
+      const cwd = await mkdtemp(path.join(os.tmpdir(), 'zaowu-config-scope-'));
+      const child = path.join(cwd, 'child');
+      const parentConfig = path.join(cwd, 'zw.yml');
+      const content = 'project: {name: parent}\n';
+      try {
+        await writeFile(parentConfig, content);
+        await mkdir(child);
+        await symlink('unavailable', path.join(child, 'zw.yml'));
+        await expect(
+          setResolvedConfigValue('project.name', 'child', { cwd: child, yes: true })
+        ).rejects.toMatchObject({ code: 'CONFIG_PARSE_FAILED' });
+        expect(await readFile(parentConfig, 'utf8')).toBe(content);
+      } finally {
+        await rm(cwd, { recursive: true, force: true });
+      }
+    }
+  );
+
   it('bounds config reads before parsing', async () => {
     const cwd = await mkdtemp(path.join(os.tmpdir(), 'zaowu-config-large-'));
     const file = path.join(cwd, 'zw.yml');

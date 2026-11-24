@@ -5,6 +5,10 @@ Web workflow package for ZaoWu.
 This package previews or performs explicit web requests for URL inspection and
 fetching.
 
+Call `inspectWebTarget("https://example.org")` in Node.js or run
+`zw web inspect https://example.org` with the [ZaoWu CLI](https://www.npmjs.com/package/@zaowu-labs/cli). The preview
+returns the normalized target before a confirmed HEAD request.
+
 Safety:
 
 - Network requests preview by default.
@@ -21,3 +25,6 @@ Safety:
   unbounded response; results report bytes read and whether the body length is exact.
   Reaching the cap stops immediately and conservatively reports an inexact length,
   even if the actual response might end at exactly that byte count.
+- The Content-Type charset controls decoding. Preview limits preserve complete
+  Unicode code points. `bodyLength` counts UTF-16 units decoded so far when
+  the byte limit interrupts a multibyte character.
